@@ -1,0 +1,21 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Tankstellen Österreich",
+        "description": "Konfiguriere die Spritpreisüberwachung für deine Umgebung.",
+        "data": {
+          "name": "Name",
+          "location": "Standort",
+          "fuel_types": "Kraftstoffarten",
+          "include_closed": "Geschlossene Tankstellen anzeigen",
+          "scan_interval": "Aktualisierungsintervall (Minuten)"
+        }
+      }
+    },
+    "error": {
+      "invalid_location": "Bitte wähle einen gültigen Standort auf der Karte.",
+      "no_fuel_type": "Bitte wähle mindestens eine Kraftstoffart."
+    }
+  }
+}

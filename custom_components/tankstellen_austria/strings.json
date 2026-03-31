@@ -1,0 +1,21 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Tankstellen Austria",
+        "description": "Set up fuel price monitoring for your area.",
+        "data": {
+          "name": "Name",
+          "location": "Location",
+          "fuel_types": "Fuel types",
+          "include_closed": "Include closed stations",
+          "scan_interval": "Update interval (minutes)"
+        }
+      }
+    },
+    "error": {
+      "invalid_location": "Please select a valid location on the map.",
+      "no_fuel_type": "Please select at least one fuel type."
+    }
+  }
+}
