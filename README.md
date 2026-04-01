@@ -3,8 +3,7 @@
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
 
 Home Assistant integration for Austrian fuel prices via the
-[E-Control Spritpreisrechner API](https://api.e-control.at/sprit/1.0/search/gas-stations/by-address
-).
+[E-Control Spritpreisrechner API](https://www.e-control.at/spritpreisrechner).
 
 Shows the 5 cheapest fuel stations near your location for Diesel, Super 95,
 and/or CNG.
@@ -29,6 +28,8 @@ and/or CNG.
    **Integration**
 3. Search for "Tankstellen Austria" and install
 4. Restart Home Assistant
+
+[![Add to HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=rolandzeiner&repository=tankstellen-austria&category=integration)
 
 ### Manual
 
