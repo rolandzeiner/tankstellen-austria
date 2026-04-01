@@ -28,6 +28,14 @@ and/or CNG.
 - **No API key required** – the E-Control API is public
 - **Reconfigurable** – change location, fuel types, or update interval any time via the "Configure" button without removing the integration
 
+## Screenshots
+
+![Lovelace card](screenshots/card.webp)
+
+![Card editor](screenshots/card-config.webp)
+
+![Config flow](screenshots/config-flow.webp)
+
 ## Requirements
 
 - Home Assistant **2024.1.0** or newer
