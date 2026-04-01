@@ -13,6 +13,8 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from .const import CONF_FUEL_TYPES, FUEL_TYPES
 from .coordinator import TankstellenCoordinator
 
+PARALLEL_UPDATES = 0
+
 
 async def async_setup_entry(
     hass: HomeAssistant,

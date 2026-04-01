@@ -46,14 +46,19 @@ class TankstellenCoordinator(DataUpdateCoordinator):
 
     async def _async_update_data(self) -> dict[str, list[dict]]:
         """Fetch data for each configured fuel type."""
+        was_available = self.last_update_success
         results: dict[str, list[dict]] = {}
         for fuel_type in self._fuel_types:
             try:
                 results[fuel_type] = await self._fetch(fuel_type)
             except Exception as err:
+                if was_available:
+                    _LOGGER.warning("E-Control API unavailable: %s", err)
                 raise UpdateFailed(
                     f"Error fetching {fuel_type} stations: {err}"
                 ) from err
+        if not was_available:
+            _LOGGER.info("E-Control API is back online")
         return results
 
     async def _fetch(self, fuel_type: str) -> list[dict]:
