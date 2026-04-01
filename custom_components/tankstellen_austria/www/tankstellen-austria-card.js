@@ -1,5 +1,5 @@
 /**
- * Tankstellen Austria Card v1.1.0
+ * Tankstellen Austria Card v1.2.0
  * Custom Lovelace card for displaying Austrian fuel prices.
  * https://github.com/rolandzeiner/tankstellen-austria
  */
@@ -21,6 +21,14 @@ const TRANSLATIONS = {
     per_liter: "/l",
     last_7_days: "Letzte 7 Tage",
     fuel_types: { DIE: "Diesel", SUP: "Super 95", GAS: "CNG Erdgas" },
+    editor: {
+      entities: "Sensoren",
+      entities_hint: "Leer lassen für automatische Erkennung",
+      max_stations: "Anzahl Tankstellen",
+      show_map_links: "Google Maps Links anzeigen",
+      show_opening_hours: "Öffnungszeiten anzeigen",
+      show_history: "Preisverlauf anzeigen",
+    },
   },
   en: {
     cheapest: "Cheapest price",
@@ -38,8 +46,31 @@ const TRANSLATIONS = {
     per_liter: "/l",
     last_7_days: "Last 7 days",
     fuel_types: { DIE: "Diesel", SUP: "Super 95", GAS: "CNG" },
+    editor: {
+      entities: "Sensors",
+      entities_hint: "Leave empty for auto-detection",
+      max_stations: "Number of stations",
+      show_map_links: "Show Google Maps links",
+      show_opening_hours: "Show opening hours",
+      show_history: "Show price history",
+    },
   },
 };
+
+// Helper: find all tankstellen_austria sensors in hass states
+function _findTankstellenEntities(hass) {
+  if (!hass || !hass.states) return [];
+  return Object.keys(hass.states).filter((eid) => {
+    const state = hass.states[eid];
+    return (
+      eid.startsWith("sensor.") &&
+      state.attributes &&
+      state.attributes.fuel_type &&
+      state.attributes.stations &&
+      Array.isArray(state.attributes.stations)
+    );
+  });
+}
 
 class TankstellenAustriaCard extends HTMLElement {
   _config = {};
@@ -50,9 +81,6 @@ class TankstellenAustriaCard extends HTMLElement {
   _historyLoading = {};
 
   setConfig(config) {
-    if (!config.entities || !config.entities.length) {
-      throw new Error("Please define at least one entity.");
-    }
     this._config = config;
     this._render();
   }
@@ -61,12 +89,34 @@ class TankstellenAustriaCard extends HTMLElement {
     const prevHass = this._hass;
     this._hass = hass;
 
-    // Fetch history on first load
     if (!prevHass && hass) {
       this._fetchAllHistory();
     }
 
     this._render();
+  }
+
+  // Resolve entities: use config or auto-detect
+  _resolveEntities() {
+    if (!this._hass) return [];
+    let entityIds = this._config.entities;
+
+    // Auto-detect if no entities configured
+    if (!entityIds || !entityIds.length) {
+      entityIds = _findTankstellenEntities(this._hass);
+    }
+
+    return entityIds
+      .map((eid) => {
+        const state = this._hass.states[eid];
+        if (!state) return null;
+        return {
+          entity_id: eid,
+          state: state.state,
+          attributes: state.attributes,
+        };
+      })
+      .filter(Boolean);
   }
 
   _t(key) {
@@ -98,22 +148,7 @@ class TankstellenAustriaCard extends HTMLElement {
     )}`;
   }
 
-  _getEntities() {
-    if (!this._hass) return [];
-    return (this._config.entities || [])
-      .map((eid) => {
-        const state = this._hass.states[eid];
-        if (!state) return null;
-        return {
-          entity_id: eid,
-          state: state.state,
-          attributes: state.attributes,
-        };
-      })
-      .filter(Boolean);
-  }
-
-  // --- History fetching via HA WebSocket API ---
+  // --- History ---
   async _fetchHistory(entityId) {
     if (!this._hass || !this._hass.callWS) return;
     if (this._historyLoading[entityId]) return;
@@ -149,10 +184,12 @@ class TankstellenAustriaCard extends HTMLElement {
   }
 
   _fetchAllHistory() {
-    (this._config.entities || []).forEach((eid) => this._fetchHistory(eid));
+    const entities = this._resolveEntities();
+    entities.forEach((e) => this._fetchHistory(e.entity_id));
     clearInterval(this._historyInterval);
     this._historyInterval = setInterval(() => {
-      (this._config.entities || []).forEach((eid) => this._fetchHistory(eid));
+      const ents = this._resolveEntities();
+      ents.forEach((e) => this._fetchHistory(e.entity_id));
     }, 30 * 60 * 1000);
   }
 
@@ -160,7 +197,7 @@ class TankstellenAustriaCard extends HTMLElement {
     clearInterval(this._historyInterval);
   }
 
-  // --- Sparkline SVG rendering ---
+  // --- Sparkline ---
   _renderSparkline(entityId) {
     const data = this._historyData[entityId];
     if (!data || data.length < 2) return "";
@@ -202,15 +239,21 @@ class TankstellenAustriaCard extends HTMLElement {
       </div>`;
   }
 
+  // --- Main render ---
   _render() {
-    if (!this._hass || !this._config.entities) return;
+    if (!this._hass) return;
 
-    const entities = this._getEntities();
-    if (!entities.length) return;
+    const entities = this._resolveEntities();
+    if (!entities.length) {
+      this.innerHTML = `<ha-card><div class="empty">${TRANSLATIONS[(this._config.language || "de")].no_data
+        }</div></ha-card>${this._getStyles()}`;
+      return;
+    }
 
     const showMapLinks = this._config.show_map_links !== false;
     const showHours = this._config.show_opening_hours !== false;
     const showHistory = this._config.show_history !== false;
+    const maxStations = Math.min(5, Math.max(1, parseInt(this._config.max_stations, 10) || 5));
 
     let html = `<ha-card>`;
 
@@ -227,7 +270,8 @@ class TankstellenAustriaCard extends HTMLElement {
 
     // Active entity
     const active = entities[this._activeTab] || entities[0];
-    const stations = active?.attributes?.stations || [];
+    const allStations = active?.attributes?.stations || [];
+    const stations = allStations.slice(0, maxStations);
     const fuelType = active?.attributes?.fuel_type || "";
     const fuelTypeName = active?.attributes?.fuel_type_name || this._fuelName(fuelType);
     const avgPrice = active?.attributes?.average_price;
@@ -277,21 +321,19 @@ class TankstellenAustriaCard extends HTMLElement {
                 <div class="address">${loc.postalCode || ""} ${loc.city || ""}, ${loc.address || ""}</div>
               </div>
               <div class="price">${this._formatPrice(s.price)}</div>
-              ${
-                showMapLinks
-                  ? `<a class="map-link" href="${this._mapsUrl(loc)}" target="_blank" rel="noopener noreferrer" title="${this._t("map")}">
+              ${showMapLinks
+            ? `<a class="map-link" href="${this._mapsUrl(loc)}" target="_blank" rel="noopener noreferrer" title="${this._t("map")}">
                       <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
                     </a>`
-                  : ""
-              }
+            : ""
+          }
             </div>
-            ${
-              showHours
-                ? `<div class="hours ${expandClass}">
+            ${showHours
+            ? `<div class="hours ${expandClass}">
                     ${this._renderHours(s.opening_hours || [])}
                   </div>`
-                : ""
-            }
+            : ""
+          }
           </div>`;
       });
       html += `</div>`;
@@ -550,47 +592,232 @@ class TankstellenAustriaCard extends HTMLElement {
     return document.createElement("tankstellen-austria-card-editor");
   }
 
-  static getStubConfig() {
-    return { entities: [] };
+  static getStubConfig(hass) {
+    const entities = _findTankstellenEntities(hass);
+    return {
+      entities: entities.length ? entities : [],
+      max_stations: 5,
+      show_map_links: true,
+      show_opening_hours: true,
+      show_history: true,
+    };
   }
 }
 
-// ------ Simple visual editor ------
+// ============================================================
+// Visual Card Editor
+// ============================================================
 class TankstellenAustriaCardEditor extends HTMLElement {
   _config = {};
   _hass = null;
 
   setConfig(config) {
-    this._config = config;
+    this._config = { ...config };
     this._render();
   }
+
   set hass(hass) {
     this._hass = hass;
+    this._render();
+  }
+
+  _lang() {
+    return this._hass?.language || "de";
+  }
+
+  _et(key) {
+    const lang = this._lang();
+    const dict = TRANSLATIONS[lang]?.editor || TRANSLATIONS.de.editor;
+    return dict[key] || TRANSLATIONS.de.editor[key] || key;
+  }
+
+  _fireChanged() {
+    this.dispatchEvent(
+      new CustomEvent("config-changed", { detail: { config: { ...this._config } } })
+    );
   }
 
   _render() {
+    if (!this._hass) return;
+
+    // Find available tankstellen entities
+    const available = _findTankstellenEntities(this._hass);
+    const selected = this._config.entities || [];
+    const maxStations = this._config.max_stations ?? 5;
+    const showMap = this._config.show_map_links !== false;
+    const showHours = this._config.show_opening_hours !== false;
+    const showHistory = this._config.show_history !== false;
+
     this.innerHTML = `
-      <div style="padding:16px;">
-        <p><b>Tankstellen Austria Card</b></p>
-        <p style="font-size:13px;color:var(--secondary-text-color);">
-          Add your Tankstellen Austria sensor entities below (one per fuel type).
-        </p>
-        <ha-textfield
-          label="Entities (comma-separated)"
-          value="${(this._config.entities || []).join(", ")}"
-          style="width:100%;"
-        ></ha-textfield>
+      <div class="editor">
+        <style>
+          .editor {
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+          }
+          .editor-title {
+            font-weight: 600;
+            font-size: 16px;
+            color: var(--primary-text-color);
+          }
+          .editor-section {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+          }
+          .editor-label {
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--primary-text-color);
+          }
+          .editor-hint {
+            font-size: 12px;
+            color: var(--secondary-text-color);
+            margin-top: -4px;
+          }
+          .entity-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+          }
+          .entity-chip {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 10px;
+            border-radius: 16px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.15s;
+            border: 1px solid var(--divider-color);
+            background: transparent;
+            color: var(--primary-text-color);
+          }
+          .entity-chip.selected {
+            background: var(--primary-color);
+            color: var(--text-primary-color, #fff);
+            border-color: var(--primary-color);
+          }
+          .entity-chip:hover {
+            opacity: 0.85;
+          }
+          .entity-chip .fuel-name {
+            font-weight: 500;
+          }
+          .toggle-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 4px 0;
+          }
+          .toggle-row label {
+            font-size: 13px;
+            color: var(--primary-text-color);
+            cursor: pointer;
+          }
+          .slider-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+          }
+          .slider-row input[type="range"] {
+            flex: 1;
+            accent-color: var(--primary-color);
+          }
+          .slider-value {
+            min-width: 20px;
+            text-align: center;
+            font-weight: 600;
+            font-size: 14px;
+            color: var(--primary-text-color);
+          }
+        </style>
+
+        <div class="editor-title">Tankstellen Austria</div>
+
+        <!-- Entity selection -->
+        <div class="editor-section">
+          <div class="editor-label">${this._et("entities")}</div>
+          <div class="editor-hint">${this._et("entities_hint")}</div>
+          <div class="entity-chips">
+            ${available.map((eid) => {
+      const state = this._hass.states[eid];
+      const ft = state?.attributes?.fuel_type || "";
+      const ftName = (TRANSLATIONS[this._lang()] || TRANSLATIONS.de).fuel_types[ft] || ft;
+      const isSelected = selected.includes(eid);
+      return `<button class="entity-chip ${isSelected ? "selected" : ""}" data-entity="${eid}">
+                <span class="fuel-name">${ftName}</span>
+                <span style="font-size:11px;opacity:0.7;">${eid.split(".")[1]}</span>
+              </button>`;
+    }).join("")}
+          </div>
+        </div>
+
+        <!-- Max stations slider -->
+        <div class="editor-section">
+          <div class="editor-label">${this._et("max_stations")}</div>
+          <div class="slider-row">
+            <input type="range" min="1" max="5" step="1" value="${maxStations}" data-field="max_stations" />
+            <span class="slider-value">${maxStations}</span>
+          </div>
+        </div>
+
+        <!-- Toggles -->
+        <div class="editor-section">
+          <div class="toggle-row">
+            <label for="toggle-map">${this._et("show_map_links")}</label>
+            <ha-switch id="toggle-map" ${showMap ? "checked" : ""} data-field="show_map_links"></ha-switch>
+          </div>
+          <div class="toggle-row">
+            <label for="toggle-hours">${this._et("show_opening_hours")}</label>
+            <ha-switch id="toggle-hours" ${showHours ? "checked" : ""} data-field="show_opening_hours"></ha-switch>
+          </div>
+          <div class="toggle-row">
+            <label for="toggle-history">${this._et("show_history")}</label>
+            <ha-switch id="toggle-history" ${showHistory ? "checked" : ""} data-field="show_history"></ha-switch>
+          </div>
+        </div>
       </div>
     `;
-    this.querySelector("ha-textfield").addEventListener("change", (e) => {
-      const entities = e.target.value
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean);
-      this._config = { ...this._config, entities };
-      this.dispatchEvent(
-        new CustomEvent("config-changed", { detail: { config: this._config } })
-      );
+
+    // --- Attach listeners ---
+
+    // Entity chip toggles
+    this.querySelectorAll(".entity-chip").forEach((chip) => {
+      chip.addEventListener("click", () => {
+        const eid = chip.dataset.entity;
+        let current = [...(this._config.entities || [])];
+        if (current.includes(eid)) {
+          current = current.filter((e) => e !== eid);
+        } else {
+          current.push(eid);
+        }
+        this._config = { ...this._config, entities: current };
+        this._fireChanged();
+        this._render();
+      });
+    });
+
+    // Range slider
+    this.querySelectorAll('input[type="range"]').forEach((input) => {
+      input.addEventListener("input", (e) => {
+        const field = e.target.dataset.field;
+        this._config = { ...this._config, [field]: parseInt(e.target.value, 10) };
+        this._fireChanged();
+        // Update the displayed value
+        e.target.nextElementSibling.textContent = e.target.value;
+      });
+    });
+
+    // Toggle switches
+    this.querySelectorAll("ha-switch").forEach((sw) => {
+      sw.addEventListener("change", (e) => {
+        const field = e.target.dataset.field;
+        this._config = { ...this._config, [field]: e.target.checked };
+        this._fireChanged();
+      });
     });
   }
 }
@@ -604,4 +831,5 @@ window.customCards.push({
   name: "Tankstellen Austria",
   description: "Display Austrian fuel prices from E-Control Spritpreisrechner.",
   preview: false,
+  documentationURL: "https://github.com/rolandzeiner/tankstellen-austria",
 });

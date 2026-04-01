@@ -16,6 +16,10 @@ and/or CNG.
   all 5 stations with name, address, opening hours, and Google Maps link
 - **Custom Lovelace card** – `tankstellen-austria-card` with fuel-type header,
   tabs, expandable opening hours, map links, and 7-day price sparkline
+- **Auto-detection** – the card automatically finds all Tankstellen Austria
+  sensors, no manual entity configuration needed
+- **Visual card editor** – configure everything through the HA UI (entity
+  selection, station count, toggles for map/hours/history)
 - **Average price tracking** – average of all 5 stations as sensor attribute,
   tracked in HA history for long-term analysis
 - **Translations** – German and English included, easy to extend
@@ -57,27 +61,33 @@ picked up automatically:
 |-----|------|
 | `/tankstellen-austria/tankstellen-austria-card.js` | JavaScript Module |
 
-Then add the card to your dashboard:
+Then add the card to your dashboard. The simplest setup auto-detects all sensors:
+
+```yaml
+type: custom:tankstellen-austria-card
+```
+
+Or configure manually:
 
 ```yaml
 type: custom:tankstellen-austria-card
 entities:
   - sensor.tankstellen_wieselburg_diesel
   - sensor.tankstellen_wieselburg_super_95
-# Optional:
-# language: de  (defaults to HA language, falls back to 'de')
-# show_map_links: true
-# show_opening_hours: true
-# show_history: true
+max_stations: 3
+show_map_links: true
+show_opening_hours: true
+show_history: true
 ```
 
-The card auto-detects fuel types from the entity attributes and shows tabs.
+You can also configure everything via the visual card editor in the HA UI.
 
 ### Card options
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `entities` | *required* | List of Tankstellen Austria sensor entities |
+| `entities` | auto-detect | List of Tankstellen Austria sensor entities |
+| `max_stations` | `5` | Number of stations to show (1–5) |
 | `language` | HA language | `de` or `en` |
 | `show_map_links` | `true` | Show Google Maps link per station |
 | `show_opening_hours` | `true` | Show expandable opening hours on click |
@@ -88,7 +98,7 @@ The card auto-detects fuel types from the entity attributes and shows tabs.
 - **Fuel type header** with gas station icon (Diesel / Super 95 / CNG Erdgas)
 - **Cheapest price** and **average price** (Ø) at a glance
 - **7-day sparkline** of the cheapest price history with min/max labels
-- **Station list** ranked 1–5 with name, address, price, and map link
+- **Station list** ranked by price with name, address, and map link
 - **Opening hours** expandable per station on click
 
 ## Sensors
