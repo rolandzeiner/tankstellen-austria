@@ -14,8 +14,10 @@ and/or CNG.
   coordinates)
 - **One sensor per fuel type** – state = cheapest price, attributes contain
   all 5 stations with name, address, opening hours, and Google Maps link
-- **Custom Lovelace card** – `tankstellen-austria-card` with fuel-type tabs,
-  expandable opening hours, and map links
+- **Custom Lovelace card** – `tankstellen-austria-card` with fuel-type header,
+  tabs, expandable opening hours, map links, and 7-day price sparkline
+- **Average price tracking** – average of all 5 stations as sensor attribute,
+  tracked in HA history for long-term analysis
 - **Translations** – German and English included, easy to extend
 - **No API key required** – the E-Control API is public
 
@@ -66,9 +68,28 @@ entities:
 # language: de  (defaults to HA language, falls back to 'de')
 # show_map_links: true
 # show_opening_hours: true
+# show_history: true
 ```
 
 The card auto-detects fuel types from the entity attributes and shows tabs.
+
+### Card options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `entities` | *required* | List of Tankstellen Austria sensor entities |
+| `language` | HA language | `de` or `en` |
+| `show_map_links` | `true` | Show Google Maps link per station |
+| `show_opening_hours` | `true` | Show expandable opening hours on click |
+| `show_history` | `true` | Show 7-day sparkline price graph |
+
+### What the card shows
+
+- **Fuel type header** with gas station icon (Diesel / Super 95 / CNG Erdgas)
+- **Cheapest price** and **average price** (Ø) at a glance
+- **7-day sparkline** of the cheapest price history with min/max labels
+- **Station list** ranked 1–5 with name, address, price, and map link
+- **Opening hours** expandable per station on click
 
 ## Sensors
 
@@ -85,6 +106,7 @@ Each fuel type creates one sensor:
 | `fuel_type` | DIE / SUP / GAS |
 | `fuel_type_name` | Diesel / Super 95 / CNG Erdgas |
 | `station_count` | Number of stations with prices |
+| `average_price` | Average price across all stations |
 | `stations` | List of station objects (id, name, price, open, location, opening_hours) |
 
 ## API Info
