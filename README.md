@@ -2,7 +2,7 @@
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
 [![Version](https://img.shields.io/badge/version-1.3.0-blue.svg)](https://github.com/rolandzeiner/tankstellen-austria/releases)
-[![HA min version](https://img.shields.io/badge/Home%20Assistant-%3E%3D2024.1.0-blue.svg)](https://www.home-assistant.io/)
+[![HA min version](https://img.shields.io/badge/Home%20Assistant-%3E%3D2024.6-blue.svg)](https://www.home-assistant.io/)
 
 Home Assistant integration for Austrian fuel prices via the
 [E-Control Spritpreisrechner API](https://www.e-control.at/spritpreisrechner).
@@ -45,7 +45,7 @@ and/or CNG.
 
 ## Requirements
 
-- Home Assistant **2024.1.0** or newer
+- Home Assistant **2024.6** or newer
 
 ## Installation
 
