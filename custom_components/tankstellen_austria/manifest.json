@@ -9,7 +9,6 @@
   "integration_type": "service",
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/rolandzeiner/tankstellen-austria/issues",
-  "homeassistant": "2024.1.0",
   "requirements": [],
   "version": "1.2.1"
 }
