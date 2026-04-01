@@ -1,12 +1,13 @@
 /**
- * Tankstellen Austria Card
+ * Tankstellen Austria Card v1.1.0
  * Custom Lovelace card for displaying Austrian fuel prices.
  * https://github.com/rolandzeiner/tankstellen-austria
  */
 
 const TRANSLATIONS = {
   de: {
-    cheapest: "Günstigste",
+    cheapest: "Günstigster Preis",
+    average: "Ø Preis",
     price: "Preis",
     closed: "Geschlossen",
     open_now: "Geöffnet",
@@ -18,10 +19,12 @@ const TRANSLATIONS = {
     holiday: "Feiertag",
     map: "Karte",
     per_liter: "/l",
+    last_7_days: "Letzte 7 Tage",
     fuel_types: { DIE: "Diesel", SUP: "Super 95", GAS: "CNG Erdgas" },
   },
   en: {
-    cheapest: "Cheapest",
+    cheapest: "Cheapest price",
+    average: "Avg. price",
     price: "Price",
     closed: "Closed",
     open_now: "Open",
@@ -33,6 +36,7 @@ const TRANSLATIONS = {
     holiday: "Holiday",
     map: "Map",
     per_liter: "/l",
+    last_7_days: "Last 7 days",
     fuel_types: { DIE: "Diesel", SUP: "Super 95", GAS: "CNG" },
   },
 };
@@ -42,6 +46,8 @@ class TankstellenAustriaCard extends HTMLElement {
   _hass = null;
   _activeTab = 0;
   _expandedStations = new Set();
+  _historyData = {};
+  _historyLoading = {};
 
   setConfig(config) {
     if (!config.entities || !config.entities.length) {
@@ -52,7 +58,14 @@ class TankstellenAustriaCard extends HTMLElement {
   }
 
   set hass(hass) {
+    const prevHass = this._hass;
     this._hass = hass;
+
+    // Fetch history on first load
+    if (!prevHass && hass) {
+      this._fetchAllHistory();
+    }
+
     this._render();
   }
 
@@ -71,6 +84,11 @@ class TankstellenAustriaCard extends HTMLElement {
   _formatPrice(price) {
     if (price == null) return "–";
     return `€ ${Number(price).toFixed(3).replace(".", ",")}`;
+  }
+
+  _formatPriceShort(price) {
+    if (price == null) return "–";
+    return Number(price).toFixed(3).replace(".", ",");
   }
 
   _mapsUrl(loc) {
@@ -95,6 +113,95 @@ class TankstellenAustriaCard extends HTMLElement {
       .filter(Boolean);
   }
 
+  // --- History fetching via HA WebSocket API ---
+  async _fetchHistory(entityId) {
+    if (!this._hass || !this._hass.callWS) return;
+    if (this._historyLoading[entityId]) return;
+
+    this._historyLoading[entityId] = true;
+    const now = new Date();
+    const startTime = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+    try {
+      const result = await this._hass.callWS({
+        type: "history/history_during_period",
+        start_time: startTime.toISOString(),
+        end_time: now.toISOString(),
+        entity_ids: [entityId],
+        minimal_response: true,
+        significant_changes_only: true,
+      });
+
+      if (result && result[entityId]) {
+        this._historyData[entityId] = result[entityId]
+          .map((entry) => ({
+            time: new Date(entry.lu || entry.last_updated || entry.last_changed).getTime(),
+            value: parseFloat(entry.s || entry.state),
+          }))
+          .filter((d) => !isNaN(d.value));
+        this._render();
+      }
+    } catch (e) {
+      console.debug("Tankstellen Austria: Could not fetch history for", entityId, e);
+    } finally {
+      this._historyLoading[entityId] = false;
+    }
+  }
+
+  _fetchAllHistory() {
+    (this._config.entities || []).forEach((eid) => this._fetchHistory(eid));
+    clearInterval(this._historyInterval);
+    this._historyInterval = setInterval(() => {
+      (this._config.entities || []).forEach((eid) => this._fetchHistory(eid));
+    }, 30 * 60 * 1000);
+  }
+
+  disconnectedCallback() {
+    clearInterval(this._historyInterval);
+  }
+
+  // --- Sparkline SVG rendering ---
+  _renderSparkline(entityId) {
+    const data = this._historyData[entityId];
+    if (!data || data.length < 2) return "";
+
+    const width = 280;
+    const height = 48;
+    const padY = 4;
+
+    const values = data.map((d) => d.value);
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const range = max - min || 0.01;
+
+    const points = data.map((d, i) => {
+      const x = (i / (data.length - 1)) * width;
+      const y = height - padY - ((d.value - min) / range) * (height - 2 * padY);
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    });
+
+    const polyline = points.join(" ");
+    const areaPoints = `${polyline} ${width},${height} 0,${height}`;
+    const gradId = `spark-grad-${entityId.replace(/\./g, "_")}`;
+
+    return `
+      <svg class="sparkline" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="var(--primary-color)" stop-opacity="0.3"/>
+            <stop offset="100%" stop-color="var(--primary-color)" stop-opacity="0.02"/>
+          </linearGradient>
+        </defs>
+        <polygon points="${areaPoints}" fill="url(#${gradId})" />
+        <polyline points="${polyline}" fill="none" stroke="var(--primary-color)" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" />
+      </svg>
+      <div class="sparkline-labels">
+        <span>${this._formatPriceShort(min)}</span>
+        <span class="sparkline-period">${this._t("last_7_days")}</span>
+        <span>${this._formatPriceShort(max)}</span>
+      </div>`;
+  }
+
   _render() {
     if (!this._hass || !this._config.entities) return;
 
@@ -103,8 +210,8 @@ class TankstellenAustriaCard extends HTMLElement {
 
     const showMapLinks = this._config.show_map_links !== false;
     const showHours = this._config.show_opening_hours !== false;
+    const showHistory = this._config.show_history !== false;
 
-    // Build HTML
     let html = `<ha-card>`;
 
     // Tabs
@@ -121,6 +228,35 @@ class TankstellenAustriaCard extends HTMLElement {
     // Active entity
     const active = entities[this._activeTab] || entities[0];
     const stations = active?.attributes?.stations || [];
+    const fuelType = active?.attributes?.fuel_type || "";
+    const fuelTypeName = active?.attributes?.fuel_type_name || this._fuelName(fuelType);
+    const avgPrice = active?.attributes?.average_price;
+
+    // Header
+    if (stations.length) {
+      const cheapest = stations[0]?.price;
+      html += `
+        <div class="card-header">
+          <div class="header-top">
+            <div class="fuel-label">
+              <svg viewBox="0 0 24 24" width="18" height="18" class="fuel-icon"><path fill="currentColor" d="M18 10a1 1 0 0 1-1-1 1 1 0 0 1 1-1 1 1 0 0 1 1 1 1 1 0 0 1-1 1m-6 0H8V5h4m7.77 2.23l.01-.01-3.72-3.72L15 4.56l2.11 2.11C16.17 7 15.5 7.93 15.5 9a2.5 2.5 0 0 0 2.5 2.5c.36 0 .69-.08 1-.21v7.21a1 1 0 0 1-1 1 1 1 0 0 1-1-1V14a2 2 0 0 0-2-2h-1V5a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16h10v-7.5h1.5v5A2.5 2.5 0 0 0 20 21a2.5 2.5 0 0 0 2.5-2.5V9c0-.69-.28-1.32-.73-1.77z"/></svg>
+              <span>${fuelTypeName}</span>
+            </div>
+            <div class="header-prices">
+              <div class="header-price-item">
+                <span class="header-price-label">${this._t("cheapest")}</span>
+                <span class="header-price-value">${this._formatPrice(cheapest)}</span>
+              </div>
+              ${avgPrice != null ? `
+              <div class="header-price-item">
+                <span class="header-price-label">${this._t("average")}</span>
+                <span class="header-price-value avg">${this._formatPrice(avgPrice)}</span>
+              </div>` : ""}
+            </div>
+          </div>
+          ${showHistory ? `<div class="sparkline-container">${this._renderSparkline(active.entity_id)}</div>` : ""}
+        </div>`;
+    }
 
     if (!stations.length) {
       html += `<div class="empty">${this._t("no_data")}</div>`;
@@ -184,7 +320,6 @@ class TankstellenAustriaCard extends HTMLElement {
   }
 
   _attachListeners() {
-    // Tab clicks
     this.querySelectorAll(".tab").forEach((btn) => {
       btn.addEventListener("click", (e) => {
         this._activeTab = parseInt(e.target.dataset.tab, 10);
@@ -193,10 +328,8 @@ class TankstellenAustriaCard extends HTMLElement {
       });
     });
 
-    // Expand/collapse
     this.querySelectorAll(".station-main").forEach((el) => {
       el.addEventListener("click", (e) => {
-        // Don't toggle when clicking map link
         if (e.target.closest(".map-link")) return;
         const key = el.dataset.expand;
         if (this._expandedStations.has(key)) {
@@ -237,6 +370,69 @@ class TankstellenAustriaCard extends HTMLElement {
       }
       .tab:hover {
         color: var(--primary-text-color);
+      }
+      .card-header {
+        padding: 16px 16px 8px;
+      }
+      .header-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 12px;
+      }
+      .fuel-label {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 15px;
+        font-weight: 600;
+        color: var(--primary-text-color);
+      }
+      .fuel-icon {
+        color: var(--primary-color);
+      }
+      .header-prices {
+        display: flex;
+        gap: 16px;
+        text-align: right;
+      }
+      .header-price-item {
+        display: flex;
+        flex-direction: column;
+      }
+      .header-price-label {
+        font-size: 11px;
+        color: var(--secondary-text-color);
+        font-weight: 400;
+      }
+      .header-price-value {
+        font-size: 18px;
+        font-weight: 700;
+        color: var(--primary-text-color);
+      }
+      .header-price-value.avg {
+        font-size: 15px;
+        font-weight: 500;
+        color: var(--secondary-text-color);
+      }
+      .sparkline-container {
+        margin-top: 8px;
+      }
+      .sparkline {
+        width: 100%;
+        height: 48px;
+        display: block;
+      }
+      .sparkline-labels {
+        display: flex;
+        justify-content: space-between;
+        font-size: 10px;
+        color: var(--secondary-text-color);
+        padding: 2px 0 0;
+      }
+      .sparkline-period {
+        font-size: 10px;
+        opacity: 0.6;
       }
       .stations {
         padding: 0;
@@ -347,10 +543,9 @@ class TankstellenAustriaCard extends HTMLElement {
   }
 
   getCardSize() {
-    return 5;
+    return 6;
   }
 
-  // Visual editor support
   static getConfigElement() {
     return document.createElement("tankstellen-austria-card-editor");
   }

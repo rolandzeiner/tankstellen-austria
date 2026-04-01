@@ -85,11 +85,14 @@ class TankstellenSensor(CoordinatorEntity, SensorEntity):
                 "location": s.get("location", {}),
                 "opening_hours": s.get("openingHours", []),
             })
+        prices = [s["price"] for s in attr_stations if s.get("price") is not None]
+        avg_price = round(sum(prices) / len(prices), 3) if prices else None
         return {
             "fuel_type": self._fuel_type,
             "fuel_type_name": FUEL_TYPES.get(self._fuel_type, self._fuel_type),
             "station_count": len(attr_stations),
             "stations": attr_stations,
+            "average_price": avg_price,
         }
 
     @property
