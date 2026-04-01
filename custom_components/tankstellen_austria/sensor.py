@@ -10,7 +10,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import CONF_FUEL_TYPES, DOMAIN, FUEL_TYPES
+from .const import CONF_FUEL_TYPES, FUEL_TYPES
 from .coordinator import TankstellenCoordinator
 
 
@@ -20,8 +20,9 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up sensor entities from a config entry."""
-    coordinator: TankstellenCoordinator = hass.data[DOMAIN][entry.entry_id]
-    fuel_types: list[str] = entry.data[CONF_FUEL_TYPES]
+    coordinator: TankstellenCoordinator = entry.runtime_data
+    config = {**entry.data, **entry.options}
+    fuel_types: list[str] = config[CONF_FUEL_TYPES]
 
     entities = [
         TankstellenSensor(coordinator, entry, ft)

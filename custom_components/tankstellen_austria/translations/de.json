@@ -16,6 +16,27 @@
     "error": {
       "invalid_location": "Bitte wähle einen gültigen Standort auf der Karte.",
       "no_fuel_type": "Bitte wähle mindestens eine Kraftstoffart."
+    },
+    "abort": {
+      "already_configured": "Für diesen Standort existiert bereits ein Tankstellen Austria Eintrag."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Tankstellen Austria Optionen",
+        "description": "Einstellungen der Spritpreisüberwachung aktualisieren.",
+        "data": {
+          "location": "Standort",
+          "fuel_types": "Kraftstoffarten",
+          "include_closed": "Geschlossene Tankstellen anzeigen",
+          "scan_interval": "Aktualisierungsintervall (Minuten)"
+        }
+      }
+    },
+    "error": {
+      "invalid_location": "Bitte wähle einen gültigen Standort auf der Karte.",
+      "no_fuel_type": "Bitte wähle mindestens eine Kraftstoffart."
     }
   }
 }

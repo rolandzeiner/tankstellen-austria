@@ -1,14 +1,15 @@
 {
   "domain": "tankstellen_austria",
   "name": "Tankstellen Austria",
-  "after_dependencies": [],
+  "after_dependencies": ["http"],
   "codeowners": ["@rolandzeiner"],
   "config_flow": true,
-  "dependencies": ["http"],
+  "dependencies": [],
   "documentation": "https://github.com/rolandzeiner/tankstellen-austria",
   "integration_type": "service",
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/rolandzeiner/tankstellen-austria/issues",
+  "homeassistant": "2024.1.0",
   "requirements": [],
-  "version": "1.1.0"
+  "version": "1.2.1"
 }

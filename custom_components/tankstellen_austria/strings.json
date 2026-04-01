@@ -16,6 +16,27 @@
     "error": {
       "invalid_location": "Please select a valid location on the map.",
       "no_fuel_type": "Please select at least one fuel type."
+    },
+    "abort": {
+      "already_configured": "A Tankstellen Austria entry for this location already exists."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Tankstellen Austria options",
+        "description": "Update fuel price monitoring settings.",
+        "data": {
+          "location": "Location",
+          "fuel_types": "Fuel types",
+          "include_closed": "Include closed stations",
+          "scan_interval": "Update interval (minutes)"
+        }
+      }
+    },
+    "error": {
+      "invalid_location": "Please select a valid location on the map.",
+      "no_fuel_type": "Please select at least one fuel type."
     }
   }
 }

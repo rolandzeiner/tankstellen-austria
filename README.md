@@ -1,6 +1,8 @@
 # Tankstellen Austria
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
+[![Version](https://img.shields.io/badge/version-1.2.1-blue.svg)](https://github.com/rolandzeiner/tankstellen-austria/releases)
+[![HA min version](https://img.shields.io/badge/Home%20Assistant-%3E%3D2024.1.0-blue.svg)](https://www.home-assistant.io/)
 
 Home Assistant integration for Austrian fuel prices via the
 [E-Control Spritpreisrechner API](https://www.e-control.at/spritpreisrechner).
@@ -24,6 +26,11 @@ and/or CNG.
   tracked in HA history for long-term analysis
 - **Translations** – German and English included, easy to extend
 - **No API key required** – the E-Control API is public
+- **Reconfigurable** – change location, fuel types, or update interval any time via the "Configure" button without removing the integration
+
+## Requirements
+
+- Home Assistant **2024.1.0** or newer
 
 ## Installation
 
@@ -49,6 +56,9 @@ and/or CNG.
 2. Search for **Tankstellen Austria**
 3. Enter a name, pick your location on the map, select fuel types, and
    configure the update interval
+
+To change settings later, go to **Settings → Devices & Services**, find the
+integration, and click **Configure**.
 
 ## Lovelace Card
 

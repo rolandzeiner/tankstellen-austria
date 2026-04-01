@@ -5,7 +5,8 @@ from typing import Any
 
 import voluptuous as vol
 
-from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
+from homeassistant.config_entries import ConfigFlow, ConfigFlowResult, OptionsFlow
+from homeassistant.core import callback
 from homeassistant.helpers.selector import (
     LocationSelector,
     LocationSelectorConfig,
@@ -32,10 +33,62 @@ from .const import (
 )
 
 
+def _build_schema(
+    defaults: dict[str, Any],
+    include_name: bool = False,
+) -> vol.Schema:
+    """Build the shared config/options form schema."""
+    fields: dict = {}
+    if include_name:
+        fields[vol.Required("name", default=defaults.get("name", "Tankstellen"))] = (
+            TextSelector()
+        )
+    fields[
+        vol.Required(
+            "location",
+            default={
+                "latitude": defaults[CONF_LATITUDE],
+                "longitude": defaults[CONF_LONGITUDE],
+                "radius": 5000,
+            },
+        )
+    ] = LocationSelector(LocationSelectorConfig(radius=True))
+    fields[
+        vol.Required(CONF_FUEL_TYPES, default=defaults.get(CONF_FUEL_TYPES, ["DIE", "SUP"]))
+    ] = SelectSelector(
+        SelectSelectorConfig(
+            options=[{"value": k, "label": v} for k, v in FUEL_TYPES.items()],
+            multiple=True,
+            mode=SelectSelectorMode.LIST,
+        )
+    )
+    fields[
+        vol.Required(CONF_INCLUDE_CLOSED, default=defaults.get(CONF_INCLUDE_CLOSED, DEFAULT_INCLUDE_CLOSED))
+    ] = BooleanSelector()
+    fields[
+        vol.Required(CONF_SCAN_INTERVAL, default=defaults.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL))
+    ] = NumberSelector(
+        NumberSelectorConfig(
+            min=10,
+            max=720,
+            step=5,
+            unit_of_measurement="min",
+            mode=NumberSelectorMode.BOX,
+        )
+    )
+    return vol.Schema(fields)
+
+
 class TankstellenConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Tankstellen Austria."""
 
     VERSION = 1
+
+    @staticmethod
+    @callback
+    def async_get_options_flow(config_entry: Any) -> TankstellenOptionsFlow:
+        """Return the options flow handler."""
+        return TankstellenOptionsFlow()
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -47,13 +100,17 @@ class TankstellenConfigFlow(ConfigFlow, domain=DOMAIN):
             location = user_input.get("location", {})
             lat = location.get("latitude")
             lng = location.get("longitude")
-            fuel_types = user_input.get(CONF_FUEL_TYPES, ["DIE"])
+            fuel_types = user_input.get(CONF_FUEL_TYPES, [])
 
-            if not lat or not lng:
+            if lat is None or lng is None:
                 errors["location"] = "invalid_location"
             elif not fuel_types:
                 errors[CONF_FUEL_TYPES] = "no_fuel_type"
             else:
+                unique_id = f"{round(lat, 3)}_{round(lng, 3)}"
+                await self.async_set_unique_id(unique_id)
+                self._abort_if_unique_id_configured()
+
                 title = user_input.get("name", "Tankstellen")
                 return self.async_create_entry(
                     title=title,
@@ -70,52 +127,55 @@ class TankstellenConfigFlow(ConfigFlow, domain=DOMAIN):
                     },
                 )
 
-        # Build default location from HA config
-        ha_lat = self.hass.config.latitude
-        ha_lng = self.hass.config.longitude
-
-        schema = vol.Schema(
-            {
-                vol.Required("name", default="Tankstellen"): TextSelector(),
-                vol.Required(
-                    "location",
-                    default={
-                        "latitude": ha_lat,
-                        "longitude": ha_lng,
-                        "radius": 5000,
-                    },
-                ): LocationSelector(LocationSelectorConfig(radius=True)),
-                vol.Required(
-                    CONF_FUEL_TYPES, default=["DIE", "SUP"]
-                ): SelectSelector(
-                    SelectSelectorConfig(
-                        options=[
-                            {"value": k, "label": v}
-                            for k, v in FUEL_TYPES.items()
-                        ],
-                        multiple=True,
-                        mode=SelectSelectorMode.LIST,
-                    )
-                ),
-                vol.Required(
-                    CONF_INCLUDE_CLOSED, default=DEFAULT_INCLUDE_CLOSED
-                ): BooleanSelector(),
-                vol.Required(
-                    CONF_SCAN_INTERVAL, default=DEFAULT_SCAN_INTERVAL
-                ): NumberSelector(
-                    NumberSelectorConfig(
-                        min=10,
-                        max=720,
-                        step=5,
-                        unit_of_measurement="min",
-                        mode=NumberSelectorMode.BOX,
-                    )
-                ),
-            }
-        )
-
+        defaults = {
+            "name": "Tankstellen",
+            CONF_LATITUDE: self.hass.config.latitude,
+            CONF_LONGITUDE: self.hass.config.longitude,
+        }
         return self.async_show_form(
             step_id="user",
-            data_schema=schema,
+            data_schema=_build_schema(defaults, include_name=True),
+            errors=errors,
+        )
+
+
+class TankstellenOptionsFlow(OptionsFlow):
+    """Handle options for Tankstellen Austria."""
+
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Handle options."""
+        errors: dict[str, str] = {}
+        config = {**self.config_entry.data, **self.config_entry.options}
+
+        if user_input is not None:
+            location = user_input.get("location", {})
+            lat = location.get("latitude")
+            lng = location.get("longitude")
+            fuel_types = user_input.get(CONF_FUEL_TYPES, [])
+
+            if lat is None or lng is None:
+                errors["location"] = "invalid_location"
+            elif not fuel_types:
+                errors[CONF_FUEL_TYPES] = "no_fuel_type"
+            else:
+                return self.async_create_entry(
+                    data={
+                        CONF_LATITUDE: lat,
+                        CONF_LONGITUDE: lng,
+                        CONF_FUEL_TYPES: fuel_types,
+                        CONF_INCLUDE_CLOSED: user_input.get(
+                            CONF_INCLUDE_CLOSED, DEFAULT_INCLUDE_CLOSED
+                        ),
+                        CONF_SCAN_INTERVAL: user_input.get(
+                            CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL
+                        ),
+                    }
+                )
+
+        return self.async_show_form(
+            step_id="init",
+            data_schema=_build_schema(config),
             errors=errors,
         )

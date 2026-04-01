@@ -29,12 +29,13 @@ class TankstellenCoordinator(DataUpdateCoordinator):
 
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
         """Initialise the coordinator."""
-        self._latitude = entry.data[CONF_LATITUDE]
-        self._longitude = entry.data[CONF_LONGITUDE]
-        self._fuel_types: list[str] = entry.data[CONF_FUEL_TYPES]
-        self._include_closed: bool = entry.data[CONF_INCLUDE_CLOSED]
+        config = {**entry.data, **entry.options}
+        self._latitude = config[CONF_LATITUDE]
+        self._longitude = config[CONF_LONGITUDE]
+        self._fuel_types: list[str] = config[CONF_FUEL_TYPES]
+        self._include_closed: bool = config[CONF_INCLUDE_CLOSED]
         self._session = async_get_clientsession(hass)
-        scan = entry.data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
+        scan = config.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
 
         super().__init__(
             hass,
