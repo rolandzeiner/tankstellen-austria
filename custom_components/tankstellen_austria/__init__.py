@@ -27,18 +27,42 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(_async_reload_entry))
 
-    # Register the custom card as a static resource
+    # Register the custom card as a static resource (serves the JS file)
     card_path = Path(__file__).parent / "www" / "tankstellen-austria-card.js"
     if card_path.is_file():
         try:
             await hass.http.async_register_static_paths(
                 [StaticPathConfig(CARD_URL, str(card_path), True)]
             )
-            _LOGGER.debug("Registered card resource at %s", CARD_URL)
+            _LOGGER.debug("Registered card static path at %s", CARD_URL)
         except Exception:  # noqa: BLE001
             _LOGGER.warning("Could not register card static path – add manually")
 
+    # Auto-add the card to Lovelace resources so users don't have to
+    await _async_ensure_lovelace_resource(hass)
+
     return True
+
+
+async def _async_ensure_lovelace_resource(hass: HomeAssistant) -> None:
+    """Add the card JS to Lovelace resources if not already present."""
+    try:
+        resources = hass.data.get("lovelace", {}).get("resources")
+        if resources is None:
+            _LOGGER.debug("Lovelace resources store not available – skipping auto-register")
+            return
+        await resources.async_load()
+        if any(item.get("url") == CARD_URL for item in resources.async_items()):
+            _LOGGER.debug("Lovelace resource already registered, skipping")
+            return
+        await resources.async_create_item({"res_type": "module", "url": CARD_URL})
+        _LOGGER.info("Auto-registered Lovelace resource %s", CARD_URL)
+    except Exception:  # noqa: BLE001
+        _LOGGER.warning(
+            "Could not auto-register Lovelace resource %s – add manually via "
+            "Settings → Dashboards → Resources",
+            CARD_URL,
+        )
 
 
 async def _async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
