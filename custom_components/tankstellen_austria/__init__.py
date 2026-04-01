@@ -4,10 +4,11 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
+from homeassistant.components.frontend import async_register_extra_module_url
+from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
-from homeassistant.components.http import StaticPathConfig
 
 from .const import CARD_VERSION, DOMAIN
 from .coordinator import TankstellenCoordinator
@@ -27,8 +28,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(_async_reload_entry))
 
-    # Serve the JS file and register it as a Lovelace resource.
-    # Only needs to happen once – subsequent entries skip if already done.
+    # Register the JS file and load it in the frontend – runs once per session.
     if not hass.data.get(f"{DOMAIN}_card_registered"):
         card_path = Path(__file__).parent / "www" / "tankstellen-austria-card.js"
         if card_path.is_file():
@@ -37,52 +37,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     [StaticPathConfig(CARD_URL, str(card_path), True)]
                 )
             except Exception:  # noqa: BLE001
-                _LOGGER.warning("Could not register card static path – add manually")
+                _LOGGER.warning("Could not register card static path")
 
-        await _async_ensure_lovelace_resource(hass)
+            # Inject the card module into every frontend page load.
+            # This is the official HA API – works regardless of Lovelace mode
+            # (storage or YAML) and does not require manual resource setup.
+            versioned_url = f"{CARD_URL}?v={CARD_VERSION}"
+            async_register_extra_module_url(hass, versioned_url)
+            _LOGGER.debug("Registered frontend module %s", versioned_url)
+
         hass.data[f"{DOMAIN}_card_registered"] = True
 
     return True
-
-
-async def _async_ensure_lovelace_resource(hass: HomeAssistant) -> None:
-    """Add (or update) the card in Lovelace resources using the official storage API."""
-    try:
-        # hass.data["lovelace"] is an object, NOT a dict – use attribute access
-        lovelace = hass.data.get("lovelace")
-        if lovelace is None:
-            _LOGGER.debug("Lovelace not initialised – skipping resource auto-register")
-            return
-
-        resources = lovelace.resources
-        await resources.async_load()
-
-        versioned_url = f"{CARD_URL}?v={CARD_VERSION}"
-
-        for item in resources.async_items():
-            existing_base = item.get("url", "").split("?")[0]
-            if existing_base == CARD_URL:
-                if item.get("url") != versioned_url:
-                    # Card is registered but version changed – update the URL
-                    await resources.async_update_item(
-                        item["id"],
-                        {"res_type": "module", "url": versioned_url},
-                    )
-                    _LOGGER.info("Updated Lovelace resource to %s", versioned_url)
-                else:
-                    _LOGGER.debug("Lovelace resource already up to date")
-                return
-
-        # Not registered yet – add it
-        await resources.async_create_item({"res_type": "module", "url": versioned_url})
-        _LOGGER.info("Auto-registered Lovelace resource %s", versioned_url)
-
-    except Exception:  # noqa: BLE001
-        _LOGGER.warning(
-            "Could not auto-register Lovelace resource. "
-            "Add it manually: Settings → Dashboards → Resources → %s (JavaScript module)",
-            CARD_URL,
-        )
 
 
 async def _async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
