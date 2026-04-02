@@ -147,9 +147,15 @@ Each fuel type creates one sensor:
 ## API Info
 
 - **Base URL**: `https://api.e-control.at/sprit/1.0/search/gas-stations/by-address`
-- **Rate limit**: Don't poll more than every 10 minutes
+- **Rate limit**: Don't poll more than every 10 minutes (60 minutes should be fine)
 - **No API key** required
 - Returns 5 cheapest stations (with prices) + surrounding stations (without)
+
+### Important Notes
+
+* **Price vs. Distance**: The API returns the five cheapest stations in the area, not necessarily the ones closest to your coordinates.
+* **Average Price Calculation**: The `average_price` attribute is calculated based only on the five cheapest stations retrieved. It is not a representative average for all stations in the region.
+* **Geographic Scope**: Only stations located within Austria are included. Stations in neighboring countries are not covered by the E-Control API.
 
 ## License
 
