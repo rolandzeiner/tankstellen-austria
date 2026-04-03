@@ -9,7 +9,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED, Platform
 from homeassistant.core import CoreState, HomeAssistant
 
-from .const import CARD_VERSION, DOMAIN
+from .const import CARD_VERSION, DOMAIN as DOMAIN
 from .coordinator import TankstellenCoordinator
 
 _LOGGER = logging.getLogger(__name__)
