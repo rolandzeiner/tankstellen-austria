@@ -8,6 +8,9 @@ import voluptuous as vol
 from homeassistant.config_entries import ConfigFlow, ConfigFlowResult, OptionsFlow
 from homeassistant.core import callback
 from homeassistant.helpers.selector import (
+    BooleanSelector,
+    EntitySelector,
+    EntitySelectorConfig,
     LocationSelector,
     LocationSelectorConfig,
     NumberSelector,
@@ -16,11 +19,11 @@ from homeassistant.helpers.selector import (
     SelectSelector,
     SelectSelectorConfig,
     SelectSelectorMode,
-    BooleanSelector,
     TextSelector,
 )
 
 from .const import (
+    CONF_DYNAMIC_ENTITY,
     CONF_FUEL_TYPES,
     CONF_INCLUDE_CLOSED,
     CONF_LATITUDE,
@@ -36,6 +39,7 @@ from .const import (
 def _build_schema(
     defaults: dict[str, Any],
     include_name: bool = False,
+    include_dynamic: bool = False,
 ) -> vol.Schema:
     """Build the shared config/options form schema."""
     fields: dict = {}
@@ -76,6 +80,14 @@ def _build_schema(
             mode=NumberSelectorMode.BOX,
         )
     )
+    if include_dynamic:
+        existing = defaults.get(CONF_DYNAMIC_ENTITY) or None
+        key = (
+            vol.Optional(CONF_DYNAMIC_ENTITY, default=existing)
+            if existing
+            else vol.Optional(CONF_DYNAMIC_ENTITY)
+        )
+        fields[key] = EntitySelector(EntitySelectorConfig(domain="device_tracker"))
     return vol.Schema(fields)
 
 
@@ -160,6 +172,7 @@ class TankstellenOptionsFlow(OptionsFlow):
             elif not fuel_types:
                 errors[CONF_FUEL_TYPES] = "no_fuel_type"
             else:
+                dynamic_entity = user_input.get(CONF_DYNAMIC_ENTITY) or None
                 return self.async_create_entry(
                     data={
                         CONF_LATITUDE: lat,
@@ -171,11 +184,12 @@ class TankstellenOptionsFlow(OptionsFlow):
                         CONF_SCAN_INTERVAL: user_input.get(
                             CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL
                         ),
+                        CONF_DYNAMIC_ENTITY: dynamic_entity,
                     }
                 )
 
         return self.async_show_form(
             step_id="init",
-            data_schema=_build_schema(config),
+            data_schema=_build_schema(config, include_dynamic=True),
             errors=errors,
         )

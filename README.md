@@ -2,7 +2,7 @@
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
 [![HA min version](https://img.shields.io/badge/Home%20Assistant-%3E%3D2024.6-blue.svg)](https://www.home-assistant.io/)
-[![Version](https://img.shields.io/badge/version-1.3.0-blue.svg)](https://github.com/rolandzeiner/tankstellen-austria/releases)
+[![Version](https://img.shields.io/badge/version-1.4.0--beta--1-blue.svg)](https://github.com/rolandzeiner/tankstellen-austria/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 Home Assistant integration for Austrian fuel prices via the
@@ -25,9 +25,16 @@ and/or CNG.
   selection, station count, toggles for map/hours/history)
 - **Average price tracking** – average of all 5 stations as sensor attribute,
   tracked in HA history for long-term analysis
+- **Dynamic mode** *(new in 1.4.0)* – track a `device_tracker` entity (e.g.
+  your phone) and automatically refresh nearby prices as you drive; includes
+  distance threshold, per-entry cooldown, and domain-wide rate limiting to
+  avoid excessive API calls
+- **Closing Soon badge** *(new in 1.4.0)* – amber badge on stations that close
+  within the next 30 minutes
 - **Translations** – German and English included, easy to extend
 - **No API key required** – the E-Control API is public
-- **Reconfigurable** – change location, fuel types, or update interval any time via the "Configure" button without removing the integration
+- **Reconfigurable** – change location, fuel types, update interval, or dynamic
+  mode any time via the "Configure" button without removing the integration
 
 ## Screenshots
 
@@ -76,6 +83,42 @@ and/or CNG.
 To change settings later, go to **Settings → Devices & Services**, find the
 integration, and click **Configure**.
 
+## Dynamic Mode
+
+Dynamic mode lets the integration follow you as you drive, refreshing nearby
+fuel prices based on your current GPS position rather than a fixed coordinate.
+
+### How to enable
+
+1. Go to **Settings → Devices & Services**, find the integration entry, and
+   click **Configure**
+2. Select a **device tracker** entity (e.g. `device_tracker.your_iphone`) from
+   the new "Dynamic entity" field
+3. Save — the integration will now update when you move
+
+The fixed location you set during initial setup becomes the **fallback**: it is
+used if the tracker entity has no GPS coordinates (e.g. zone-based trackers, or
+when the device is offline).
+
+### Update logic
+
+Updates are triggered by location-change events on the tracker entity, subject
+to three guards:
+
+| Guard | Value | Purpose |
+|-------|-------|---------|
+| Distance threshold | 1.5 km | Ignore small movements (walking, parking drift) |
+| Per-entry cooldown | 10 min | Prevent rapid re-queries after moving |
+| Domain-wide cooldown | 5 min | Protect against multiple entries firing together |
+| Safety-net timer | 6 hours | Keeps data fresh if the tracker stops reporting |
+
+A **Refresh button** appears on the card in dynamic mode. It triggers an
+immediate update and has a 2-minute client-side cooldown to prevent accidental
+spam.
+
+> **Note:** In dynamic mode the 7-day price sparkline is hidden, as history
+> from varying locations is not meaningful.
+
 ## Lovelace Card
 
 The integration auto-registers the card JS. Add the resource if it wasn't
@@ -123,9 +166,12 @@ You can also configure everything via the visual card editor in the HA UI.
 
 - **Fuel type header** with gas station icon (Diesel / Super 95 / CNG Erdgas)
 - **Cheapest price** and **average price** (Ø) at a glance
-- **7-day sparkline** of the cheapest price history with min/max labels
+- **7-day sparkline** of the cheapest price history with min/max labels *(fixed mode only)*
 - **Station list** ranked by price with name, address, and map link
 - **Opening hours** expandable per station on click
+- **Closed badge** (red) on stations that are currently closed
+- **Closing Soon badge** (amber) on stations that close within 30 minutes
+- **Refresh button** (dynamic mode only) to trigger an immediate location update
 
 ## Sensors
 
@@ -144,6 +190,7 @@ Each fuel type creates one sensor:
 | `station_count` | Number of stations with prices |
 | `average_price` | Average price across all stations |
 | `stations` | List of station objects (id, name, price, open, location, opening_hours) |
+| `dynamic_mode` | `true` when the entry is tracking a device_tracker entity |
 
 ## API Info
 

@@ -1,5 +1,11 @@
 .DS_Store
 __pycache__/
 *.pyc
+*.py[cod]
 .pytest_cache/
 *.log
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
+target/
+.claude/

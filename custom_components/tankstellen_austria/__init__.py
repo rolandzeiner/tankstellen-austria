@@ -20,6 +20,7 @@ CARD_URL = "/tankstellen-austria/tankstellen-austria-card.js"
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     """Register the card JS once when the integration is first loaded."""
+    hass.data.setdefault(DOMAIN, {})
 
     async def _register_frontend(_event=None) -> None:
         await _async_register_card(hass)
@@ -83,6 +84,8 @@ async def _async_register_card(hass: HomeAssistant) -> None:
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Tankstellen Austria from a config entry."""
     coordinator = TankstellenCoordinator(hass, entry)
+    coordinator.async_setup()
+    entry.async_on_unload(coordinator.async_teardown)
     await coordinator.async_config_entry_first_refresh()
 
     entry.runtime_data = coordinator

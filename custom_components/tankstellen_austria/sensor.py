@@ -96,6 +96,7 @@ class TankstellenSensor(CoordinatorEntity, SensorEntity):
             "station_count": len(attr_stations),
             "stations": attr_stations,
             "average_price": avg_price,
+            "dynamic_mode": self.coordinator.dynamic_mode,
         }
 
     @property
