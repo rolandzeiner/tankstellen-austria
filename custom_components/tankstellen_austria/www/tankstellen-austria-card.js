@@ -694,7 +694,8 @@ class TankstellenAustriaCard extends HTMLElement {
         align-items: flex-end;
         justify-content: center;
         flex: 1;
-        gap: 2px;
+        gap: 0;
+        line-height: 1.3;
       }
       .last-updated {
         font-size: 11px;
