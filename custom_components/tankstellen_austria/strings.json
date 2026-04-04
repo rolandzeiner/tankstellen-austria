@@ -9,7 +9,12 @@
           "location": "Location",
           "fuel_types": "Fuel types",
           "include_closed": "Include closed stations",
-          "scan_interval": "Update interval (minutes)"
+          "scan_interval": "Update interval (minutes)",
+          "dynamic_entity": "Dynamic location tracker"
+        },
+        "data_description": {
+          "dynamic_entity": "Optional: select a device_tracker entity to update prices based on your current GPS position. Leave empty for fixed location mode.",
+          "scan_interval": "Only used in fixed location mode. In dynamic mode a 6-hour safety-net timer applies regardless of this value."
         }
       }
     },
@@ -30,7 +35,12 @@
           "location": "Location",
           "fuel_types": "Fuel types",
           "include_closed": "Include closed stations",
-          "scan_interval": "Update interval (minutes)"
+          "scan_interval": "Update interval (minutes)",
+          "dynamic_entity": "Dynamic location tracker"
+        },
+        "data_description": {
+          "dynamic_entity": "Optional: select a device_tracker entity to update prices based on your current GPS position. Leave empty for fixed location mode.",
+          "scan_interval": "Only used in fixed location mode. In dynamic mode a 6-hour safety-net timer applies regardless of this value."
         }
       }
     },

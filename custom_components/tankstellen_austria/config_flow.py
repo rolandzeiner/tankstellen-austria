@@ -136,6 +136,7 @@ class TankstellenConfigFlow(ConfigFlow, domain=DOMAIN):
                         CONF_SCAN_INTERVAL: user_input.get(
                             CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL
                         ),
+                        CONF_DYNAMIC_ENTITY: user_input.get(CONF_DYNAMIC_ENTITY) or None,
                     },
                 )
 
@@ -146,7 +147,7 @@ class TankstellenConfigFlow(ConfigFlow, domain=DOMAIN):
         }
         return self.async_show_form(
             step_id="user",
-            data_schema=_build_schema(defaults, include_name=True),
+            data_schema=_build_schema(defaults, include_name=True, include_dynamic=True),
             errors=errors,
         )
 

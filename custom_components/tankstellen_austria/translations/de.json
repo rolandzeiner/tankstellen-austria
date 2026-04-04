@@ -9,7 +9,12 @@
           "location": "Standort",
           "fuel_types": "Kraftstoffarten",
           "include_closed": "Geschlossene Tankstellen anzeigen",
-          "scan_interval": "Aktualisierungsintervall (Minuten)"
+          "scan_interval": "Aktualisierungsintervall (Minuten)",
+          "dynamic_entity": "Dynamischer Standort-Tracker"
+        },
+        "data_description": {
+          "dynamic_entity": "Optional: Wähle eine device_tracker-Entität, um Preise basierend auf deinem aktuellen GPS-Standort zu aktualisieren. Leer lassen für fixen Standortmodus.",
+          "scan_interval": "Wird nur im fixen Standortmodus verwendet. Im dynamischen Modus gilt unabhängig davon ein 6-Stunden-Sicherheitsintervall."
         }
       }
     },
@@ -30,7 +35,12 @@
           "location": "Standort",
           "fuel_types": "Kraftstoffarten",
           "include_closed": "Geschlossene Tankstellen anzeigen",
-          "scan_interval": "Aktualisierungsintervall (Minuten)"
+          "scan_interval": "Aktualisierungsintervall (Minuten)",
+          "dynamic_entity": "Dynamischer Standort-Tracker"
+        },
+        "data_description": {
+          "dynamic_entity": "Optional: Wähle eine device_tracker-Entität, um Preise basierend auf deinem aktuellen GPS-Standort zu aktualisieren. Leer lassen für fixen Standortmodus.",
+          "scan_interval": "Wird nur im fixen Standortmodus verwendet. Im dynamischen Modus gilt unabhängig davon ein 6-Stunden-Sicherheitsintervall."
         }
       }
     },
