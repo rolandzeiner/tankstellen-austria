@@ -84,6 +84,11 @@ class TankstellenCoordinator(DataUpdateCoordinator):
         """Return True when tracking a device_tracker entity."""
         return self._dynamic_entity is not None
 
+    @property
+    def dynamic_entity(self) -> str | None:
+        """Return the tracked device_tracker entity ID, or None in fixed mode."""
+        return self._dynamic_entity
+
     def async_setup(self) -> None:
         """Register the device_tracker state-change listener (dynamic mode only)."""
         if not self._dynamic_entity:

@@ -311,8 +311,8 @@ class TankstellenAustriaCard extends HTMLElement {
     const showHistory = this._config.show_history !== false;
     const maxStations = Math.min(5, Math.max(1, parseInt(this._config.max_stations, 10) || 5));
 
-    // Dynamic mode: read from sensor attribute
-    const isDynamic = entities.some((e) => e.attributes.dynamic_mode === true);
+    // Dynamic mode: based on the active tab only, so fixed tabs are unaffected
+    const isDynamic = active?.attributes?.dynamic_mode === true;
     const refreshCoolingDown = isDynamic && (Date.now() - this._lastManualRefresh < DYNAMIC_MANUAL_COOLDOWN_MS);
 
     let html = `<ha-card>`;
@@ -322,8 +322,16 @@ class TankstellenAustriaCard extends HTMLElement {
       html += `<div class="tabs">`;
       entities.forEach((e, i) => {
         const ft = e.attributes.fuel_type || "";
-        const active = i === this._activeTab ? "active" : "";
-        html += `<button class="tab ${active}" data-tab="${i}">${this._fuelName(ft)}</button>`;
+        const activeClass = i === this._activeTab ? "active" : "";
+        let label = this._fuelName(ft);
+        if (e.attributes.dynamic_mode === true) {
+          const trackerId = e.attributes.dynamic_entity;
+          const trackerName = trackerId
+            ? (this._hass.states[trackerId]?.attributes?.friendly_name || trackerId.split(".")[1])
+            : null;
+          if (trackerName) label += ` · ${trackerName}`;
+        }
+        html += `<button class="tab ${activeClass}" data-tab="${i}">${label}</button>`;
       });
       html += `</div>`;
     }
