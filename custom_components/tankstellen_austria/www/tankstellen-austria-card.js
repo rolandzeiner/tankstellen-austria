@@ -23,6 +23,7 @@ const TRANSLATIONS = {
     last_7_days: "Letzte 7 Tage",
     refresh: "Aktualisieren",
     last_updated: "Aktualisiert:",
+    no_new_data: "Keine neuen Daten",
     fuel_types: { DIE: "Diesel", SUP: "Super 95", GAS: "CNG Erdgas" },
     editor: {
       entities: "Sensoren",
@@ -51,6 +52,7 @@ const TRANSLATIONS = {
     last_7_days: "Last 7 days",
     refresh: "Refresh",
     last_updated: "Updated:",
+    no_new_data: "No new data",
     fuel_types: { DIE: "Diesel", SUP: "Super 95", GAS: "CNG" },
     editor: {
       entities: "Sensors",
@@ -89,6 +91,7 @@ class TankstellenAustriaCard extends HTMLElement {
   _historyLoading = {};
   _lastManualRefresh = 0;
   _cooldownInterval = null;
+  _noNewDataUntil = 0;
 
   setConfig(config) {
     this._config = config;
@@ -256,11 +259,22 @@ class TankstellenAustriaCard extends HTMLElement {
     if (now - this._lastManualRefresh < DYNAMIC_MANUAL_COOLDOWN_MS) return;
     this._lastManualRefresh = now;
     const entities = this._resolveEntities();
+    const active = entities[this._activeTab] || entities[0];
+    const preRefreshTimestamp = active?.last_updated;
     entities.forEach((e) => {
       this._hass.callService("homeassistant", "update_entity", {
         entity_id: e.entity_id,
       });
     });
+    // After HA has had time to fetch, check if data actually changed
+    setTimeout(() => {
+      const updated = this._resolveEntities();
+      const updatedActive = updated[this._activeTab] || updated[0];
+      if (updatedActive?.last_updated === preRefreshTimestamp) {
+        this._noNewDataUntil = Date.now() + 5000;
+        this._render();
+      }
+    }, 3000);
     // Start per-second re-render so the countdown stays live
     clearInterval(this._cooldownInterval);
     this._cooldownInterval = setInterval(() => {
@@ -363,6 +377,15 @@ class TankstellenAustriaCard extends HTMLElement {
       if (!isDynamic || !active?.last_updated) return "";
       return new Date(active.last_updated).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
     })();
+
+    // "No new data" fade: compute opacity from remaining display time so re-renders don't reset it
+    const noNewDataOpacity = (() => {
+      if (!this._noNewDataUntil) return 0;
+      const remaining = this._noNewDataUntil - Date.now();
+      if (remaining <= 0) return 0;
+      if (remaining > 3000) return 1;
+      return remaining / 3000;
+    })();
     const allStations = active?.attributes?.stations || [];
     const stations = allStations.slice(0, maxStations);
     const fuelType = active?.attributes?.fuel_type || "";
@@ -382,6 +405,7 @@ class TankstellenAustriaCard extends HTMLElement {
             ${isDynamic ? `
             <div class="dynamic-meta">
               ${lastUpdatedTime ? `<span class="last-updated">${this._t("last_updated")} ${lastUpdatedTime}</span>` : ""}
+              ${noNewDataOpacity > 0 ? `<span class="no-new-data" style="opacity:${noNewDataOpacity.toFixed(2)}">${this._t("no_new_data")}</span>` : ""}
             </div>
             <button class="refresh-btn${refreshCoolingDown ? " cooling" : ""}" data-refresh>
               <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
@@ -681,6 +705,11 @@ class TankstellenAustriaCard extends HTMLElement {
       .last-updated {
         font-size: 11px;
         color: var(--secondary-text-color);
+      }
+      .no-new-data {
+        font-size: 11px;
+        color: var(--warning-color, #ff9800);
+        margin-left: 6px;
       }
       .refresh-btn {
         display: flex;
