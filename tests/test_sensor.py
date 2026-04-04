@@ -96,7 +96,7 @@ async def test_sensor_created_per_fuel_type(hass: HomeAssistant) -> None:
 
 async def test_sensor_state_is_cheapest_price(hass: HomeAssistant) -> None:
     """Sensor state equals the price of the first (cheapest) station."""
-    entry = await _setup_entry(hass)
+    await _setup_entry(hass)
     state = hass.states.get("sensor.test_diesel")
     assert state is not None
     assert float(state.state) == pytest.approx(1.459)
@@ -127,7 +127,7 @@ async def test_sensor_state_unavailable_when_no_data(hass: HomeAssistant) -> Non
 
 async def test_sensor_attributes_structure(hass: HomeAssistant) -> None:
     """Sensor attributes contain all expected keys."""
-    entry = await _setup_entry(hass)
+    await _setup_entry(hass)
     state = hass.states.get("sensor.test_diesel")
     attrs = state.attributes
 
@@ -141,7 +141,7 @@ async def test_sensor_attributes_structure(hass: HomeAssistant) -> None:
 
 async def test_sensor_stations_attribute(hass: HomeAssistant) -> None:
     """Sensor stations attribute maps API data to expected dict keys."""
-    entry = await _setup_entry(hass)
+    await _setup_entry(hass)
     state = hass.states.get("sensor.test_diesel")
     stations = state.attributes["stations"]
 
