@@ -397,8 +397,10 @@ class TankstellenAustriaCard extends HTMLElement {
             </div>
             ${isDynamic ? `
             <div class="dynamic-meta">
-              ${lastUpdatedTime ? `<span class="last-updated">${this._t("last_updated")} ${lastUpdatedTime}</span>` : ""}
-              ${this._noNewData ? `<span class="no-new-data">${this._t("no_new_data")}</span>` : ""}
+              <div class="dynamic-meta-inner">
+                ${lastUpdatedTime ? `<span class="last-updated">${this._t("last_updated")} ${lastUpdatedTime}</span>` : ""}
+                ${this._noNewData ? `<span class="no-new-data">${this._t("no_new_data")}</span>` : ""}
+              </div>
             </div>
             <button class="refresh-btn${refreshCoolingDown ? " cooling" : ""}" data-refresh>
               <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
@@ -694,12 +696,16 @@ class TankstellenAustriaCard extends HTMLElement {
         align-items: flex-end;
         justify-content: center;
         flex: 1;
-        gap: 0;
-        line-height: 1.3;
       }
       .last-updated {
         font-size: 11px;
         color: var(--secondary-text-color);
+      }
+      .dynamic-meta-inner {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        line-height: 1.2;
       }
       .no-new-data {
         font-size: 11px;
