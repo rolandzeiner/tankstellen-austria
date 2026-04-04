@@ -43,7 +43,7 @@ async def _async_register_card(hass: HomeAssistant) -> None:
     # Serve the file over HTTP
     try:
         await hass.http.async_register_static_paths(
-            [StaticPathConfig(CARD_URL, str(card_path), True)]
+            [StaticPathConfig(CARD_URL, str(card_path), False)]
         )
     except Exception:  # noqa: BLE001
         _LOGGER.debug("Static path already registered or unavailable")
@@ -62,21 +62,33 @@ async def _async_register_card(hass: HomeAssistant) -> None:
         for item in resources.async_items():
             existing_base = item.get("url", "").split("?")[0]
             if existing_base == CARD_URL:
-                if item.get("url") != versioned_url:
+                if item.get("url") == versioned_url:
+                    return  # already up to date
+                # Try update; fall back to delete + recreate for HA version compat
+                try:
                     await resources.async_update_item(
                         item["id"],
                         {"res_type": "module", "url": versioned_url},
                     )
-                    _LOGGER.info("Updated Lovelace resource to %s", versioned_url)
+                except Exception as update_err:  # noqa: BLE001
+                    _LOGGER.debug(
+                        "async_update_item failed (%s), trying delete+recreate", update_err
+                    )
+                    await resources.async_delete_item(item["id"])
+                    await resources.async_create_item(
+                        {"res_type": "module", "url": versioned_url}
+                    )
+                _LOGGER.info("Updated Lovelace resource to %s", versioned_url)
                 return
 
         await resources.async_create_item({"res_type": "module", "url": versioned_url})
         _LOGGER.info("Registered Lovelace resource %s", versioned_url)
 
-    except Exception:  # noqa: BLE001
+    except Exception as err:  # noqa: BLE001
         _LOGGER.warning(
-            "Could not register Lovelace resource – add manually: "
+            "Could not register Lovelace resource (%s) – add manually: "
             "Settings → Dashboards → Resources → %s (JavaScript module)",
+            err,
             CARD_URL,
         )
 

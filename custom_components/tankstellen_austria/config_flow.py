@@ -119,7 +119,11 @@ class TankstellenConfigFlow(ConfigFlow, domain=DOMAIN):
             elif not fuel_types:
                 errors[CONF_FUEL_TYPES] = "no_fuel_type"
             else:
-                unique_id = f"{round(lat, 3)}_{round(lng, 3)}"
+                dynamic_entity = user_input.get(CONF_DYNAMIC_ENTITY) or None
+                if dynamic_entity:
+                    unique_id = f"dynamic_{dynamic_entity}"
+                else:
+                    unique_id = f"{round(lat, 3)}_{round(lng, 3)}"
                 await self.async_set_unique_id(unique_id)
                 self._abort_if_unique_id_configured()
 
@@ -136,7 +140,7 @@ class TankstellenConfigFlow(ConfigFlow, domain=DOMAIN):
                         CONF_SCAN_INTERVAL: user_input.get(
                             CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL
                         ),
-                        CONF_DYNAMIC_ENTITY: user_input.get(CONF_DYNAMIC_ENTITY) or None,
+                        CONF_DYNAMIC_ENTITY: dynamic_entity,
                     },
                 )
 

@@ -13,8 +13,7 @@
           "dynamic_entity": "Dynamic location tracker"
         },
         "data_description": {
-          "dynamic_entity": "Optional: select a device_tracker entity to update prices based on your current GPS position. Leave empty for fixed location mode.",
-          "scan_interval": "Only used in fixed location mode. In dynamic mode a 6-hour safety-net timer applies regardless of this value."
+          "dynamic_entity": "Optional: select a device_tracker entity to update prices based on your current GPS position. Leave empty for fixed location mode. Note: in dynamic mode the update interval above is ignored — a 6-hour safety-net timer is used instead."
         }
       }
     },
@@ -39,8 +38,7 @@
           "dynamic_entity": "Dynamic location tracker"
         },
         "data_description": {
-          "dynamic_entity": "Optional: select a device_tracker entity to update prices based on your current GPS position. Leave empty for fixed location mode.",
-          "scan_interval": "Only used in fixed location mode. In dynamic mode a 6-hour safety-net timer applies regardless of this value."
+          "dynamic_entity": "Optional: select a device_tracker entity to update prices based on your current GPS position. Leave empty for fixed location mode. Note: in dynamic mode the update interval above is ignored — a 6-hour safety-net timer is used instead."
         }
       }
     },

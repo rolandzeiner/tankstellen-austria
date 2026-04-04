@@ -13,8 +13,7 @@
           "dynamic_entity": "Dynamischer Standort-Tracker"
         },
         "data_description": {
-          "dynamic_entity": "Optional: Wähle eine device_tracker-Entität, um Preise basierend auf deinem aktuellen GPS-Standort zu aktualisieren. Leer lassen für fixen Standortmodus.",
-          "scan_interval": "Wird nur im fixen Standortmodus verwendet. Im dynamischen Modus gilt unabhängig davon ein 6-Stunden-Sicherheitsintervall."
+          "dynamic_entity": "Optional: Wähle eine device_tracker-Entität, um Preise basierend auf deinem aktuellen GPS-Standort zu aktualisieren. Leer lassen für fixen Standortmodus. Hinweis: Im dynamischen Modus wird das Aktualisierungsintervall oben ignoriert – stattdessen gilt ein 6-Stunden-Sicherheitsintervall."
         }
       }
     },
@@ -39,8 +38,7 @@
           "dynamic_entity": "Dynamischer Standort-Tracker"
         },
         "data_description": {
-          "dynamic_entity": "Optional: Wähle eine device_tracker-Entität, um Preise basierend auf deinem aktuellen GPS-Standort zu aktualisieren. Leer lassen für fixen Standortmodus.",
-          "scan_interval": "Wird nur im fixen Standortmodus verwendet. Im dynamischen Modus gilt unabhängig davon ein 6-Stunden-Sicherheitsintervall."
+          "dynamic_entity": "Optional: Wähle eine device_tracker-Entität, um Preise basierend auf deinem aktuellen GPS-Standort zu aktualisieren. Leer lassen für fixen Standortmodus. Hinweis: Im dynamischen Modus wird das Aktualisierungsintervall oben ignoriert – stattdessen gilt ein 6-Stunden-Sicherheitsintervall."
         }
       }
     },
