@@ -1,5 +1,5 @@
 /**
- * Tankstellen Austria Card v1.2.0
+ * Tankstellen Austria Card v1.3.1
  * Custom Lovelace card for displaying Austrian fuel prices.
  * https://github.com/rolandzeiner/tankstellen-austria
  */
@@ -10,6 +10,7 @@ const TRANSLATIONS = {
     average: "Ø Preis",
     price: "Preis",
     closed: "Geschlossen",
+    closing_soon: "Schließt bald",
     open_now: "Geöffnet",
     opening_hours: "Öffnungszeiten",
     no_data: "Keine Daten verfügbar",
@@ -35,6 +36,7 @@ const TRANSLATIONS = {
     average: "Avg. price",
     price: "Price",
     closed: "Closed",
+    closing_soon: "Closing soon",
     open_now: "Open",
     opening_hours: "Opening hours",
     no_data: "No data available",
@@ -239,6 +241,41 @@ class TankstellenAustriaCard extends HTMLElement {
       </div>`;
   }
 
+  // Returns true if the station is open but will close within 30 minutes.
+  _isClosingSoon(station) {
+    if (station.open === false) return false;
+    const hours = station.opening_hours || [];
+    if (!hours.length) return false;
+
+    const now = new Date();
+    const dayOfWeek = now.getDay(); // 0=Sun, 1=Mon … 6=Sat
+
+    let dayCode;
+    if (dayOfWeek === 0) dayCode = "SO";
+    else if (dayOfWeek === 6) dayCode = "SA";
+    else dayCode = "MO"; // E-Control groups Mon–Fri under "MO"
+
+    const todayHours = hours.find((h) => h.day === dayCode);
+    if (!todayHours || !todayHours.to) return false;
+
+    const parts = todayHours.to.split(":");
+    const closeHour = parseInt(parts[0], 10);
+    const closeMin = parseInt(parts[1], 10);
+    if (isNaN(closeHour) || isNaN(closeMin)) return false;
+
+    const closing = new Date(now);
+    // "00:00" closing time means the station closes at midnight (next day)
+    if (closeHour === 0 && closeMin === 0) {
+      closing.setDate(closing.getDate() + 1);
+      closing.setHours(0, 0, 0, 0);
+    } else {
+      closing.setHours(closeHour, closeMin, 0, 0);
+    }
+
+    const diffMinutes = (closing - now) / 60000;
+    return diffMinutes > 0 && diffMinutes <= 30;
+  }
+
   // --- Main render ---
   _render() {
     if (!this._hass) return;
@@ -310,7 +347,13 @@ class TankstellenAustriaCard extends HTMLElement {
         const loc = s.location || {};
         const isExpanded = this._expandedStations.has(`${this._activeTab}-${idx}`);
         const expandClass = isExpanded ? "expanded" : "";
-        const openLabel = s.open === false ? `<span class="badge closed">${this._t("closed")}</span>` : "";
+        const isClosed = s.open === false;
+        const isClosingSoon = !isClosed && this._isClosingSoon(s);
+        const openLabel = isClosed
+          ? `<span class="badge closed">${this._t("closed")}</span>`
+          : isClosingSoon
+            ? `<span class="badge closing-soon">${this._t("closing_soon")}</span>`
+            : "";
 
         html += `
           <div class="station">
@@ -553,6 +596,10 @@ class TankstellenAustriaCard extends HTMLElement {
       }
       .badge.closed {
         background: var(--error-color, #db4437);
+        color: #fff;
+      }
+      .badge.closing-soon {
+        background: var(--warning-color, #ff9800);
         color: #fff;
       }
       .hours {

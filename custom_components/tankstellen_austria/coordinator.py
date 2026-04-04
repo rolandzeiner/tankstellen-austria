@@ -5,6 +5,7 @@ import logging
 from datetime import timedelta
 
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import __version__ as HA_VERSION
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
@@ -12,6 +13,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from .const import (
     API_BASE_URL,
     API_ENDPOINT,
+    CARD_VERSION,
     CONF_FUEL_TYPES,
     CONF_INCLUDE_CLOSED,
     CONF_LATITUDE,
@@ -70,7 +72,10 @@ class TankstellenCoordinator(DataUpdateCoordinator):
             "fuelType": fuel_type,
             "includeClosed": str(self._include_closed).lower(),
         }
-        resp = await self._session.get(url, params=params, timeout=30)
+        headers = {
+            "User-Agent": f"HomeAssistant/{HA_VERSION} tankstellen_austria/{CARD_VERSION}",
+        }
+        resp = await self._session.get(url, params=params, headers=headers, timeout=30)
         resp.raise_for_status()
         data = await resp.json()
 
