@@ -311,10 +311,6 @@ class TankstellenAustriaCard extends HTMLElement {
     const showHistory = this._config.show_history !== false;
     const maxStations = Math.min(5, Math.max(1, parseInt(this._config.max_stations, 10) || 5));
 
-    // Dynamic mode: based on the active tab only, so fixed tabs are unaffected
-    const isDynamic = active?.attributes?.dynamic_mode === true;
-    const refreshCoolingDown = isDynamic && (Date.now() - this._lastManualRefresh < DYNAMIC_MANUAL_COOLDOWN_MS);
-
     let html = `<ha-card>`;
 
     // Tabs
@@ -338,6 +334,10 @@ class TankstellenAustriaCard extends HTMLElement {
 
     // Active entity
     const active = entities[this._activeTab] || entities[0];
+
+    // Dynamic mode: based on the active tab only, so fixed tabs are unaffected
+    const isDynamic = active?.attributes?.dynamic_mode === true;
+    const refreshCoolingDown = isDynamic && (Date.now() - this._lastManualRefresh < DYNAMIC_MANUAL_COOLDOWN_MS);
     const allStations = active?.attributes?.stations || [];
     const stations = allStations.slice(0, maxStations);
     const fuelType = active?.attributes?.fuel_type || "";
