@@ -22,6 +22,7 @@ const TRANSLATIONS = {
     per_liter: "/l",
     last_7_days: "Letzte 7 Tage",
     refresh: "Aktualisieren",
+    last_updated: "Aktualisiert:",
     fuel_types: { DIE: "Diesel", SUP: "Super 95", GAS: "CNG Erdgas" },
     editor: {
       entities: "Sensoren",
@@ -49,6 +50,7 @@ const TRANSLATIONS = {
     per_liter: "/l",
     last_7_days: "Last 7 days",
     refresh: "Refresh",
+    last_updated: "Updated:",
     fuel_types: { DIE: "Diesel", SUP: "Super 95", GAS: "CNG" },
     editor: {
       entities: "Sensors",
@@ -86,6 +88,7 @@ class TankstellenAustriaCard extends HTMLElement {
   _historyData = {};
   _historyLoading = {};
   _lastManualRefresh = 0;
+  _cooldownInterval = null;
 
   setConfig(config) {
     this._config = config;
@@ -121,6 +124,7 @@ class TankstellenAustriaCard extends HTMLElement {
           entity_id: eid,
           state: state.state,
           attributes: state.attributes,
+          last_updated: state.last_updated,
         };
       })
       .filter(Boolean);
@@ -202,6 +206,7 @@ class TankstellenAustriaCard extends HTMLElement {
 
   disconnectedCallback() {
     clearInterval(this._historyInterval);
+    clearInterval(this._cooldownInterval);
   }
 
   // --- Sparkline ---
@@ -256,7 +261,15 @@ class TankstellenAustriaCard extends HTMLElement {
         entity_id: e.entity_id,
       });
     });
-    // Re-render immediately so the button shows as disabled
+    // Start per-second re-render so the countdown stays live
+    clearInterval(this._cooldownInterval);
+    this._cooldownInterval = setInterval(() => {
+      if (Date.now() - this._lastManualRefresh >= DYNAMIC_MANUAL_COOLDOWN_MS) {
+        clearInterval(this._cooldownInterval);
+        this._cooldownInterval = null;
+      }
+      this._render();
+    }, 1000);
     this._render();
   }
 
@@ -337,7 +350,19 @@ class TankstellenAustriaCard extends HTMLElement {
 
     // Dynamic mode: based on the active tab only, so fixed tabs are unaffected
     const isDynamic = active?.attributes?.dynamic_mode === true;
-    const refreshCoolingDown = isDynamic && (Date.now() - this._lastManualRefresh < DYNAMIC_MANUAL_COOLDOWN_MS);
+    const remainingMs = DYNAMIC_MANUAL_COOLDOWN_MS - (Date.now() - this._lastManualRefresh);
+    const refreshCoolingDown = isDynamic && remainingMs > 0;
+    const countdownText = (() => {
+      if (!refreshCoolingDown) return "";
+      const s = Math.ceil(remainingMs / 1000);
+      return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+    })();
+
+    // Last-updated time for dynamic header
+    const lastUpdatedTime = (() => {
+      if (!isDynamic || !active?.last_updated) return "";
+      return new Date(active.last_updated).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    })();
     const allStations = active?.attributes?.stations || [];
     const stations = allStations.slice(0, maxStations);
     const fuelType = active?.attributes?.fuel_type || "";
@@ -354,6 +379,14 @@ class TankstellenAustriaCard extends HTMLElement {
               <svg viewBox="0 0 24 24" width="18" height="18" class="fuel-icon"><path fill="currentColor" d="M18 10a1 1 0 0 1-1-1 1 1 0 0 1 1-1 1 1 0 0 1 1 1 1 1 0 0 1-1 1m-6 0H8V5h4m7.77 2.23l.01-.01-3.72-3.72L15 4.56l2.11 2.11C16.17 7 15.5 7.93 15.5 9a2.5 2.5 0 0 0 2.5 2.5c.36 0 .69-.08 1-.21v7.21a1 1 0 0 1-1 1 1 1 0 0 1-1-1V14a2 2 0 0 0-2-2h-1V5a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16h10v-7.5h1.5v5A2.5 2.5 0 0 0 20 21a2.5 2.5 0 0 0 2.5-2.5V9c0-.69-.28-1.32-.73-1.77z"/></svg>
               <span>${fuelTypeName}</span>
             </div>
+            ${isDynamic ? `
+            <div class="dynamic-meta">
+              ${lastUpdatedTime ? `<span class="last-updated">${this._t("last_updated")} ${lastUpdatedTime}</span>` : ""}
+            </div>
+            <button class="refresh-btn${refreshCoolingDown ? " cooling" : ""}" data-refresh>
+              <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+              ${refreshCoolingDown ? countdownText : this._t("refresh")}
+            </button>` : `
             <div class="header-prices">
               <div class="header-price-item">
                 <span class="header-price-label">${this._t("cheapest")}</span>
@@ -364,12 +397,7 @@ class TankstellenAustriaCard extends HTMLElement {
                 <span class="header-price-label">${this._t("average")}</span>
                 <span class="header-price-value avg">${this._formatPrice(avgPrice)}</span>
               </div>` : ""}
-            </div>
-            ${isDynamic ? `
-            <button class="refresh-btn${refreshCoolingDown ? " cooling" : ""}" data-refresh>
-              <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
-              ${refreshCoolingDown ? "" : this._t("refresh")}
-            </button>` : ""}
+            </div>`}
           </div>
           ${showHistory && !isDynamic ? `<div class="sparkline-container">${this._renderSparkline(active.entity_id)}</div>` : ""}
         </div>`;
@@ -642,6 +670,17 @@ class TankstellenAustriaCard extends HTMLElement {
       .badge.closing-soon {
         background: var(--warning-color, #ff9800);
         color: #fff;
+      }
+      .dynamic-meta {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        justify-content: center;
+        flex: 1;
+      }
+      .last-updated {
+        font-size: 11px;
+        color: var(--secondary-text-color);
       }
       .refresh-btn {
         display: flex;
