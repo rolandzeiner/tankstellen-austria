@@ -26,7 +26,7 @@ rules:
     status: done
   entity-event-setup:
     status: exempt
-    comment: This integration does not subscribe to any events.
+    comment: Sensor entities do not subscribe to events directly. The coordinator handles device_tracker state changes internally.
   entity-unique-id:
     status: done
   has-entity-name:
@@ -37,7 +37,36 @@ rules:
     status: done
   test-before-configure:
     status: done
+    comment: Config flow makes a trial API fetch before creating the entry and shows cannot_connect on failure.
   test-before-setup:
     status: done
+    comment: async_config_entry_first_refresh raises ConfigEntryNotReady if the API is unavailable at setup time.
   unique-config-entry:
     status: done
+
+  # Silver
+  action-exceptions:
+    status: exempt
+    comment: This integration does not provide any service actions.
+  config-entry-unloading:
+    status: done
+  docs-configuration-parameters:
+    status: done
+  docs-installation-parameters:
+    status: done
+  entity-unavailable:
+    status: done
+    comment: Sensors inherit from CoordinatorEntity which marks them unavailable when the coordinator's last update failed.
+  integration-owner:
+    status: done
+  log-when-unavailable:
+    status: done
+    comment: Coordinator logs a warning the first time the API becomes unavailable and an info message when it comes back online.
+  parallel-updates:
+    status: done
+  reauthentication-flow:
+    status: exempt
+    comment: The E-Control API requires no authentication.
+  test-coverage:
+    status: done
+    comment: Config flow, coordinator (fetch, failure, dynamic mode guards), and sensor (state, attributes, dynamic mode) tests are all covered.

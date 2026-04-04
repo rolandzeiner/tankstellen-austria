@@ -47,10 +47,17 @@ def mock_card_path():
 
 @pytest.fixture
 def mock_fetch():
-    """Mock the E-Control API _fetch to return fake stations without real HTTP requests."""
-    with patch(
-        "custom_components.tankstellen_austria.coordinator.TankstellenCoordinator._fetch",
-        new_callable=AsyncMock,
-        return_value=[MOCK_STATION],
-    ) as mock_fetch_call:
+    """Mock the E-Control API _fetch and config flow test to avoid real HTTP requests."""
+    with (
+        patch(
+            "custom_components.tankstellen_austria.coordinator.TankstellenCoordinator._fetch",
+            new_callable=AsyncMock,
+            return_value=[MOCK_STATION],
+        ) as mock_fetch_call,
+        patch(
+            "custom_components.tankstellen_austria.config_flow._test_api_connection",
+            new_callable=AsyncMock,
+            return_value=True,
+        ),
+    ):
         yield mock_fetch_call

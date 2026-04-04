@@ -18,6 +18,7 @@
       }
     },
     "error": {
+      "cannot_connect": "Cannot connect to the E-Control API. Check your internet connection and try again.",
       "invalid_location": "Please select a valid location on the map.",
       "no_fuel_type": "Please select at least one fuel type."
     },
@@ -43,6 +44,7 @@
       }
     },
     "error": {
+      "cannot_connect": "Cannot connect to the E-Control API. Check your internet connection and try again.",
       "invalid_location": "Please select a valid location on the map.",
       "no_fuel_type": "Please select at least one fuel type."
     }

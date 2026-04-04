@@ -1,12 +1,14 @@
 """Config flow for Tankstellen Austria."""
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 import voluptuous as vol
 
 from homeassistant.config_entries import ConfigFlow, ConfigFlowResult, OptionsFlow
 from homeassistant.core import callback
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
     BooleanSelector,
     EntitySelector,
@@ -23,6 +25,9 @@ from homeassistant.helpers.selector import (
 )
 
 from .const import (
+    API_BASE_URL,
+    API_ENDPOINT,
+    CARD_VERSION,
     CONF_DYNAMIC_ENTITY,
     CONF_FUEL_TYPES,
     CONF_INCLUDE_CLOSED,
@@ -34,6 +39,22 @@ from .const import (
     DOMAIN,
     FUEL_TYPES,
 )
+
+
+async def _test_api_connection(hass, lat: float, lng: float, fuel_type: str) -> bool:
+    """Return True if the E-Control API is reachable with the given coordinates."""
+    session = async_get_clientsession(hass)
+    try:
+        resp = await session.get(
+            f"{API_BASE_URL}{API_ENDPOINT}",
+            params={"latitude": lat, "longitude": lng, "fuelType": fuel_type, "includeClosed": "true"},
+            headers={"User-Agent": f"HomeAssistant tankstellen_austria/{CARD_VERSION}"},
+            timeout=10,
+        )
+        resp.raise_for_status()
+    except (asyncio.TimeoutError, Exception):  # noqa: BLE001
+        return False
+    return True
 
 
 def _build_schema(
@@ -119,30 +140,33 @@ class TankstellenConfigFlow(ConfigFlow, domain=DOMAIN):
             elif not fuel_types:
                 errors[CONF_FUEL_TYPES] = "no_fuel_type"
             else:
-                dynamic_entity = user_input.get(CONF_DYNAMIC_ENTITY) or None
-                if dynamic_entity:
-                    unique_id = f"dynamic_{dynamic_entity}"
+                if not await _test_api_connection(self.hass, lat, lng, fuel_types[0]):
+                    errors["base"] = "cannot_connect"
                 else:
-                    unique_id = f"{round(lat, 3)}_{round(lng, 3)}"
-                await self.async_set_unique_id(unique_id)
-                self._abort_if_unique_id_configured()
+                    dynamic_entity = user_input.get(CONF_DYNAMIC_ENTITY) or None
+                    if dynamic_entity:
+                        unique_id = f"dynamic_{dynamic_entity}"
+                    else:
+                        unique_id = f"{round(lat, 3)}_{round(lng, 3)}"
+                    await self.async_set_unique_id(unique_id)
+                    self._abort_if_unique_id_configured()
 
-                title = user_input.get("name", "Tankstellen")
-                return self.async_create_entry(
-                    title=title,
-                    data={
-                        CONF_LATITUDE: lat,
-                        CONF_LONGITUDE: lng,
-                        CONF_FUEL_TYPES: fuel_types,
-                        CONF_INCLUDE_CLOSED: user_input.get(
-                            CONF_INCLUDE_CLOSED, DEFAULT_INCLUDE_CLOSED
-                        ),
-                        CONF_SCAN_INTERVAL: user_input.get(
-                            CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL
-                        ),
-                        CONF_DYNAMIC_ENTITY: dynamic_entity,
-                    },
-                )
+                    title = user_input.get("name", "Tankstellen")
+                    return self.async_create_entry(
+                        title=title,
+                        data={
+                            CONF_LATITUDE: lat,
+                            CONF_LONGITUDE: lng,
+                            CONF_FUEL_TYPES: fuel_types,
+                            CONF_INCLUDE_CLOSED: user_input.get(
+                                CONF_INCLUDE_CLOSED, DEFAULT_INCLUDE_CLOSED
+                            ),
+                            CONF_SCAN_INTERVAL: user_input.get(
+                                CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL
+                            ),
+                            CONF_DYNAMIC_ENTITY: dynamic_entity,
+                        },
+                    )
 
         defaults = {
             "name": "Tankstellen",

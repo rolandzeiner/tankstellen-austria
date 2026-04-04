@@ -195,6 +195,12 @@ Each fuel type creates one sensor:
 * **Average Price Calculation**: The `average_price` attribute is calculated based only on the five cheapest stations retrieved. It is not a representative average for all stations in the region.
 * **Geographic Scope**: Only stations located within Austria are included. Stations in neighbouring countries are not covered by the E-Control API.
 
+## Removal
+
+1. Go to **Settings → Devices & Services**, find the Tankstellen Austria integration, and click the three-dot menu → **Delete**
+2. Restart Home Assistant
+3. Remove the `custom_components/tankstellen_austria/` directory from your HA config (manual installs only — HACS removes it automatically)
+
 ## License
 
 MIT – see [LICENSE](LICENSE)
