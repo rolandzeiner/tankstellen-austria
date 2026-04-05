@@ -1,11 +1,24 @@
-.DS_Store
+# macOS
+**/.DS_Store
+
+# Python
 __pycache__/
+**/__pycache__/
 *.pyc
 *.py[cod]
-.pytest_cache/
-*.log
 .Python
+
+# Tools
+.pytest_cache/
+.ruff_cache/
+
+# Logs / pip
+*.log
 pip-log.txt
 pip-delete-this-directory.txt
+
+# Build
 target/
+
+# Claude Code
 .claude/
