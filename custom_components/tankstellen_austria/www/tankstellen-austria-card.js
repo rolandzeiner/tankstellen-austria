@@ -1,5 +1,5 @@
 /**
- * Tankstellen Austria Card v1.2.0
+ * Tankstellen Austria Card v1.4.0
  * Custom Lovelace card for displaying Austrian fuel prices.
  * https://github.com/rolandzeiner/tankstellen-austria
  */
@@ -10,6 +10,7 @@ const TRANSLATIONS = {
     average: "Ø Preis",
     price: "Preis",
     closed: "Geschlossen",
+    closing_soon: "Schließt bald",
     open_now: "Geöffnet",
     opening_hours: "Öffnungszeiten",
     no_data: "Keine Daten verfügbar",
@@ -20,6 +21,9 @@ const TRANSLATIONS = {
     map: "Karte",
     per_liter: "/l",
     last_7_days: "Letzte 7 Tage",
+    refresh: "Aktualisieren",
+    last_updated: "Aktualisiert:",
+    no_new_data: "Keine neuen Daten",
     fuel_types: { DIE: "Diesel", SUP: "Super 95", GAS: "CNG Erdgas" },
     editor: {
       entities: "Sensoren",
@@ -35,6 +39,7 @@ const TRANSLATIONS = {
     average: "Avg. price",
     price: "Price",
     closed: "Closed",
+    closing_soon: "Closing soon",
     open_now: "Open",
     opening_hours: "Opening hours",
     no_data: "No data available",
@@ -45,6 +50,9 @@ const TRANSLATIONS = {
     map: "Map",
     per_liter: "/l",
     last_7_days: "Last 7 days",
+    refresh: "Refresh",
+    last_updated: "Updated:",
+    no_new_data: "No new data",
     fuel_types: { DIE: "Diesel", SUP: "Super 95", GAS: "CNG" },
     editor: {
       entities: "Sensors",
@@ -72,6 +80,8 @@ function _findTankstellenEntities(hass) {
   });
 }
 
+const DYNAMIC_MANUAL_COOLDOWN_MS = 2 * 60 * 1000; // 2 minutes, matches backend
+
 class TankstellenAustriaCard extends HTMLElement {
   _config = {};
   _hass = null;
@@ -79,6 +89,9 @@ class TankstellenAustriaCard extends HTMLElement {
   _expandedStations = new Set();
   _historyData = {};
   _historyLoading = {};
+  _lastManualRefresh = 0;
+  _cooldownInterval = null;
+  _noNewData = false;
 
   setConfig(config) {
     this._config = config;
@@ -91,6 +104,18 @@ class TankstellenAustriaCard extends HTMLElement {
 
     if (!prevHass && hass) {
       this._fetchAllHistory();
+      this._render();
+      return;
+    }
+
+    // Skip re-render when none of the relevant entity states changed.
+    // HA state objects are immutable — a new object means new data.
+    if (prevHass) {
+      const eids = this._config.entities?.length
+        ? this._config.entities
+        : _findTankstellenEntities(hass);
+      const changed = eids.some((eid) => prevHass.states[eid] !== hass.states[eid]);
+      if (!changed) return;
     }
 
     this._render();
@@ -114,6 +139,7 @@ class TankstellenAustriaCard extends HTMLElement {
           entity_id: eid,
           state: state.state,
           attributes: state.attributes,
+          last_updated: state.last_updated,
         };
       })
       .filter(Boolean);
@@ -195,6 +221,7 @@ class TankstellenAustriaCard extends HTMLElement {
 
   disconnectedCallback() {
     clearInterval(this._historyInterval);
+    clearInterval(this._cooldownInterval);
   }
 
   // --- Sparkline ---
@@ -239,11 +266,81 @@ class TankstellenAustriaCard extends HTMLElement {
       </div>`;
   }
 
+  _handleRefresh() {
+    const now = Date.now();
+    if (now - this._lastManualRefresh < DYNAMIC_MANUAL_COOLDOWN_MS) return;
+    this._lastManualRefresh = now;
+    this._noNewData = false;
+    const entities = this._resolveEntities();
+    const active = entities[this._activeTab] || entities[0];
+    const preRefreshTimestamp = active?.last_updated;
+    entities.forEach((e) => {
+      this._hass.callService("homeassistant", "update_entity", {
+        entity_id: e.entity_id,
+      });
+    });
+    // After HA has had time to fetch, check if data actually changed
+    setTimeout(() => {
+      const updated = this._resolveEntities();
+      const updatedActive = updated[this._activeTab] || updated[0];
+      if (updatedActive?.last_updated === preRefreshTimestamp) {
+        this._noNewData = true;
+        this._render();
+      }
+    }, 3000);
+    // Start per-second re-render so the countdown stays live
+    clearInterval(this._cooldownInterval);
+    this._cooldownInterval = setInterval(() => {
+      if (Date.now() - this._lastManualRefresh >= DYNAMIC_MANUAL_COOLDOWN_MS) {
+        clearInterval(this._cooldownInterval);
+        this._cooldownInterval = null;
+      }
+      this._render();
+    }, 1000);
+    this._render();
+  }
+
+  // Returns true if the station is open but will close within 30 minutes.
+  _isClosingSoon(station) {
+    if (station.open === false) return false;
+    const hours = station.opening_hours || [];
+    if (!hours.length) return false;
+
+    const now = new Date();
+    const dayOfWeek = now.getDay(); // 0=Sun, 1=Mon … 6=Sat
+
+    let dayCode;
+    if (dayOfWeek === 0) dayCode = "SO";
+    else if (dayOfWeek === 6) dayCode = "SA";
+    else dayCode = "MO"; // E-Control groups Mon–Fri under "MO"
+
+    const todayHours = hours.find((h) => h.day === dayCode);
+    if (!todayHours || !todayHours.to) return false;
+
+    const parts = todayHours.to.split(":");
+    const closeHour = parseInt(parts[0], 10);
+    const closeMin = parseInt(parts[1], 10);
+    if (isNaN(closeHour) || isNaN(closeMin)) return false;
+
+    const closing = new Date(now);
+    // "00:00" closing time means the station closes at midnight (next day)
+    if (closeHour === 0 && closeMin === 0) {
+      closing.setDate(closing.getDate() + 1);
+      closing.setHours(0, 0, 0, 0);
+    } else {
+      closing.setHours(closeHour, closeMin, 0, 0);
+    }
+
+    const diffMinutes = (closing - now) / 60000;
+    return diffMinutes > 0 && diffMinutes <= 30;
+  }
+
   // --- Main render ---
   _render() {
     if (!this._hass) return;
 
     const entities = this._resolveEntities();
+    if (this._activeTab >= entities.length) this._activeTab = 0;
     if (!entities.length) {
       this.innerHTML = `<ha-card><div class="empty">${TRANSLATIONS[(this._config.language || "de")].no_data
         }</div></ha-card>${this._getStyles()}`;
@@ -262,14 +359,39 @@ class TankstellenAustriaCard extends HTMLElement {
       html += `<div class="tabs">`;
       entities.forEach((e, i) => {
         const ft = e.attributes.fuel_type || "";
-        const active = i === this._activeTab ? "active" : "";
-        html += `<button class="tab ${active}" data-tab="${i}">${this._fuelName(ft)}</button>`;
+        const activeClass = i === this._activeTab ? "active" : "";
+        let label = this._fuelName(ft);
+        if (e.attributes.dynamic_mode === true) {
+          const trackerId = e.attributes.dynamic_entity;
+          const trackerName = trackerId
+            ? (this._hass.states[trackerId]?.attributes?.friendly_name || trackerId.split(".")[1])
+            : null;
+          if (trackerName) label += ` · ${trackerName}`;
+        }
+        html += `<button class="tab ${activeClass}" data-tab="${i}">${label}</button>`;
       });
       html += `</div>`;
     }
 
     // Active entity
     const active = entities[this._activeTab] || entities[0];
+
+    // Dynamic mode: based on the active tab only, so fixed tabs are unaffected
+    const isDynamic = active?.attributes?.dynamic_mode === true;
+    const remainingMs = DYNAMIC_MANUAL_COOLDOWN_MS - (Date.now() - this._lastManualRefresh);
+    const refreshCoolingDown = isDynamic && remainingMs > 0;
+    const countdownText = (() => {
+      if (!refreshCoolingDown) return "";
+      const s = Math.ceil(remainingMs / 1000);
+      return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+    })();
+
+    // Last-updated time for dynamic header
+    const lastUpdatedTime = (() => {
+      if (!isDynamic || !active?.last_updated) return "";
+      return new Date(active.last_updated).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    })();
+
     const allStations = active?.attributes?.stations || [];
     const stations = allStations.slice(0, maxStations);
     const fuelType = active?.attributes?.fuel_type || "";
@@ -286,6 +408,17 @@ class TankstellenAustriaCard extends HTMLElement {
               <svg viewBox="0 0 24 24" width="18" height="18" class="fuel-icon"><path fill="currentColor" d="M18 10a1 1 0 0 1-1-1 1 1 0 0 1 1-1 1 1 0 0 1 1 1 1 1 0 0 1-1 1m-6 0H8V5h4m7.77 2.23l.01-.01-3.72-3.72L15 4.56l2.11 2.11C16.17 7 15.5 7.93 15.5 9a2.5 2.5 0 0 0 2.5 2.5c.36 0 .69-.08 1-.21v7.21a1 1 0 0 1-1 1 1 1 0 0 1-1-1V14a2 2 0 0 0-2-2h-1V5a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16h10v-7.5h1.5v5A2.5 2.5 0 0 0 20 21a2.5 2.5 0 0 0 2.5-2.5V9c0-.69-.28-1.32-.73-1.77z"/></svg>
               <span>${fuelTypeName}</span>
             </div>
+            ${isDynamic ? `
+            <div class="dynamic-meta">
+              <div class="dynamic-meta-inner">
+                ${lastUpdatedTime ? `<span class="last-updated">${this._t("last_updated")} ${lastUpdatedTime}</span>` : ""}
+                ${this._noNewData ? `<span class="no-new-data">${this._t("no_new_data")}</span>` : ""}
+              </div>
+            </div>
+            <button class="refresh-btn${refreshCoolingDown ? " cooling" : ""}" data-refresh>
+              <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+              ${refreshCoolingDown ? countdownText : this._t("refresh")}
+            </button>` : `
             <div class="header-prices">
               <div class="header-price-item">
                 <span class="header-price-label">${this._t("cheapest")}</span>
@@ -296,9 +429,9 @@ class TankstellenAustriaCard extends HTMLElement {
                 <span class="header-price-label">${this._t("average")}</span>
                 <span class="header-price-value avg">${this._formatPrice(avgPrice)}</span>
               </div>` : ""}
-            </div>
+            </div>`}
           </div>
-          ${showHistory ? `<div class="sparkline-container">${this._renderSparkline(active.entity_id)}</div>` : ""}
+          ${showHistory && !isDynamic ? `<div class="sparkline-container">${this._renderSparkline(active.entity_id)}</div>` : ""}
         </div>`;
     }
 
@@ -310,7 +443,13 @@ class TankstellenAustriaCard extends HTMLElement {
         const loc = s.location || {};
         const isExpanded = this._expandedStations.has(`${this._activeTab}-${idx}`);
         const expandClass = isExpanded ? "expanded" : "";
-        const openLabel = s.open === false ? `<span class="badge closed">${this._t("closed")}</span>` : "";
+        const isClosed = s.open === false;
+        const isClosingSoon = !isClosed && this._isClosingSoon(s);
+        const openLabel = isClosed
+          ? `<span class="badge closed">${this._t("closed")}</span>`
+          : isClosingSoon
+            ? `<span class="badge closing-soon">${this._t("closing_soon")}</span>`
+            : "";
 
         html += `
           <div class="station">
@@ -369,6 +508,11 @@ class TankstellenAustriaCard extends HTMLElement {
         this._render();
       });
     });
+
+    const refreshBtn = this.querySelector("[data-refresh]");
+    if (refreshBtn) {
+      refreshBtn.addEventListener("click", () => this._handleRefresh());
+    }
 
     this.querySelectorAll(".station-main").forEach((el) => {
       el.addEventListener("click", (e) => {
@@ -554,6 +698,57 @@ class TankstellenAustriaCard extends HTMLElement {
       .badge.closed {
         background: var(--error-color, #db4437);
         color: #fff;
+      }
+      .badge.closing-soon {
+        background: var(--warning-color, #ff9800);
+        color: #fff;
+      }
+      .dynamic-meta {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        justify-content: center;
+        flex: 1;
+      }
+      .last-updated {
+        font-size: 11px;
+        color: var(--secondary-text-color);
+      }
+      .dynamic-meta-inner {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        line-height: 1.2;
+      }
+      .no-new-data {
+        font-size: 11px;
+        color: var(--warning-color, #ff9800);
+      }
+      .refresh-btn {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        margin-left: auto;
+        padding: 4px 8px;
+        background: none;
+        border: 1px solid var(--primary-color);
+        border-radius: 6px;
+        color: var(--primary-color);
+        font-size: 12px;
+        font-weight: 500;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: opacity 0.2s;
+        flex-shrink: 0;
+      }
+      .refresh-btn.cooling {
+        opacity: 0.4;
+        cursor: default;
+        pointer-events: none;
+      }
+      .refresh-btn:hover:not(.cooling) {
+        background: var(--primary-color);
+        color: var(--text-primary-color, #fff);
       }
       .hours {
         max-height: 0;

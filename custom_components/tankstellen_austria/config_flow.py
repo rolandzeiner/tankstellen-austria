@@ -1,13 +1,18 @@
 """Config flow for Tankstellen Austria."""
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 import voluptuous as vol
 
 from homeassistant.config_entries import ConfigFlow, ConfigFlowResult, OptionsFlow
 from homeassistant.core import callback
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
+    BooleanSelector,
+    EntitySelector,
+    EntitySelectorConfig,
     LocationSelector,
     LocationSelectorConfig,
     NumberSelector,
@@ -16,11 +21,14 @@ from homeassistant.helpers.selector import (
     SelectSelector,
     SelectSelectorConfig,
     SelectSelectorMode,
-    BooleanSelector,
     TextSelector,
 )
 
 from .const import (
+    API_BASE_URL,
+    API_ENDPOINT,
+    CARD_VERSION,
+    CONF_DYNAMIC_ENTITY,
     CONF_FUEL_TYPES,
     CONF_INCLUDE_CLOSED,
     CONF_LATITUDE,
@@ -33,9 +41,26 @@ from .const import (
 )
 
 
+async def _test_api_connection(hass, lat: float, lng: float, fuel_type: str) -> bool:
+    """Return True if the E-Control API is reachable with the given coordinates."""
+    session = async_get_clientsession(hass)
+    try:
+        resp = await session.get(
+            f"{API_BASE_URL}{API_ENDPOINT}",
+            params={"latitude": lat, "longitude": lng, "fuelType": fuel_type, "includeClosed": "true"},
+            headers={"User-Agent": f"HomeAssistant tankstellen_austria/{CARD_VERSION}"},
+            timeout=10,
+        )
+        resp.raise_for_status()
+    except (asyncio.TimeoutError, Exception):  # noqa: BLE001
+        return False
+    return True
+
+
 def _build_schema(
     defaults: dict[str, Any],
     include_name: bool = False,
+    include_dynamic: bool = False,
 ) -> vol.Schema:
     """Build the shared config/options form schema."""
     fields: dict = {}
@@ -76,6 +101,14 @@ def _build_schema(
             mode=NumberSelectorMode.BOX,
         )
     )
+    if include_dynamic:
+        existing = defaults.get(CONF_DYNAMIC_ENTITY) or None
+        key = (
+            vol.Optional(CONF_DYNAMIC_ENTITY, default=existing)
+            if existing
+            else vol.Optional(CONF_DYNAMIC_ENTITY)
+        )
+        fields[key] = EntitySelector(EntitySelectorConfig(domain="device_tracker"))
     return vol.Schema(fields)
 
 
@@ -107,25 +140,33 @@ class TankstellenConfigFlow(ConfigFlow, domain=DOMAIN):
             elif not fuel_types:
                 errors[CONF_FUEL_TYPES] = "no_fuel_type"
             else:
-                unique_id = f"{round(lat, 3)}_{round(lng, 3)}"
-                await self.async_set_unique_id(unique_id)
-                self._abort_if_unique_id_configured()
+                if not await _test_api_connection(self.hass, lat, lng, fuel_types[0]):
+                    errors["base"] = "cannot_connect"
+                else:
+                    dynamic_entity = user_input.get(CONF_DYNAMIC_ENTITY) or None
+                    if dynamic_entity:
+                        unique_id = f"dynamic_{dynamic_entity}"
+                    else:
+                        unique_id = f"{round(lat, 3)}_{round(lng, 3)}"
+                    await self.async_set_unique_id(unique_id)
+                    self._abort_if_unique_id_configured()
 
-                title = user_input.get("name", "Tankstellen")
-                return self.async_create_entry(
-                    title=title,
-                    data={
-                        CONF_LATITUDE: lat,
-                        CONF_LONGITUDE: lng,
-                        CONF_FUEL_TYPES: fuel_types,
-                        CONF_INCLUDE_CLOSED: user_input.get(
-                            CONF_INCLUDE_CLOSED, DEFAULT_INCLUDE_CLOSED
-                        ),
-                        CONF_SCAN_INTERVAL: user_input.get(
-                            CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL
-                        ),
-                    },
-                )
+                    title = user_input.get("name", "Tankstellen")
+                    return self.async_create_entry(
+                        title=title,
+                        data={
+                            CONF_LATITUDE: lat,
+                            CONF_LONGITUDE: lng,
+                            CONF_FUEL_TYPES: fuel_types,
+                            CONF_INCLUDE_CLOSED: user_input.get(
+                                CONF_INCLUDE_CLOSED, DEFAULT_INCLUDE_CLOSED
+                            ),
+                            CONF_SCAN_INTERVAL: user_input.get(
+                                CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL
+                            ),
+                            CONF_DYNAMIC_ENTITY: dynamic_entity,
+                        },
+                    )
 
         defaults = {
             "name": "Tankstellen",
@@ -134,7 +175,7 @@ class TankstellenConfigFlow(ConfigFlow, domain=DOMAIN):
         }
         return self.async_show_form(
             step_id="user",
-            data_schema=_build_schema(defaults, include_name=True),
+            data_schema=_build_schema(defaults, include_name=True, include_dynamic=True),
             errors=errors,
         )
 
@@ -160,6 +201,7 @@ class TankstellenOptionsFlow(OptionsFlow):
             elif not fuel_types:
                 errors[CONF_FUEL_TYPES] = "no_fuel_type"
             else:
+                dynamic_entity = user_input.get(CONF_DYNAMIC_ENTITY) or None
                 return self.async_create_entry(
                     data={
                         CONF_LATITUDE: lat,
@@ -171,11 +213,12 @@ class TankstellenOptionsFlow(OptionsFlow):
                         CONF_SCAN_INTERVAL: user_input.get(
                             CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL
                         ),
+                        CONF_DYNAMIC_ENTITY: dynamic_entity,
                     }
                 )
 
         return self.async_show_form(
             step_id="init",
-            data_schema=_build_schema(config),
+            data_schema=_build_schema(config, include_dynamic=True),
             errors=errors,
         )

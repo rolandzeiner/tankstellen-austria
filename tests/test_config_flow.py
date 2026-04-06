@@ -1,4 +1,6 @@
 """Tests for the Tankstellen Austria config flow."""
+from unittest.mock import AsyncMock, patch
+
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
@@ -123,6 +125,24 @@ async def test_options_flow_updates(hass: HomeAssistant, mock_fetch) -> None:
     assert result["type"] == FlowResultType.CREATE_ENTRY
     assert entry.options[CONF_FUEL_TYPES] == ["DIE"]
     assert entry.options[CONF_SCAN_INTERVAL] == 60
+
+
+async def test_form_cannot_connect(hass: HomeAssistant) -> None:
+    """Test that an API failure shows a cannot_connect error."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    with patch(
+        "custom_components.tankstellen_austria.config_flow._test_api_connection",
+        new_callable=AsyncMock,
+        return_value=False,
+    ):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            VALID_USER_INPUT,
+        )
+    assert result["type"] == FlowResultType.FORM
+    assert result["errors"].get("base") == "cannot_connect"
 
 
 async def test_options_flow_no_fuel_type(hass: HomeAssistant, mock_fetch) -> None:

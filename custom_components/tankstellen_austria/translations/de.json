@@ -9,11 +9,16 @@
           "location": "Standort",
           "fuel_types": "Kraftstoffarten",
           "include_closed": "Geschlossene Tankstellen anzeigen",
-          "scan_interval": "Aktualisierungsintervall (Minuten)"
+          "scan_interval": "Aktualisierungsintervall (Minuten)",
+          "dynamic_entity": "Dynamischer Standort-Tracker"
+        },
+        "data_description": {
+          "dynamic_entity": "Optional: Wähle eine device_tracker-Entität, um Preise basierend auf deinem aktuellen GPS-Standort zu aktualisieren. Leer lassen für fixen Standortmodus. Hinweis: Im dynamischen Modus wird das Aktualisierungsintervall oben ignoriert – stattdessen gilt ein 6-Stunden-Sicherheitsintervall."
         }
       }
     },
     "error": {
+      "cannot_connect": "Verbindung zur E-Control API fehlgeschlagen. Überprüfe deine Internetverbindung und versuche es erneut.",
       "invalid_location": "Bitte wähle einen gültigen Standort auf der Karte.",
       "no_fuel_type": "Bitte wähle mindestens eine Kraftstoffart."
     },
@@ -30,11 +35,16 @@
           "location": "Standort",
           "fuel_types": "Kraftstoffarten",
           "include_closed": "Geschlossene Tankstellen anzeigen",
-          "scan_interval": "Aktualisierungsintervall (Minuten)"
+          "scan_interval": "Aktualisierungsintervall (Minuten)",
+          "dynamic_entity": "Dynamischer Standort-Tracker"
+        },
+        "data_description": {
+          "dynamic_entity": "Optional: Wähle eine device_tracker-Entität, um Preise basierend auf deinem aktuellen GPS-Standort zu aktualisieren. Leer lassen für fixen Standortmodus. Hinweis: Im dynamischen Modus wird das Aktualisierungsintervall oben ignoriert – stattdessen gilt ein 6-Stunden-Sicherheitsintervall."
         }
       }
     },
     "error": {
+      "cannot_connect": "Verbindung zur E-Control API fehlgeschlagen. Überprüfe deine Internetverbindung und versuche es erneut.",
       "invalid_location": "Bitte wähle einen gültigen Standort auf der Karte.",
       "no_fuel_type": "Bitte wähle mindestens eine Kraftstoffart."
     }

@@ -2,16 +2,23 @@
 from __future__ import annotations
 
 import logging
-from datetime import timedelta
+from datetime import datetime, timedelta
+from typing import Callable
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.const import __version__ as HA_VERSION
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.event import async_track_state_change_event
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.util import dt as dt_util
+from homeassistant.util.location import distance
 
 from .const import (
     API_BASE_URL,
     API_ENDPOINT,
+    CARD_VERSION,
+    CONF_DYNAMIC_ENTITY,
     CONF_FUEL_TYPES,
     CONF_INCLUDE_CLOSED,
     CONF_LATITUDE,
@@ -19,38 +26,180 @@ from .const import (
     CONF_SCAN_INTERVAL,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
+    DOMAIN_LAST_API_CALL_KEY,
+    DYNAMIC_COOLDOWN_MINUTES,
+    DYNAMIC_DISTANCE_THRESHOLD_M,
+    DYNAMIC_DOMAIN_COOLDOWN_MINUTES,
+    DYNAMIC_SAFETY_INTERVAL_HOURS,
 )
 
 _LOGGER = logging.getLogger(__name__)
 
 
 class TankstellenCoordinator(DataUpdateCoordinator):
-    """Fetch fuel station data from E-Control API."""
+    """Fetch fuel station data from E-Control API.
+
+    Supports two modes:
+    - Fixed mode (default): polls on a regular interval from a fixed location.
+    - Dynamic mode: triggers updates on device_tracker location changes,
+      guarded by distance threshold and rate limits.
+    """
 
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
         """Initialise the coordinator."""
         config = {**entry.data, **entry.options}
-        self._latitude = config[CONF_LATITUDE]
-        self._longitude = config[CONF_LONGITUDE]
+        self._latitude: float = config[CONF_LATITUDE]
+        self._longitude: float = config[CONF_LONGITUDE]
         self._fuel_types: list[str] = config[CONF_FUEL_TYPES]
         self._include_closed: bool = config[CONF_INCLUDE_CLOSED]
         self._session = async_get_clientsession(hass)
-        scan = config.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
+
+        self._dynamic_entity: str | None = config.get(CONF_DYNAMIC_ENTITY) or None
+
+        # Dynamic mode state
+        self._last_fetch_lat: float | None = None
+        self._last_fetch_lng: float | None = None
+        self._last_fetch_time: datetime | None = None
+        self._unsubscribe_tracker: Callable | None = None
+
+        if self._dynamic_entity:
+            interval = timedelta(hours=DYNAMIC_SAFETY_INTERVAL_HOURS)
+        else:
+            scan = config.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
+            interval = timedelta(minutes=scan)
 
         super().__init__(
             hass,
             _LOGGER,
             name=DOMAIN,
-            update_interval=timedelta(minutes=scan),
+            update_interval=interval,
         )
+
+    # ------------------------------------------------------------------
+    # Public helpers
+    # ------------------------------------------------------------------
+
+    @property
+    def dynamic_mode(self) -> bool:
+        """Return True when tracking a device_tracker entity."""
+        return self._dynamic_entity is not None
+
+    @property
+    def dynamic_entity(self) -> str | None:
+        """Return the tracked device_tracker entity ID, or None in fixed mode."""
+        return self._dynamic_entity
+
+    def async_setup(self) -> None:
+        """Register the device_tracker state-change listener (dynamic mode only)."""
+        if not self._dynamic_entity:
+            return
+        self._unsubscribe_tracker = async_track_state_change_event(
+            self.hass,
+            [self._dynamic_entity],
+            self._handle_tracker_update,
+        )
+        _LOGGER.debug(
+            "Dynamic mode: watching %s for location changes", self._dynamic_entity
+        )
+
+    @callback
+    def async_teardown(self) -> None:
+        """Unsubscribe the device_tracker listener on unload."""
+        if self._unsubscribe_tracker:
+            self._unsubscribe_tracker()
+            self._unsubscribe_tracker = None
+
+    # ------------------------------------------------------------------
+    # Dynamic mode internals
+    # ------------------------------------------------------------------
+
+    @callback
+    def _handle_tracker_update(self, event) -> None:
+        """Handle a device_tracker state change event."""
+        new_state = event.data.get("new_state")
+        lat, lng = self._get_entity_coords(new_state)
+        if lat is None or lng is None:
+            return
+        if not self._should_update(lat, lng):
+            return
+        # Update domain-level timestamp before scheduling so concurrent
+        # entries see it immediately.
+        self.hass.data.setdefault(DOMAIN, {})[DOMAIN_LAST_API_CALL_KEY] = dt_util.utcnow()
+        self.hass.async_create_task(self.async_refresh())
+
+    def _get_entity_coords(
+        self, state
+    ) -> tuple[float | None, float | None]:
+        """Extract lat/lng from an entity state, with fallback to HA defaults."""
+        if state is not None:
+            lat = state.attributes.get("latitude")
+            lng = state.attributes.get("longitude")
+            if lat is not None and lng is not None:
+                return float(lat), float(lng)
+        # Fallback: HA instance location
+        return self.hass.config.latitude, self.hass.config.longitude
+
+    def _should_update(self, lat: float, lng: float) -> bool:
+        """Return True only when all rate-limit guards pass."""
+        now = dt_util.utcnow()
+
+        # 1. Domain-wide cooldown (protects against multiple entries firing at once)
+        last_domain = self.hass.data.get(DOMAIN, {}).get(DOMAIN_LAST_API_CALL_KEY)
+        if last_domain is not None:
+            age_min = (now - last_domain).total_seconds() / 60
+            if age_min < DYNAMIC_DOMAIN_COOLDOWN_MINUTES:
+                _LOGGER.debug(
+                    "Dynamic update skipped: domain cooldown (%.1f min remaining)",
+                    DYNAMIC_DOMAIN_COOLDOWN_MINUTES - age_min,
+                )
+                return False
+
+        # 2. Per-entry cooldown
+        if self._last_fetch_time is not None:
+            age_min = (now - self._last_fetch_time).total_seconds() / 60
+            if age_min < DYNAMIC_COOLDOWN_MINUTES:
+                _LOGGER.debug(
+                    "Dynamic update skipped: entry cooldown (%.1f min remaining)",
+                    DYNAMIC_COOLDOWN_MINUTES - age_min,
+                )
+                return False
+
+        # 3. Distance threshold (skip on very first call when no prior position)
+        if self._last_fetch_lat is not None and self._last_fetch_lng is not None:
+            dist_m = distance(
+                lat, lng, self._last_fetch_lat, self._last_fetch_lng
+            )
+            if dist_m < DYNAMIC_DISTANCE_THRESHOLD_M:
+                _LOGGER.debug(
+                    "Dynamic update skipped: only moved %.0f m (threshold %d m)",
+                    dist_m,
+                    DYNAMIC_DISTANCE_THRESHOLD_M,
+                )
+                return False
+
+        return True
+
+    # ------------------------------------------------------------------
+    # Core data fetch
+    # ------------------------------------------------------------------
 
     async def _async_update_data(self) -> dict[str, list[dict]]:
         """Fetch data for each configured fuel type."""
+        if self._dynamic_entity:
+            state = self.hass.states.get(self._dynamic_entity)
+            lat, lng = self._get_entity_coords(state)
+            self._last_fetch_lat = lat
+            self._last_fetch_lng = lng
+            self._last_fetch_time = dt_util.utcnow()
+        else:
+            lat = self._latitude
+            lng = self._longitude
+
         was_available = self.last_update_success
         results: dict[str, list[dict]] = {}
         for fuel_type in self._fuel_types:
             try:
-                results[fuel_type] = await self._fetch(fuel_type)
+                results[fuel_type] = await self._fetch(fuel_type, lat, lng)
             except Exception as err:
                 if was_available:
                     _LOGGER.warning("E-Control API unavailable: %s", err)
@@ -61,16 +210,19 @@ class TankstellenCoordinator(DataUpdateCoordinator):
             _LOGGER.info("E-Control API is back online")
         return results
 
-    async def _fetch(self, fuel_type: str) -> list[dict]:
+    async def _fetch(self, fuel_type: str, lat: float, lng: float) -> list[dict]:
         """Call the E-Control API for one fuel type."""
         url = f"{API_BASE_URL}{API_ENDPOINT}"
         params = {
-            "latitude": self._latitude,
-            "longitude": self._longitude,
+            "latitude": lat,
+            "longitude": lng,
             "fuelType": fuel_type,
             "includeClosed": str(self._include_closed).lower(),
         }
-        resp = await self._session.get(url, params=params, timeout=30)
+        headers = {
+            "User-Agent": f"HomeAssistant/{HA_VERSION} tankstellen_austria/{CARD_VERSION}",
+        }
+        resp = await self._session.get(url, params=params, headers=headers, timeout=30)
         resp.raise_for_status()
         data = await resp.json()
 
