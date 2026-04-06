@@ -104,6 +104,18 @@ class TankstellenAustriaCard extends HTMLElement {
 
     if (!prevHass && hass) {
       this._fetchAllHistory();
+      this._render();
+      return;
+    }
+
+    // Skip re-render when none of the relevant entity states changed.
+    // HA state objects are immutable — a new object means new data.
+    if (prevHass) {
+      const eids = this._config.entities?.length
+        ? this._config.entities
+        : _findTankstellenEntities(hass);
+      const changed = eids.some((eid) => prevHass.states[eid] !== hass.states[eid]);
+      if (!changed) return;
     }
 
     this._render();
@@ -328,6 +340,7 @@ class TankstellenAustriaCard extends HTMLElement {
     if (!this._hass) return;
 
     const entities = this._resolveEntities();
+    if (this._activeTab >= entities.length) this._activeTab = 0;
     if (!entities.length) {
       this.innerHTML = `<ha-card><div class="empty">${TRANSLATIONS[(this._config.language || "de")].no_data
         }</div></ha-card>${this._getStyles()}`;
