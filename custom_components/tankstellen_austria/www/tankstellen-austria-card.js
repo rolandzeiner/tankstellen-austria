@@ -434,7 +434,7 @@ class TankstellenAustriaCard extends HTMLElement {
               </div>` : ""}
             </div>`}
           </div>
-          ${showHistory && !isDynamic ? `<div class="sparkline-container">${this._renderSparkline(active.entity_id)}</div>` : ""}
+          ${showHistory && !isDynamic ? `<div class="sparkline-container" data-entity="${active.entity_id}">${this._renderSparkline(active.entity_id)}</div>` : ""}
         </div>`;
     }
 
@@ -529,6 +529,17 @@ class TankstellenAustriaCard extends HTMLElement {
         this._render();
       });
     });
+
+    const sparklineContainer = this.querySelector(".sparkline-container[data-entity]");
+    if (sparklineContainer) {
+      sparklineContainer.addEventListener("click", () => {
+        this.dispatchEvent(new CustomEvent("hass-more-info", {
+          detail: { entityId: sparklineContainer.dataset.entity },
+          bubbles: true,
+          composed: true,
+        }));
+      });
+    }
   }
 
   _getStyles() {
@@ -606,6 +617,7 @@ class TankstellenAustriaCard extends HTMLElement {
       }
       .sparkline-container {
         margin-top: 8px;
+        cursor: pointer;
       }
       .sparkline {
         width: 100%;
