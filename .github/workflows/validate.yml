@@ -30,6 +30,13 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Pull hassfest image (with retry)
+        run: |
+          for i in 1 2 3 4 5; do
+            docker pull ghcr.io/home-assistant/hassfest:latest && break
+            echo "Pull attempt $i failed, retrying in 15s..."
+            sleep 15
+          done
       - uses: home-assistant/actions/hassfest@master
 
   tests:
