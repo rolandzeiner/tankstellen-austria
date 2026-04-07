@@ -1,5 +1,5 @@
 /**
- * Tankstellen Austria Card v1.4.0
+ * Tankstellen Austria Card v1.4.1
  * Custom Lovelace card for displaying Austrian fuel prices.
  * https://github.com/rolandzeiner/tankstellen-austria
  */
@@ -316,6 +316,9 @@ class TankstellenAustriaCard extends HTMLElement {
 
     const todayHours = hours.find((h) => h.day === dayCode);
     if (!todayHours || !todayHours.to) return false;
+
+    // "00:00" to "24:00" means 24/7 — never closing soon
+    if (todayHours.from === "00:00" && todayHours.to === "24:00") return false;
 
     const parts = todayHours.to.split(":");
     const closeHour = parseInt(parts[0], 10);
