@@ -1,6 +1,6 @@
 """Tests for the Tankstellen Austria coordinator."""
 from datetime import timedelta
-from unittest.mock import patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from homeassistant.core import HomeAssistant
@@ -229,3 +229,69 @@ async def test_async_teardown_noop_for_fixed(hass: HomeAssistant) -> None:
     coordinator.async_setup()  # no-op for fixed
     coordinator.async_teardown()  # should not raise
     assert coordinator._unsubscribe_tracker is None
+
+
+# ---------------------------------------------------------------------------
+# No-data retry
+# ---------------------------------------------------------------------------
+
+
+async def test_no_data_preserves_previous_data_and_schedules_retry(
+    hass: HomeAssistant,
+) -> None:
+    """When all fuel types return empty stations, previous data is kept and retry scheduled."""
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+
+    coordinator = TankstellenCoordinator(hass, entry)
+    coordinator.data = {"DIE": [MOCK_STATION], "SUP": [MOCK_STATION]}
+
+    with (
+        patch(
+            "custom_components.tankstellen_austria.coordinator.TankstellenCoordinator._fetch",
+            new_callable=AsyncMock,
+            return_value=[],
+        ),
+        patch(
+            "custom_components.tankstellen_austria.coordinator.async_call_later"
+        ) as mock_call_later,
+    ):
+        result = await coordinator._async_update_data()
+
+    assert result == {"DIE": [MOCK_STATION], "SUP": [MOCK_STATION]}
+    mock_call_later.assert_called_once()
+
+
+async def test_no_data_without_previous_returns_empty(hass: HomeAssistant) -> None:
+    """When all fuel types return empty and there is no previous data, empty is returned."""
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+
+    coordinator = TankstellenCoordinator(hass, entry)
+
+    with (
+        patch(
+            "custom_components.tankstellen_austria.coordinator.TankstellenCoordinator._fetch",
+            new_callable=AsyncMock,
+            return_value=[],
+        ),
+        patch("custom_components.tankstellen_austria.coordinator.async_call_later"),
+    ):
+        result = await coordinator._async_update_data()
+
+    assert result == {"DIE": [], "SUP": []}
+
+
+async def test_async_teardown_cancels_pending_no_data_retry(hass: HomeAssistant) -> None:
+    """async_teardown cancels a scheduled no-data retry."""
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+
+    coordinator = TankstellenCoordinator(hass, entry)
+    mock_cancel = MagicMock()
+    coordinator._no_data_retry_cancel = mock_cancel
+
+    coordinator.async_teardown()
+
+    mock_cancel.assert_called_once()
+    assert coordinator._no_data_retry_cancel is None
