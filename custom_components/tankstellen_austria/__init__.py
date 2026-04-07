@@ -74,13 +74,22 @@ async def _async_register_card(hass: HomeAssistant) -> None:
                 "The WebSocket version check will notify the user if the card JS is stale."
             )
             return
-        if lovelace.mode != "storage":
+
+        # HA <2024.x exposed .mode directly; newer versions use LovelaceData
+        # where mode lives on .config. Fall back gracefully when neither exists.
+        mode = getattr(lovelace, "mode", None) or getattr(
+            getattr(lovelace, "config", None), "mode", None
+        )
+        if mode is not None and mode != "storage":
             _LOGGER.debug(
-                "Lovelace is in %s mode — resource URL must be managed manually", lovelace.mode
+                "Lovelace is in %s mode — resource URL must be managed manually", mode
             )
             return
 
-        resources = lovelace.resources
+        resources = getattr(lovelace, "resources", None)
+        if resources is None:
+            _LOGGER.debug("Lovelace resources not accessible on this HA version")
+            return
         await resources.async_load()
 
         versioned_url = f"{CARD_URL}?v={CARD_VERSION}"
