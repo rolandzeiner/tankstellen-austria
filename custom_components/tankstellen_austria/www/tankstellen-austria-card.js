@@ -533,7 +533,7 @@ class TankstellenAustriaCard extends HTMLElement {
     const sparklineContainer = this.querySelector(".sparkline-container[data-entity]");
     if (sparklineContainer) {
       sparklineContainer.addEventListener("click", () => {
-        this.dispatchEvent(new CustomEvent("hass-more-info", {
+        sparklineContainer.dispatchEvent(new CustomEvent("hass-more-info", {
           detail: { entityId: sparklineContainer.dataset.entity },
           bubbles: true,
           composed: true,
