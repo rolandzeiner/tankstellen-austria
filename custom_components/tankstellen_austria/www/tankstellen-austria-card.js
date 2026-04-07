@@ -4,6 +4,8 @@
  * https://github.com/rolandzeiner/tankstellen-austria
  */
 
+const CARD_VERSION = "1.4.1";
+
 const TRANSLATIONS = {
   de: {
     cheapest: "Günstigster Preis",
@@ -24,6 +26,8 @@ const TRANSLATIONS = {
     refresh: "Aktualisieren",
     last_updated: "Aktualisiert:",
     no_new_data: "Keine neuen Daten",
+    version_update: "Tankstellen Austria wurde auf v{v} aktualisiert — bitte neu laden",
+    version_reload: "Neu laden",
     fuel_types: { DIE: "Diesel", SUP: "Super 95", GAS: "CNG Erdgas" },
     editor: {
       entities: "Sensoren",
@@ -53,6 +57,8 @@ const TRANSLATIONS = {
     refresh: "Refresh",
     last_updated: "Updated:",
     no_new_data: "No new data",
+    version_update: "Tankstellen Austria updated to v{v} — please reload",
+    version_reload: "Reload",
     fuel_types: { DIE: "Diesel", SUP: "Super 95", GAS: "CNG" },
     editor: {
       entities: "Sensors",
@@ -92,6 +98,7 @@ class TankstellenAustriaCard extends HTMLElement {
   _lastManualRefresh = 0;
   _cooldownInterval = null;
   _noNewData = false;
+  _versionMismatch = null;
 
   setConfig(config) {
     this._config = config;
@@ -104,6 +111,7 @@ class TankstellenAustriaCard extends HTMLElement {
 
     if (!prevHass && hass) {
       this._fetchAllHistory();
+      this._checkCardVersion();
       this._render();
       return;
     }
@@ -217,6 +225,17 @@ class TankstellenAustriaCard extends HTMLElement {
       const ents = this._resolveEntities();
       ents.forEach((e) => this._fetchHistory(e.entity_id));
     }, 30 * 60 * 1000);
+  }
+
+  async _checkCardVersion() {
+    if (!this._hass?.callWS) return;
+    try {
+      const result = await this._hass.callWS({ type: "tankstellen_austria/card_version" });
+      if (result?.version && result.version !== CARD_VERSION) {
+        this._versionMismatch = result.version;
+        this._render();
+      }
+    } catch (_) { /* backend may not support this command yet */ }
   }
 
   disconnectedCallback() {
@@ -356,6 +375,15 @@ class TankstellenAustriaCard extends HTMLElement {
     const maxStations = Math.min(5, Math.max(1, parseInt(this._config.max_stations, 10) || 5));
 
     let html = `<ha-card>`;
+
+    // Version mismatch banner
+    if (this._versionMismatch) {
+      const msg = this._t("version_update").replace("{v}", this._versionMismatch);
+      html += `<div class="version-notice">
+        <span>${msg}</span>
+        <button class="version-reload-btn" data-version-reload>${this._t("version_reload")}</button>
+      </div>`;
+    }
 
     // Tabs
     if (entities.length > 1) {
@@ -517,6 +545,19 @@ class TankstellenAustriaCard extends HTMLElement {
       refreshBtn.addEventListener("click", () => this._handleRefresh());
     }
 
+    const versionReloadBtn = this.querySelector("[data-version-reload]");
+    if (versionReloadBtn) {
+      versionReloadBtn.addEventListener("click", async () => {
+        try {
+          if (window.caches) {
+            const keys = await caches.keys();
+            await Promise.all(keys.map((k) => caches.delete(k)));
+          }
+        } catch (_) { /* caches API requires HTTPS; fall through to reload */ }
+        location.reload();
+      });
+    }
+
     this.querySelectorAll(".station-main").forEach((el) => {
       el.addEventListener("click", (e) => {
         if (e.target.closest(".map-link")) return;
@@ -547,6 +588,26 @@ class TankstellenAustriaCard extends HTMLElement {
       ha-card {
         padding: 0;
         overflow: hidden;
+      }
+      .version-notice {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 8px 16px;
+        background: var(--warning-color, #ff9800);
+        color: #fff;
+        font-size: 13px;
+      }
+      .version-reload-btn {
+        flex-shrink: 0;
+        background: rgba(255,255,255,0.2);
+        border: 1px solid rgba(255,255,255,0.6);
+        border-radius: 4px;
+        color: #fff;
+        cursor: pointer;
+        font-size: 12px;
+        padding: 4px 12px;
       }
       .tabs {
         display: flex;
