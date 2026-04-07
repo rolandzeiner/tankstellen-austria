@@ -4,6 +4,8 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
+import voluptuous as vol
+from homeassistant.components import websocket_api
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED, Platform
@@ -21,9 +23,21 @@ PLATFORMS = [Platform.SENSOR]
 CARD_URL = "/tankstellen-austria/tankstellen-austria-card.js"
 
 
+@websocket_api.websocket_command({vol.Required("type"): "tankstellen_austria/card_version"})
+@websocket_api.async_response
+async def _websocket_card_version(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict,
+) -> None:
+    """Return the current card version so the frontend can detect mismatches."""
+    connection.send_result(msg["id"], {"version": CARD_VERSION})
+
+
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
-    """Register the card JS once when the integration is first loaded."""
+    """Register the card JS and WebSocket command once when the domain is loaded."""
     hass.data.setdefault(DOMAIN, {})
+    websocket_api.async_register_command(hass, _websocket_card_version)
 
     async def _register_frontend(_event=None) -> None:
         await _async_register_card(hass)
@@ -54,10 +68,28 @@ async def _async_register_card(hass: HomeAssistant) -> None:
     # Register in Lovelace resource storage (storage mode only)
     try:
         lovelace = hass.data.get("lovelace")
-        if lovelace is None or lovelace.mode != "storage":
+        if lovelace is None:
+            _LOGGER.debug(
+                "Lovelace not yet available in hass.data — resource URL not updated. "
+                "The WebSocket version check will notify the user if the card JS is stale."
+            )
             return
 
-        resources = lovelace.resources
+        # HA <2024.x exposed .mode directly; newer versions use LovelaceData
+        # where mode lives on .config. Fall back gracefully when neither exists.
+        mode = getattr(lovelace, "mode", None) or getattr(
+            getattr(lovelace, "config", None), "mode", None
+        )
+        if mode is not None and mode != "storage":
+            _LOGGER.debug(
+                "Lovelace is in %s mode — resource URL must be managed manually", mode
+            )
+            return
+
+        resources = getattr(lovelace, "resources", None)
+        if resources is None:
+            _LOGGER.debug("Lovelace resources not accessible on this HA version")
+            return
         await resources.async_load()
 
         versioned_url = f"{CARD_URL}?v={CARD_VERSION}"

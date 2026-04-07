@@ -9,7 +9,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import __version__ as HA_VERSION
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from homeassistant.helpers.event import async_track_state_change_event
+from homeassistant.helpers.event import async_call_later, async_track_state_change_event
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 from homeassistant.util.location import distance
@@ -31,6 +31,7 @@ from .const import (
     DYNAMIC_DISTANCE_THRESHOLD_M,
     DYNAMIC_DOMAIN_COOLDOWN_MINUTES,
     DYNAMIC_SAFETY_INTERVAL_HOURS,
+    NO_DATA_RETRY_MINUTES,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -61,6 +62,9 @@ class TankstellenCoordinator(DataUpdateCoordinator):
         self._last_fetch_lng: float | None = None
         self._last_fetch_time: datetime | None = None
         self._unsubscribe_tracker: Callable | None = None
+
+        # No-data retry state
+        self._no_data_retry_cancel: Callable | None = None
 
         if self._dynamic_entity:
             interval = timedelta(hours=DYNAMIC_SAFETY_INTERVAL_HOURS)
@@ -108,6 +112,9 @@ class TankstellenCoordinator(DataUpdateCoordinator):
         if self._unsubscribe_tracker:
             self._unsubscribe_tracker()
             self._unsubscribe_tracker = None
+        if self._no_data_retry_cancel:
+            self._no_data_retry_cancel()
+            self._no_data_retry_cancel = None
 
     # ------------------------------------------------------------------
     # Dynamic mode internals
@@ -208,7 +215,37 @@ class TankstellenCoordinator(DataUpdateCoordinator):
                 ) from err
         if not was_available:
             _LOGGER.info("E-Control API is back online")
+
+        # If the API returned no stations for any fuel type, it may be in the
+        # middle of its own data update (~12:05–12:07). Schedule a retry in
+        # NO_DATA_RETRY_MINUTES and keep the previous data alive in the meantime.
+        if all(not v for v in results.values()):
+            _LOGGER.info(
+                "API returned no station data — scheduling retry in %d min",
+                NO_DATA_RETRY_MINUTES,
+            )
+            self._schedule_no_data_retry()
+            if self.data:
+                return self.data
+
         return results
+
+    def _schedule_no_data_retry(self) -> None:
+        """Schedule a one-shot retry when the API returned empty data."""
+        if self._no_data_retry_cancel:
+            self._no_data_retry_cancel()
+        self._no_data_retry_cancel = async_call_later(
+            self.hass,
+            NO_DATA_RETRY_MINUTES * 60,
+            self._retry_no_data_fetch,
+        )
+
+    @callback
+    def _retry_no_data_fetch(self, _now) -> None:
+        """Fire a refresh after the no-data retry delay."""
+        self._no_data_retry_cancel = None
+        _LOGGER.info("Retrying fetch after no-data response")
+        self.hass.async_create_task(self.async_refresh())
 
     async def _fetch(self, fuel_type: str, lat: float, lng: float) -> list[dict]:
         """Call the E-Control API for one fuel type."""
