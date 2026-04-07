@@ -68,7 +68,16 @@ async def _async_register_card(hass: HomeAssistant) -> None:
     # Register in Lovelace resource storage (storage mode only)
     try:
         lovelace = hass.data.get("lovelace")
-        if lovelace is None or lovelace.mode != "storage":
+        if lovelace is None:
+            _LOGGER.debug(
+                "Lovelace not yet available in hass.data — resource URL not updated. "
+                "The WebSocket version check will notify the user if the card JS is stale."
+            )
+            return
+        if lovelace.mode != "storage":
+            _LOGGER.debug(
+                "Lovelace is in %s mode — resource URL must be managed manually", lovelace.mode
+            )
             return
 
         resources = lovelace.resources
