@@ -150,7 +150,7 @@ payment_filter:
 | `show_opening_hours` | `true` | Show expandable opening hours on click |
 | `show_payment_methods` | `true` | Show payment method badges in expandable detail |
 | `show_history` | `true` | Show 7-day sparkline price graph (fixed mode only) |
-| `payment_filter` | `[]` | Only show stations accepting **all** listed methods. Values: `cash`, `debit_card`, `credit_card`, or any string from the API `others` field (e.g. `Austrocard`, `UTA`, `DKV`). Configurable via the visual editor. |
+| `payment_filter` | `[]` | Only show stations accepting **at least one** of the listed methods. Values: `cash`, `debit_card`, `credit_card`, or any string from the API `others` field (e.g. `Austrocard`, `UTA`, `DKV`). Configurable via the visual editor. |
 
 ### What the card shows
 

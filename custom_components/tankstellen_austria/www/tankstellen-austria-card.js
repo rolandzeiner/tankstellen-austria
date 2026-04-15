@@ -566,7 +566,7 @@ class TankstellenAustriaCard extends HTMLElement {
   _matchesPaymentFilter(s, filter) {
     if (!filter || !filter.length) return true;
     const pm = s.payment_methods || {};
-    return filter.every((method) => {
+    return filter.some((method) => {
       if (method === "cash") return pm.cash;
       if (method === "debit_card") return pm.debit_card;
       if (method === "credit_card") return pm.credit_card;
