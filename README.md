@@ -21,6 +21,7 @@ and/or CNG.
 - **Payment highlight mode** *(1.4.3)* – switch between hiding non-matching stations (filter) and highlighting them with a green accent instead
 - **Custom payment method values** *(1.4.3)* – add fleet cards or other values not listed by nearby stations (e.g. Routex, DKV) directly in the card editor
 - **Car fill-up cost widget** *(1.5.0)* – define your cars (name, fuel type, tank size) in the card editor and see the total fill-up cost at the cheapest nearby station, shown below the price header; each car gets its own MDI icon picked from a built-in icon grid
+- **Best refuel time recommendation** *(1.5.0)* – analyses 7 days of price history to identify the cheapest weekday and hour; shown below the sparkline with a green marker on the graph; displays a "not enough data" hint until 7 days of history are available
 - **Auto-detection** – the card automatically finds all Tankstellen Austria sensors, no manual entity configuration needed
 - **Visual card editor** – configure everything through the HA UI
 - **Average price tracking** – average of all 5 stations as sensor attribute, tracked in HA history for long-term analysis
@@ -164,7 +165,7 @@ cars:
 | `show_map_links` | `true` | Show map link per station — opens Google Maps for addresses with a street number, Google Search otherwise |
 | `show_opening_hours` | `true` | Show expandable opening hours on click |
 | `show_payment_methods` | `true` | Show payment method badges in expandable detail |
-| `show_history` | `true` | Show 7-day sparkline price graph (fixed mode only) |
+| `show_history` | `true` | Show 7-day sparkline price graph with best refuel time marker and recommendation (fixed mode only) |
 | `payment_filter` | `[]` | Show/highlight stations accepting **at least one** of the listed methods. Values: `cash`, `debit_card`, `credit_card`, or any string from the API `others` field (e.g. `Austrocard`, `UTA`, `DKV`, `Routex`). Configurable via the visual editor. |
 | `payment_highlight_mode` | `true` | When `true`, matching stations are highlighted with a green accent instead of non-matching ones being hidden. |
 | `show_cars` | `false` | Show the fill-up cost row below the price header. |
@@ -174,7 +175,7 @@ cars:
 
 **Fixed mode:**
 - Fuel type header with cheapest price and average price (Ø)
-- 7-day sparkline of cheapest price history with min/max labels
+- 7-day sparkline of cheapest price history with min/max labels, green marker at the historically cheapest hour, and a refuel time recommendation below ("Tip: Cheapest on Monday between 11:00–12:00"); shows a "not enough data" hint until 7 days of history are available
 - Station list ranked by price with name, address, and map link
 - Expandable detail panel per station (click to open): opening hours + payment method badges
 - **Closed** badge (red) on currently closed stations
