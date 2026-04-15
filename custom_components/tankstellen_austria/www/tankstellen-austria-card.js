@@ -1,10 +1,10 @@
 /**
- * Tankstellen Austria Card v1.4.3
+ * Tankstellen Austria Card v1.5.0-beta-1
  * Custom Lovelace card for displaying Austrian fuel prices.
  * https://github.com/rolandzeiner/tankstellen-austria
  */
 
-const CARD_VERSION = "1.4.3";
+const CARD_VERSION = "1.5.0-beta-1";
 
 const TRANSLATIONS = {
   de: {
@@ -35,6 +35,7 @@ const TRANSLATIONS = {
     version_update: "Tankstellen Austria wurde auf v{v} aktualisiert — bitte neu laden",
     version_reload: "Neu laden",
     fuel_types: { DIE: "Diesel", SUP: "Super 95", GAS: "CNG Erdgas" },
+    fill_up: "Volltanken",
     editor: {
       entities: "Sensoren",
       entities_hint: "Leer lassen für automatische Erkennung",
@@ -50,6 +51,11 @@ const TRANSLATIONS = {
       section_sensors: "Sensoren",
       section_display: "Anzeige",
       section_payment_filter: "Zahlungsfilter",
+      section_cars: "Fahrzeuge",
+      show_cars: "Tankkosten anzeigen",
+      car_name_placeholder: "Name (z.B. Golf TDI)",
+      car_tank_placeholder: "Liter",
+      add_car: "+ Fahrzeug hinzufügen",
     },
   },
   en: {
@@ -80,6 +86,7 @@ const TRANSLATIONS = {
     version_update: "Tankstellen Austria updated to v{v} — please reload",
     version_reload: "Reload",
     fuel_types: { DIE: "Diesel", SUP: "Super 95", GAS: "CNG" },
+    fill_up: "Fill up",
     editor: {
       entities: "Sensors",
       entities_hint: "Leave empty for auto-detection",
@@ -95,9 +102,21 @@ const TRANSLATIONS = {
       section_sensors: "Sensors",
       section_display: "Display",
       section_payment_filter: "Payment filter",
+      section_cars: "Cars",
+      show_cars: "Show fill-up costs",
+      car_name_placeholder: "Name (e.g. Golf TDI)",
+      car_tank_placeholder: "Liters",
+      add_car: "+ Add car",
     },
   },
 };
+
+const CAR_ICONS = [
+  "mdi:car", "mdi:car-sports", "mdi:car-hatchback", "mdi:car-estate",
+  "mdi:car-suv", "mdi:car-convertible", "mdi:car-pickup", "mdi:car-electric",
+  "mdi:car-electric-outline", "mdi:car-side", "mdi:van-passenger",
+  "mdi:motorbike", "mdi:bus", "mdi:truck", "mdi:rv-truck", "mdi:bicycle",
+];
 
 // Helper: find all tankstellen_austria sensors in hass states
 function _findTankstellenEntities(hass) {
@@ -502,6 +521,30 @@ class TankstellenAustriaCard extends HTMLElement {
         </div>`;
     }
 
+    // Cars fill-up row
+    const showCars = this._config.show_cars === true;
+    if (showCars && stations.length) {
+      const cheapest = stations[0]?.price;
+      const configCars = (this._config.cars || []).filter(
+        (c) => c.fuel_type === fuelType && c.tank_size > 0 && c.name
+      );
+      if (configCars.length && cheapest != null) {
+        const _esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        html += `<div class="cars-fillup">`;
+        configCars.forEach((car) => {
+          const cost = (cheapest * Number(car.tank_size)).toFixed(2).replace(".", ",");
+          html += `<div class="car-fillup-row">
+            <span class="car-fillup-name">
+              <ha-icon icon="${_esc(car.icon || "mdi:car")}" class="car-icon"></ha-icon>
+              ${_esc(car.name)} <span class="car-fillup-liters">${car.tank_size} L</span>
+            </span>
+            <span class="car-fillup-cost">€ ${cost}</span>
+          </div>`;
+        });
+        html += `</div>`;
+      }
+    }
+
     const highlightMode = this._config.payment_highlight_mode === true;
 
     const filteredStations = highlightMode
@@ -770,6 +813,38 @@ class TankstellenAustriaCard extends HTMLElement {
         font-weight: 500;
         color: var(--secondary-text-color);
       }
+      .cars-fillup {
+        border-top: 1px solid var(--divider-color, rgba(0,0,0,0.12));
+        padding: 8px 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+      }
+      .car-fillup-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .car-fillup-name {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 13px;
+        color: var(--secondary-text-color);
+      }
+      .car-icon {
+        --mdc-icon-size: 14px;
+        color: var(--secondary-text-color);
+      }
+      .car-fillup-liters {
+        font-size: 11px;
+        opacity: 0.65;
+      }
+      .car-fillup-cost {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--primary-text-color);
+      }
       .sparkline-container {
         margin-top: 8px;
         cursor: pointer;
@@ -1012,6 +1087,8 @@ class TankstellenAustriaCard extends HTMLElement {
       show_history: true,
       payment_filter: [],
       payment_highlight_mode: true,
+      show_cars: false,
+      cars: [],
     };
   }
 }
@@ -1023,6 +1100,7 @@ class TankstellenAustriaCardEditor extends HTMLElement {
   _config = {};
   _hass = null;
   _pendingRemove = null;
+  _expandedCarIcon = null;
 
   setConfig(config) {
     this._config = { ...config };
@@ -1063,6 +1141,8 @@ class TankstellenAustriaCardEditor extends HTMLElement {
     const showHistory = this._config.show_history !== false;
     const paymentFilter = this._config.payment_filter || [];
     const highlightMode = this._config.payment_highlight_mode === true;
+    const showCars = this._config.show_cars === true;
+    const cars = this._config.cars || [];
 
     const escHtml = (s) => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 
@@ -1209,6 +1289,129 @@ class TankstellenAustriaCardEditor extends HTMLElement {
             color: var(--primary-color);
             flex-shrink: 0;
           }
+          .car-editor-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+          }
+          .car-input {
+            background: var(--input-fill-color, rgba(0,0,0,0.06));
+            border: 1px solid var(--divider-color);
+            border-radius: 8px;
+            padding: 8px 10px;
+            font-size: 13px;
+            color: var(--primary-text-color);
+            outline: none;
+            font-family: inherit;
+          }
+          .car-input:focus {
+            border-color: var(--primary-color);
+          }
+          .car-name-input {
+            flex: 1;
+            min-width: 0;
+          }
+          .car-tank-input {
+            width: 64px;
+          }
+          .car-select {
+            background: var(--input-fill-color, rgba(0,0,0,0.06));
+            border: 1px solid var(--divider-color);
+            border-radius: 8px;
+            padding: 8px 6px;
+            font-size: 13px;
+            color: var(--primary-text-color);
+            cursor: pointer;
+            font-family: inherit;
+          }
+          .car-delete-btn {
+            background: none;
+            border: none;
+            color: var(--error-color, #db4437);
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            flex-shrink: 0;
+          }
+          .car-delete-btn:hover {
+            background: rgba(219,68,55,0.1);
+          }
+          .car-add-btn {
+            align-self: flex-start;
+            background: none;
+            border: 1px dashed var(--divider-color);
+            border-radius: 8px;
+            color: var(--primary-color);
+            cursor: pointer;
+            font-size: 13px;
+            padding: 8px 14px;
+            width: 100%;
+            font-family: inherit;
+            transition: background 0.15s;
+          }
+          .car-add-btn:hover {
+            background: rgba(0,0,0,0.04);
+          }
+          .car-editor-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+          }
+          .car-icon-btn {
+            background: var(--secondary-background-color, rgba(0,0,0,0.06));
+            border: 1px solid var(--divider-color);
+            border-radius: 8px;
+            color: var(--primary-color);
+            cursor: pointer;
+            padding: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            transition: background 0.15s, border-color 0.15s;
+            --mdc-icon-size: 20px;
+          }
+          .car-icon-btn.active {
+            border-color: var(--primary-color);
+            background: rgba(var(--rgb-primary-color,33,150,243), 0.1);
+          }
+          .car-icon-btn:hover {
+            border-color: var(--primary-color);
+          }
+          .car-icon-picker {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            padding: 6px 8px;
+            background: var(--secondary-background-color, rgba(0,0,0,0.04));
+            border-radius: 8px;
+            border: 1px solid var(--divider-color);
+          }
+          .car-icon-option {
+            background: none;
+            border: 1px solid transparent;
+            border-radius: 6px;
+            color: var(--secondary-text-color);
+            cursor: pointer;
+            padding: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.15s;
+            --mdc-icon-size: 20px;
+          }
+          .car-icon-option:hover {
+            background: var(--card-background-color, #fff);
+            color: var(--primary-color);
+            border-color: var(--divider-color);
+          }
+          .car-icon-option.active {
+            background: var(--primary-color);
+            color: var(--text-primary-color, #fff);
+            border-color: var(--primary-color);
+          }
         </style>
 
         <!-- Entity selection -->
@@ -1252,6 +1455,11 @@ class TankstellenAustriaCardEditor extends HTMLElement {
             <ha-switch id="toggle-history" ${showHistory ? "checked" : ""} data-field="show_history"></ha-switch>
           </div>
           <div class="divider"></div>
+          <div class="toggle-row">
+            <label for="toggle-cars">${this._et("show_cars")}</label>
+            <ha-switch id="toggle-cars" ${showCars ? "checked" : ""} data-field="show_cars"></ha-switch>
+          </div>
+          <div class="divider"></div>
           <div class="toggle-row" style="padding-top:4px">
             <label for="slider-stations">${this._et("max_stations")}</label>
           </div>
@@ -1289,6 +1497,44 @@ class TankstellenAustriaCardEditor extends HTMLElement {
             <ha-switch id="toggle-highlight" ${highlightMode ? "checked" : ""} data-field="payment_highlight_mode"></ha-switch>
           </div>` : ""}
         </div>` : ""}
+
+        <!-- Cars section (only when show_cars is on) -->
+        ${showCars ? `
+        <div class="editor-section">
+          <div class="section-header">${this._et("section_cars")}</div>
+          ${cars.map((car, idx) => `
+            <div class="car-editor-group">
+              <div class="car-editor-row">
+                <button class="car-icon-btn${this._expandedCarIcon === idx ? " active" : ""}" data-car-idx="${idx}" title="Choose icon">
+                  <ha-icon icon="${escHtml(car.icon || "mdi:car")}"></ha-icon>
+                </button>
+                <input class="car-input car-name-input" type="text"
+                  placeholder="${this._et("car_name_placeholder")}"
+                  value="${escHtml(car.name || "")}"
+                  data-car-idx="${idx}" data-car-field="name" />
+                <select class="car-select" data-car-idx="${idx}" data-car-field="fuel_type">
+                  ${["DIE","SUP","GAS"].map((ft) => `<option value="${ft}"${car.fuel_type === ft ? " selected" : ""}>${(TRANSLATIONS[this._lang()]||TRANSLATIONS.de).fuel_types[ft]||ft}</option>`).join("")}
+                </select>
+                <input class="car-input car-tank-input" type="number" min="1" max="200"
+                  placeholder="${this._et("car_tank_placeholder")}"
+                  value="${car.tank_size || ""}"
+                  data-car-idx="${idx}" data-car-field="tank_size" />
+                <button class="car-delete-btn" data-car-idx="${idx}">
+                  <ha-icon icon="mdi:delete-outline"></ha-icon>
+                </button>
+              </div>
+              ${this._expandedCarIcon === idx ? `
+              <div class="car-icon-picker">
+                ${CAR_ICONS.map((icon) => `
+                  <button class="car-icon-option${(car.icon || "mdi:car") === icon ? " active" : ""}" data-car-idx="${idx}" data-icon="${icon}" title="${icon.replace("mdi:", "")}">
+                    <ha-icon icon="${icon}"></ha-icon>
+                  </button>
+                `).join("")}
+              </div>` : ""}
+            </div>
+          `).join("")}
+          <button class="car-add-btn">${this._et("add_car")}</button>
+        </div>` : ""}
       </div>
     `;
 
@@ -1312,6 +1558,9 @@ class TankstellenAustriaCardEditor extends HTMLElement {
 
     // Range slider
     this.querySelectorAll('input[type="range"]').forEach((input) => {
+      ["keydown", "keyup", "keypress"].forEach((evt) => {
+        input.addEventListener(evt, (e) => e.stopPropagation());
+      });
       input.addEventListener("input", (e) => {
         const field = e.target.dataset.field;
         this._config = { ...this._config, [field]: parseInt(e.target.value, 10) };
@@ -1395,6 +1644,92 @@ class TankstellenAustriaCardEditor extends HTMLElement {
         });
       });
       customAddBtn.addEventListener("click", addCustom);
+    }
+
+    // Car icon button — toggle picker
+    this.querySelectorAll(".car-icon-btn").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const idx = parseInt(btn.dataset.carIdx, 10);
+        this._expandedCarIcon = this._expandedCarIcon === idx ? null : idx;
+        this._render();
+      });
+    });
+
+    // Car icon option — select icon
+    this.querySelectorAll(".car-icon-option").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const idx = parseInt(btn.dataset.carIdx, 10);
+        const icon = btn.dataset.icon;
+        const newCars = [...(this._config.cars || [])];
+        newCars[idx] = { ...newCars[idx], icon };
+        this._config = { ...this._config, cars: newCars };
+        this._expandedCarIcon = null;
+        this._fireChanged();
+        this._render();
+      });
+    });
+
+    // Car name / tank-size inputs
+    this.querySelectorAll(".car-name-input, .car-tank-input").forEach((input) => {
+      ["keydown", "keyup", "keypress"].forEach((evt) => {
+        input.addEventListener(evt, (e) => e.stopPropagation());
+      });
+      input.addEventListener("click", (e) => e.stopPropagation());
+      input.addEventListener("pointerdown", (e) => e.stopPropagation());
+      input.addEventListener("change", (e) => {
+        e.stopPropagation();
+        const idx = parseInt(e.target.dataset.carIdx, 10);
+        const field = e.target.dataset.carField;
+        const newCars = [...(this._config.cars || [])];
+        const val = field === "tank_size"
+          ? Math.max(1, parseInt(e.target.value, 10) || 1)
+          : e.target.value.replace(/[<>"'&]/g, "").slice(0, 50);
+        newCars[idx] = { ...newCars[idx], [field]: val };
+        this._config = { ...this._config, cars: newCars };
+        this._fireChanged();
+      });
+    });
+
+    // Car fuel-type selects
+    this.querySelectorAll(".car-select").forEach((select) => {
+      select.addEventListener("click", (e) => e.stopPropagation());
+      select.addEventListener("pointerdown", (e) => e.stopPropagation());
+      select.addEventListener("change", (e) => {
+        e.stopPropagation();
+        const idx = parseInt(e.target.dataset.carIdx, 10);
+        const newCars = [...(this._config.cars || [])];
+        newCars[idx] = { ...newCars[idx], fuel_type: e.target.value };
+        this._config = { ...this._config, cars: newCars };
+        this._fireChanged();
+      });
+    });
+
+    // Car delete buttons
+    this.querySelectorAll(".car-delete-btn").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const idx = parseInt(btn.dataset.carIdx, 10);
+        const newCars = [...(this._config.cars || [])];
+        newCars.splice(idx, 1);
+        this._config = { ...this._config, cars: newCars };
+        this._fireChanged();
+        this._render();
+      });
+    });
+
+    // Add car button
+    const addCarBtn = this.querySelector(".car-add-btn");
+    if (addCarBtn) {
+      addCarBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const newCars = [...(this._config.cars || [])];
+        newCars.push({ name: "", fuel_type: "DIE", tank_size: 50 });
+        this._config = { ...this._config, cars: newCars };
+        this._fireChanged();
+        this._render();
+      });
     }
   }
 }
