@@ -521,35 +521,41 @@ class TankstellenAustriaCard extends HTMLElement {
         </div>`;
     }
 
-    // Cars fill-up row
-    const showCars = this._config.show_cars === true;
-    if (showCars && stations.length) {
-      const cheapest = stations[0]?.price;
-      const configCars = (this._config.cars || []).filter(
-        (c) => c.fuel_type === fuelType && c.tank_size > 0 && c.name
-      );
-      if (configCars.length && cheapest != null) {
-        const _esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-        html += `<div class="cars-fillup">`;
-        configCars.forEach((car) => {
-          const cost = (cheapest * Number(car.tank_size)).toFixed(2).replace(".", ",");
-          html += `<div class="car-fillup-row">
-            <span class="car-fillup-name">
-              <ha-icon icon="${_esc(car.icon || "mdi:car")}" class="car-icon"></ha-icon>
-              ${_esc(car.name)} <span class="car-fillup-liters">${car.tank_size} L</span>
-            </span>
-            <span class="car-fillup-cost">€ ${cost}</span>
-          </div>`;
-        });
-        html += `</div>`;
-      }
-    }
-
     const highlightMode = this._config.payment_highlight_mode === true;
 
     const filteredStations = highlightMode
       ? stations
       : stations.filter((s) => this._matchesPaymentFilter(s, paymentFilter));
+
+    // Cars fill-up row
+    // In filter mode: use cheapest visible (filtered) station — "–" when none pass the filter.
+    // In highlight mode: all stations are visible so use overall cheapest.
+    const showCars = this._config.show_cars === true;
+    if (showCars && stations.length) {
+      const configCars = (this._config.cars || []).filter(
+        (c) => c.fuel_type === fuelType && c.tank_size > 0 && c.name
+      );
+      if (configCars.length) {
+        const effectiveCheapest = highlightMode
+          ? stations[0]?.price
+          : filteredStations[0]?.price;
+        const _esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        html += `<div class="cars-fillup">`;
+        configCars.forEach((car) => {
+          const costStr = effectiveCheapest != null
+            ? `€ ${(effectiveCheapest * Number(car.tank_size)).toFixed(2).replace(".", ",")}`
+            : "–";
+          html += `<div class="car-fillup-row">
+            <span class="car-fillup-name">
+              <ha-icon icon="${_esc(car.icon || "mdi:car")}" class="car-icon"></ha-icon>
+              ${_esc(car.name)} <span class="car-fillup-liters">${car.tank_size} L</span>
+            </span>
+            <span class="car-fillup-cost">${costStr}</span>
+          </div>`;
+        });
+        html += `</div>`;
+      }
+    }
 
     if (!filteredStations.length && paymentFilter.length && stations.length) {
       html += `<div class="empty">${this._t("payment_filter_active")} — ${this._t("no_data")}</div>`;
@@ -1109,6 +1115,9 @@ class TankstellenAustriaCardEditor extends HTMLElement {
 
   set hass(hass) {
     this._hass = hass;
+    // Skip re-render while the user is typing — HA calls set hass() on every
+    // state change, which would nuke any focused input before blur/change fires.
+    if (this.contains(document.activeElement)) return;
     this._render();
   }
 
