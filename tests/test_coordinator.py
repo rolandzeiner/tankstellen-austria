@@ -251,6 +251,45 @@ async def test_async_teardown_noop_for_fixed(hass: HomeAssistant) -> None:
 
 
 # ---------------------------------------------------------------------------
+# include_closed API param
+# ---------------------------------------------------------------------------
+
+
+async def test_include_closed_true_passed_to_api(hass: HomeAssistant) -> None:
+    """includeClosed=true is sent to the API when CONF_INCLUDE_CLOSED is True."""
+    entry = _make_entry({CONF_INCLUDE_CLOSED: True})
+    entry.add_to_hass(hass)
+
+    coordinator = TankstellenCoordinator(hass, entry)
+    mock_resp = MagicMock()
+    mock_resp.raise_for_status = MagicMock()
+    mock_resp.json = AsyncMock(return_value=[MOCK_STATION])
+
+    with patch.object(coordinator._session, "get", new=AsyncMock(return_value=mock_resp)) as mock_get:
+        await coordinator._fetch("DIE", 48.2082, 15.6256)
+
+    _, kwargs = mock_get.call_args
+    assert kwargs["params"]["includeClosed"] == "true"
+
+
+async def test_include_closed_false_passed_to_api(hass: HomeAssistant) -> None:
+    """includeClosed=false is sent to the API when CONF_INCLUDE_CLOSED is False."""
+    entry = _make_entry({CONF_INCLUDE_CLOSED: False})
+    entry.add_to_hass(hass)
+
+    coordinator = TankstellenCoordinator(hass, entry)
+    mock_resp = MagicMock()
+    mock_resp.raise_for_status = MagicMock()
+    mock_resp.json = AsyncMock(return_value=[MOCK_STATION])
+
+    with patch.object(coordinator._session, "get", new=AsyncMock(return_value=mock_resp)) as mock_get:
+        await coordinator._fetch("DIE", 48.2082, 15.6256)
+
+    _, kwargs = mock_get.call_args
+    assert kwargs["params"]["includeClosed"] == "false"
+
+
+# ---------------------------------------------------------------------------
 # No-data retry
 # ---------------------------------------------------------------------------
 

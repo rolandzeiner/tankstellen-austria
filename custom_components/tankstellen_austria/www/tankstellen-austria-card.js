@@ -1,10 +1,10 @@
 /**
- * Tankstellen Austria Card v1.4.2
+ * Tankstellen Austria Card v1.4.3
  * Custom Lovelace card for displaying Austrian fuel prices.
  * https://github.com/rolandzeiner/tankstellen-austria
  */
 
-const CARD_VERSION = "1.4.2";
+const CARD_VERSION = "1.4.3";
 
 const TRANSLATIONS = {
   de: {
@@ -20,6 +20,7 @@ const TRANSLATIONS = {
     debit_card: "Bankomat",
     credit_card: "Kreditkarte",
     payment_filter_active: "Zahlungsfilter aktiv",
+    payment_highlight_active: "Zahlungsfilter (Hervorhebung)",
     no_data: "Keine Daten verfügbar",
     mon_fri: "Mo–Fr",
     sat: "Sa",
@@ -43,6 +44,12 @@ const TRANSLATIONS = {
       show_payment_methods: "Zahlungsarten anzeigen",
       show_history: "Preisverlauf anzeigen",
       payment_filter: "Nur Tankstellen mit",
+      payment_filter_custom_placeholder: "Benutzerdefiniert, z.B. Routex",
+      payment_filter_custom_hint: "Der Wert muss exakt dem API-String entsprechen. Häufige Werte: Routex, UTA, DKV, Austrocard, Fleetcard, ADAC",
+      payment_highlight_mode: "Hervorheben statt filtern",
+      section_sensors: "Sensoren",
+      section_display: "Anzeige",
+      section_payment_filter: "Zahlungsfilter",
     },
   },
   en: {
@@ -58,6 +65,7 @@ const TRANSLATIONS = {
     debit_card: "Debit card",
     credit_card: "Credit card",
     payment_filter_active: "Payment filter active",
+    payment_highlight_active: "Payment filter (highlight)",
     no_data: "No data available",
     mon_fri: "Mon–Fri",
     sat: "Sat",
@@ -81,6 +89,12 @@ const TRANSLATIONS = {
       show_payment_methods: "Show payment methods",
       show_history: "Show price history",
       payment_filter: "Only stations with",
+      payment_filter_custom_placeholder: "Custom, e.g. Routex",
+      payment_filter_custom_hint: "Must match the API string exactly. Common values: Routex, UTA, DKV, Austrocard, Fleetcard, ADAC",
+      payment_highlight_mode: "Highlight instead of filter",
+      section_sensors: "Sensors",
+      section_display: "Display",
+      section_payment_filter: "Payment filter",
     },
   },
 };
@@ -189,11 +203,17 @@ class TankstellenAustriaCard extends HTMLElement {
     return Number(price).toFixed(3).replace(".", ",");
   }
 
-  _mapsUrl(loc) {
+  _mapsUrl(loc, stationName) {
     if (!loc) return "#";
-    return `https://maps.google.com/?q=${encodeURIComponent(
-      `${loc.postalCode || ""} ${loc.city || ""} ${loc.address || ""}`
-    )}`;
+    const hasStreetNumber = /\d/.test(loc.address || "");
+    if (hasStreetNumber) {
+      return `https://maps.google.com/?q=${encodeURIComponent(
+        `${loc.postalCode || ""} ${loc.city || ""} ${loc.address || ""}`.trim()
+      )}`;
+    }
+    // No street number — fall back to Google search with station name + what we have
+    const parts = [stationName, loc.address, loc.postalCode, loc.city].filter(Boolean);
+    return `https://www.google.com/search?q=${encodeURIComponent(parts.join(" "))}`;
   }
 
   // --- History ---
@@ -452,7 +472,7 @@ class TankstellenAustriaCard extends HTMLElement {
         <div class="card-header">
           <div class="header-top">
             <div class="fuel-label">
-              <svg viewBox="0 0 24 24" width="18" height="18" class="fuel-icon"><path fill="currentColor" d="M18 10a1 1 0 0 1-1-1 1 1 0 0 1 1-1 1 1 0 0 1 1 1 1 1 0 0 1-1 1m-6 0H8V5h4m7.77 2.23l.01-.01-3.72-3.72L15 4.56l2.11 2.11C16.17 7 15.5 7.93 15.5 9a2.5 2.5 0 0 0 2.5 2.5c.36 0 .69-.08 1-.21v7.21a1 1 0 0 1-1 1 1 1 0 0 1-1-1V14a2 2 0 0 0-2-2h-1V5a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16h10v-7.5h1.5v5A2.5 2.5 0 0 0 20 21a2.5 2.5 0 0 0 2.5-2.5V9c0-.69-.28-1.32-.73-1.77z"/></svg>
+              <ha-icon icon="mdi:gas-station" class="fuel-icon"></ha-icon>
               <span>${fuelTypeName}</span>
             </div>
             ${isDynamic ? `
@@ -463,7 +483,7 @@ class TankstellenAustriaCard extends HTMLElement {
               </div>
             </div>
             <button class="refresh-btn${refreshCoolingDown ? " cooling" : ""}" data-refresh>
-              <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+              <ha-icon icon="mdi:refresh" class="refresh-icon"></ha-icon>
               ${refreshCoolingDown ? countdownText : this._t("refresh")}
             </button>` : `
             <div class="header-prices">
@@ -482,9 +502,11 @@ class TankstellenAustriaCard extends HTMLElement {
         </div>`;
     }
 
-    const filteredStations = stations.filter((s) =>
-      this._matchesPaymentFilter(s, paymentFilter)
-    );
+    const highlightMode = this._config.payment_highlight_mode === true;
+
+    const filteredStations = highlightMode
+      ? stations
+      : stations.filter((s) => this._matchesPaymentFilter(s, paymentFilter));
 
     if (!filteredStations.length && paymentFilter.length && stations.length) {
       html += `<div class="empty">${this._t("payment_filter_active")} — ${this._t("no_data")}</div>`;
@@ -503,9 +525,10 @@ class TankstellenAustriaCard extends HTMLElement {
           : isClosingSoon
             ? `<span class="badge closing-soon">${this._t("closing_soon")}</span>`
             : "";
+        const isHighlighted = highlightMode && paymentFilter.length && this._matchesPaymentFilter(s, paymentFilter);
 
         html += `
-          <div class="station">
+          <div class="station${isHighlighted ? " pm-highlight" : ""}">
             <div class="station-main" data-expand="${this._activeTab}-${idx}">
               <div class="rank">${idx + 1}</div>
               <div class="info">
@@ -514,8 +537,8 @@ class TankstellenAustriaCard extends HTMLElement {
               </div>
               <div class="price">${this._formatPrice(s.price)}</div>
               ${showMapLinks
-            ? `<a class="map-link" href="${this._mapsUrl(loc)}" target="_blank" rel="noopener noreferrer" title="${this._t("map")}">
-                      <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+            ? `<a class="map-link" href="${this._mapsUrl(loc, s.name)}" target="_blank" rel="noopener noreferrer" title="${this._t("map")}">
+                      <ha-icon icon="${/\d/.test(loc.address || "") ? "mdi:map-marker" : "mdi:magnify"}" class="map-icon"></ha-icon>
                     </a>`
             : ""
           }
@@ -576,12 +599,10 @@ class TankstellenAustriaCard extends HTMLElement {
 
   _renderPaymentMethods(pm) {
     if (!pm) return "";
-    const cashSvg = `<svg viewBox="0 0 24 24" width="13" height="13" style="vertical-align:-2px"><path fill="currentColor" d="M2 9a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h20a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2H2zm10 2a3 3 0 1 1 0 6 3 3 0 0 1 0-6z"/></svg>`;
-    const cardSvg = `<svg viewBox="0 0 24 24" width="13" height="13" style="vertical-align:-2px"><path fill="currentColor" d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 5H4V7h16v2z"/></svg>`;
     const badges = [];
-    if (pm.cash) badges.push(`<span class="pm-badge">${cashSvg} ${this._t("cash")}</span>`);
-    if (pm.debit_card) badges.push(`<span class="pm-badge">${cardSvg} ${this._t("debit_card")}</span>`);
-    if (pm.credit_card) badges.push(`<span class="pm-badge">${cardSvg} ${this._t("credit_card")}</span>`);
+    if (pm.cash) badges.push(`<span class="pm-badge"><ha-icon icon="mdi:cash" class="pm-icon"></ha-icon> ${this._t("cash")}</span>`);
+    if (pm.debit_card) badges.push(`<span class="pm-badge"><ha-icon icon="mdi:credit-card" class="pm-icon"></ha-icon> ${this._t("debit_card")}</span>`);
+    if (pm.credit_card) badges.push(`<span class="pm-badge"><ha-icon icon="mdi:credit-card" class="pm-icon"></ha-icon> ${this._t("credit_card")}</span>`);
     for (const other of (pm.others || [])) {
       badges.push(`<span class="pm-badge pm-other">${other}</span>`);
     }
@@ -712,6 +733,18 @@ class TankstellenAustriaCard extends HTMLElement {
       }
       .fuel-icon {
         color: var(--primary-color);
+        --mdc-icon-size: 18px;
+      }
+      .refresh-icon {
+        --mdc-icon-size: 16px;
+        vertical-align: middle;
+      }
+      .map-icon {
+        --mdc-icon-size: 20px;
+      }
+      .pm-icon {
+        --mdc-icon-size: 13px;
+        vertical-align: middle;
       }
       .header-prices {
         display: flex;
@@ -765,6 +798,13 @@ class TankstellenAustriaCard extends HTMLElement {
       }
       .station:last-child {
         border-bottom: none;
+      }
+      .station.pm-highlight {
+        border-left: 3px solid var(--success-color, #4caf50);
+        background: rgba(76, 175, 80, 0.06);
+      }
+      .station.pm-highlight .station-main:hover {
+        background: rgba(76, 175, 80, 0.12);
       }
       .station-main {
         display: flex;
@@ -971,6 +1011,7 @@ class TankstellenAustriaCard extends HTMLElement {
       show_payment_methods: true,
       show_history: true,
       payment_filter: [],
+      payment_highlight_mode: true,
     };
   }
 }
@@ -981,6 +1022,7 @@ class TankstellenAustriaCard extends HTMLElement {
 class TankstellenAustriaCardEditor extends HTMLElement {
   _config = {};
   _hass = null;
+  _pendingRemove = null;
 
   setConfig(config) {
     this._config = { ...config };
@@ -1020,15 +1062,21 @@ class TankstellenAustriaCardEditor extends HTMLElement {
     const showPayment = this._config.show_payment_methods !== false;
     const showHistory = this._config.show_history !== false;
     const paymentFilter = this._config.payment_filter || [];
+    const highlightMode = this._config.payment_highlight_mode === true;
 
-    // Gather all payment methods available across current entity states
-    const allPmKeys = new Set(["cash", "debit_card", "credit_card"]);
+    const escHtml = (s) => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+
+    // Keys available from live API data (builtin + whatever stations report)
+    const apiPmKeys = new Set(["cash", "debit_card", "credit_card"]);
     (this._config.entities || []).forEach((eid) => {
       const state = this._hass?.states[eid];
       (state?.attributes?.stations || []).forEach((s) => {
-        (s.payment_methods?.others || []).forEach((o) => allPmKeys.add(o));
+        (s.payment_methods?.others || []).forEach((o) => apiPmKeys.add(o));
       });
     });
+    // allPmKeys also includes user-typed filter values not in live data
+    const allPmKeys = new Set([...apiPmKeys]);
+    paymentFilter.forEach((f) => allPmKeys.add(f));
 
     this.innerHTML = `
       <div class="editor">
@@ -1037,27 +1085,28 @@ class TankstellenAustriaCardEditor extends HTMLElement {
             padding: 16px;
             display: flex;
             flex-direction: column;
-            gap: 16px;
-          }
-          .editor-title {
-            font-weight: 600;
-            font-size: 16px;
-            color: var(--primary-text-color);
+            gap: 12px;
           }
           .editor-section {
+            background: var(--secondary-background-color, rgba(0,0,0,0.04));
+            border-radius: 12px;
+            padding: 14px 16px;
             display: flex;
             flex-direction: column;
-            gap: 8px;
+            gap: 10px;
           }
-          .editor-label {
-            font-size: 13px;
-            font-weight: 500;
-            color: var(--primary-text-color);
+          .section-header {
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.6px;
+            text-transform: uppercase;
+            color: var(--secondary-text-color);
+            margin-bottom: 2px;
           }
           .editor-hint {
             font-size: 12px;
             color: var(--secondary-text-color);
-            margin-top: -4px;
+            line-height: 1.4;
           }
           .entity-chips {
             display: flex;
@@ -1068,13 +1117,13 @@ class TankstellenAustriaCardEditor extends HTMLElement {
             display: flex;
             align-items: center;
             gap: 4px;
-            padding: 4px 10px;
+            padding: 5px 12px;
             border-radius: 16px;
             font-size: 13px;
             cursor: pointer;
             transition: all 0.15s;
             border: 1px solid var(--divider-color);
-            background: transparent;
+            background: var(--card-background-color, #fff);
             color: var(--primary-text-color);
           }
           .entity-chip.selected {
@@ -1092,12 +1141,17 @@ class TankstellenAustriaCardEditor extends HTMLElement {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 4px 0;
+            padding: 2px 0;
           }
           .toggle-row label {
             font-size: 13px;
             color: var(--primary-text-color);
             cursor: pointer;
+          }
+          .divider {
+            height: 1px;
+            background: var(--divider-color);
+            margin: 2px 0;
           }
           .slider-row {
             display: flex;
@@ -1113,7 +1167,7 @@ class TankstellenAustriaCardEditor extends HTMLElement {
             text-align: center;
             font-weight: 600;
             font-size: 14px;
-            color: var(--primary-text-color);
+            color: var(--primary-color);
           }
           .pm-filter-chips {
             display: flex;
@@ -1121,12 +1175,12 @@ class TankstellenAustriaCardEditor extends HTMLElement {
             gap: 6px;
           }
           .pm-filter-chip {
-            padding: 4px 10px;
+            padding: 4px 12px;
             border-radius: 14px;
             font-size: 12px;
             cursor: pointer;
             border: 1px solid var(--divider-color);
-            background: transparent;
+            background: var(--card-background-color, #fff);
             color: var(--primary-text-color);
             transition: all 0.15s;
           }
@@ -1138,14 +1192,28 @@ class TankstellenAustriaCardEditor extends HTMLElement {
           .pm-filter-chip:hover {
             opacity: 0.85;
           }
+          .pm-filter-chip.confirm {
+            background: var(--error-color, #db4437);
+            color: #fff;
+            border-color: var(--error-color, #db4437);
+          }
+          .pm-custom-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+          }
+          .pm-custom-row ha-textfield {
+            flex: 1;
+          }
+          .pm-custom-row ha-icon-button {
+            color: var(--primary-color);
+            flex-shrink: 0;
+          }
         </style>
-
-        <div class="editor-title">Tankstellen Austria</div>
 
         <!-- Entity selection -->
         <div class="editor-section">
-          <div class="editor-label">${this._et("entities")}</div>
-          <div class="editor-hint">${this._et("entities_hint")}</div>
+          <div class="section-header">${this._et("section_sensors")}</div>
           <div class="entity-chips">
             ${available.map((eid) => {
       const state = this._hass.states[eid];
@@ -1158,41 +1226,45 @@ class TankstellenAustriaCardEditor extends HTMLElement {
               </button>`;
     }).join("")}
           </div>
+          <div class="editor-hint">${this._et("entities_hint")}</div>
         </div>
 
-        <!-- Max stations slider -->
+        <!-- Display options -->
         <div class="editor-section">
-          <div class="editor-label">${this._et("max_stations")}</div>
-          <div class="slider-row">
-            <input type="range" min="1" max="5" step="1" value="${maxStations}" data-field="max_stations" />
-            <span class="slider-value">${maxStations}</span>
-          </div>
-        </div>
-
-        <!-- Toggles -->
-        <div class="editor-section">
+          <div class="section-header">${this._et("section_display")}</div>
           <div class="toggle-row">
             <label for="toggle-map">${this._et("show_map_links")}</label>
             <ha-switch id="toggle-map" ${showMap ? "checked" : ""} data-field="show_map_links"></ha-switch>
           </div>
+          <div class="divider"></div>
           <div class="toggle-row">
             <label for="toggle-hours">${this._et("show_opening_hours")}</label>
             <ha-switch id="toggle-hours" ${showHours ? "checked" : ""} data-field="show_opening_hours"></ha-switch>
           </div>
+          <div class="divider"></div>
           <div class="toggle-row">
             <label for="toggle-payment">${this._et("show_payment_methods")}</label>
             <ha-switch id="toggle-payment" ${showPayment ? "checked" : ""} data-field="show_payment_methods"></ha-switch>
           </div>
+          <div class="divider"></div>
           <div class="toggle-row">
             <label for="toggle-history">${this._et("show_history")}</label>
             <ha-switch id="toggle-history" ${showHistory ? "checked" : ""} data-field="show_history"></ha-switch>
           </div>
+          <div class="divider"></div>
+          <div class="toggle-row" style="padding-top:4px">
+            <label for="slider-stations">${this._et("max_stations")}</label>
+          </div>
+          <div class="slider-row">
+            <input id="slider-stations" type="range" min="1" max="5" step="1" value="${maxStations}" data-field="max_stations" />
+            <span class="slider-value">${maxStations}</span>
+          </div>
         </div>
 
-        <!-- Payment filter -->
+        <!-- Payment filter (only when show_payment_methods is on) -->
+        ${showPayment ? `
         <div class="editor-section">
-          <div class="editor-label">${this._et("payment_filter")}</div>
-          <div class="editor-hint">${paymentFilter.length ? "● " + paymentFilter.join(", ") : "–"}</div>
+          <div class="section-header">${this._et("section_payment_filter")}</div>
           <div class="pm-filter-chips">
             ${[...allPmKeys].map((key) => {
               const isActive = paymentFilter.includes(key);
@@ -1201,10 +1273,22 @@ class TankstellenAustriaCardEditor extends HTMLElement {
                 : key === "debit_card" ? _tl.debit_card
                 : key === "credit_card" ? _tl.credit_card
                 : key;
-              return `<button class="pm-filter-chip ${isActive ? "active" : ""}" data-pm="${key}">${label}</button>`;
+              const isPending = key === this._pendingRemove;
+              return `<button class="pm-filter-chip ${isActive ? "active" : ""} ${isPending ? "confirm" : ""}" data-pm="${escHtml(key)}">${isPending ? "✕ " + escHtml(label) + "?" : escHtml(label)}</button>`;
             }).join("")}
           </div>
-        </div>
+          <div class="pm-custom-row">
+            <ha-textfield id="pm-custom-input" label="${this._et("payment_filter_custom_placeholder")}"></ha-textfield>
+            <ha-icon-button id="pm-custom-add" title="+"><ha-icon icon="mdi:plus-circle"></ha-icon></ha-icon-button>
+          </div>
+          <div class="editor-hint">${this._et("payment_filter_custom_hint")}</div>
+          ${paymentFilter.length ? `
+          <div class="divider"></div>
+          <div class="toggle-row">
+            <label for="toggle-highlight">${this._et("payment_highlight_mode")}</label>
+            <ha-switch id="toggle-highlight" ${highlightMode ? "checked" : ""} data-field="payment_highlight_mode"></ha-switch>
+          </div>` : ""}
+        </div>` : ""}
       </div>
     `;
 
@@ -1247,20 +1331,71 @@ class TankstellenAustriaCardEditor extends HTMLElement {
     });
 
     // Payment filter chips
+    // A chip needs confirmation only if removing it would make it disappear
+    // (i.e. it was user-typed and is not present in live API data)
     this.querySelectorAll(".pm-filter-chip").forEach((chip) => {
       chip.addEventListener("click", () => {
         const key = chip.dataset.pm;
         let current = [...(this._config.payment_filter || [])];
-        if (current.includes(key)) {
-          current = current.filter((k) => k !== key);
+        const isActive = current.includes(key);
+        const isCustom = !apiPmKeys.has(key);
+
+        if (isActive && isCustom) {
+          if (this._pendingRemove === key) {
+            // Second click: confirmed, remove
+            this._pendingRemove = null;
+            current = current.filter((k) => k !== key);
+            this._config = { ...this._config, payment_filter: current };
+            this._fireChanged();
+          } else {
+            // First click: enter confirm state
+            this._pendingRemove = key;
+          }
         } else {
-          current.push(key);
+          // Built-in chip or adding: toggle directly, cancel any pending
+          this._pendingRemove = null;
+          if (isActive) {
+            current = current.filter((k) => k !== key);
+          } else {
+            current.push(key);
+          }
+          this._config = { ...this._config, payment_filter: current };
+          this._fireChanged();
         }
-        this._config = { ...this._config, payment_filter: current };
-        this._fireChanged();
         this._render();
       });
     });
+
+    // Custom payment method input
+    const customInput = this.querySelector("#pm-custom-input");
+    const customAddBtn = this.querySelector("#pm-custom-add");
+    if (customAddBtn && customInput) {
+      const sanitize = (s) => s.replace(/[<>"'&]/g, "").slice(0, 50).trim();
+      const addCustom = () => {
+        const val = sanitize(customInput.value);
+        if (!val) return;
+        this._pendingRemove = null;
+        let current = [...(this._config.payment_filter || [])];
+        if (!current.includes(val)) {
+          current.push(val);
+          this._config = { ...this._config, payment_filter: current };
+          this._fireChanged();
+          this._render();
+        } else {
+          customInput.value = "";
+        }
+      };
+      // Keyboard events from inside ha-textfield's shadow DOM bubble up as
+      // composed events, so we can intercept them on the host element.
+      // stopPropagation here prevents HA global shortcuts from stealing focus.
+      ["keydown", "keyup", "keypress"].forEach((evt) => {
+        customInput.addEventListener(evt, (e) => {
+          e.stopPropagation();
+          if (evt === "keydown" && e.key === "Enter") addCustom();
+        });
+      });
+      customAddBtn.addEventListener("click", addCustom);
+    }
   }
 }
 
