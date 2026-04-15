@@ -538,7 +538,7 @@ class TankstellenAustriaCard extends HTMLElement {
               <div class="price">${this._formatPrice(s.price)}</div>
               ${showMapLinks
             ? `<a class="map-link" href="${this._mapsUrl(loc, s.name)}" target="_blank" rel="noopener noreferrer" title="${this._t("map")}">
-                      <ha-icon icon="mdi:map-marker" class="map-icon"></ha-icon>
+                      <ha-icon icon="${/\d/.test(loc.address || "") ? "mdi:map-marker" : "mdi:magnify"}" class="map-icon"></ha-icon>
                     </a>`
             : ""
           }
