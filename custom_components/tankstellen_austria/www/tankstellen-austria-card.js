@@ -15,7 +15,7 @@ const TRANSLATIONS = {
     closing_soon: "Schließt bald",
     open_now: "Geöffnet",
     opening_hours: "Öffnungszeiten",
-    payment: "Zahlung",
+    payment: "Zahlungsarten",
     cash: "Bar",
     debit_card: "Bankomat",
     credit_card: "Kreditkarte",
@@ -42,7 +42,7 @@ const TRANSLATIONS = {
       show_opening_hours: "Öffnungszeiten anzeigen",
       show_payment_methods: "Zahlungsarten anzeigen",
       show_history: "Preisverlauf anzeigen",
-      payment_filter: "Nur Stationen mit",
+      payment_filter: "Nur Tankstellen mit",
     },
   },
   en: {
@@ -1196,9 +1196,10 @@ class TankstellenAustriaCardEditor extends HTMLElement {
           <div class="pm-filter-chips">
             ${[...allPmKeys].map((key) => {
               const isActive = paymentFilter.includes(key);
-              const label = key === "cash" ? this._et("cash_label") || "Cash"
-                : key === "debit_card" ? this._et("debit_label") || "Bankomat"
-                : key === "credit_card" ? this._et("credit_label") || "Kreditkarte"
+              const _tl = (TRANSLATIONS[this._lang()] || TRANSLATIONS.de);
+              const label = key === "cash" ? _tl.cash
+                : key === "debit_card" ? _tl.debit_card
+                : key === "credit_card" ? _tl.credit_card
                 : key;
               return `<button class="pm-filter-chip ${isActive ? "active" : ""}" data-pm="${key}">${label}</button>`;
             }).join("")}
