@@ -20,6 +20,7 @@ and/or CNG.
 - **Payment method filter** *(1.4.2)* – filter or highlight stations by accepted payment methods (cash, Bankomat, credit card, Austrocard, UTA, DKV, …)
 - **Payment highlight mode** *(1.4.3)* – switch between hiding non-matching stations (filter) and highlighting them with a green accent instead
 - **Custom payment method values** *(1.4.3)* – add fleet cards or other values not listed by nearby stations (e.g. Routex, DKV) directly in the card editor
+- **Car fill-up cost widget** *(1.5.0)* – define your cars (name, fuel type, tank size) in the card editor and see the total fill-up cost at the cheapest nearby station, shown below the price header; each car gets its own MDI icon picked from a built-in icon grid
 - **Auto-detection** – the card automatically finds all Tankstellen Austria sensors, no manual entity configuration needed
 - **Visual card editor** – configure everything through the HA UI
 - **Average price tracking** – average of all 5 stations as sensor attribute, tracked in HA history for long-term analysis
@@ -141,6 +142,16 @@ payment_filter:
   - cash
   - Austrocard
 payment_highlight_mode: true
+show_cars: true
+cars:
+  - name: Golf TDI
+    fuel_type: DIE
+    tank_size: 50
+    icon: mdi:car-hatchback
+  - name: Familienauto
+    fuel_type: SUP
+    tank_size: 65
+    icon: mdi:car-estate
 ```
 
 ### Card options
@@ -156,6 +167,8 @@ payment_highlight_mode: true
 | `show_history` | `true` | Show 7-day sparkline price graph (fixed mode only) |
 | `payment_filter` | `[]` | Show/highlight stations accepting **at least one** of the listed methods. Values: `cash`, `debit_card`, `credit_card`, or any string from the API `others` field (e.g. `Austrocard`, `UTA`, `DKV`, `Routex`). Configurable via the visual editor. |
 | `payment_highlight_mode` | `true` | When `true`, matching stations are highlighted with a green accent instead of non-matching ones being hidden. |
+| `show_cars` | `false` | Show the fill-up cost row below the price header. |
+| `cars` | `[]` | List of car objects. Each entry: `name` (string), `fuel_type` (`DIE`/`SUP`/`GAS`), `tank_size` (litres), `icon` (MDI icon name, e.g. `mdi:car-sports`). Configurable via the visual editor. |
 
 ### What the card shows
 
@@ -168,6 +181,7 @@ payment_highlight_mode: true
 - **Closing Soon** badge (amber) on stations closing within 30 minutes
 - Optional **payment filter** — hide stations that don't accept any of the required methods, or use **highlight mode** to keep all stations visible with matching ones accented in green
 - Custom payment values can be added in the editor (e.g. `Routex`, `DKV`) — common API values: `Austrocard`, `UTA`, `DKV`, `Routex`, `Fleetcard`, `ADAC`
+- Optional **fill-up cost row** — shows total cost to fill each configured car at the cheapest station; only cars matching the active fuel type tab are shown
 
 **Dynamic mode (additional/different):**
 - Tab label includes tracker name — e.g. "Diesel · iPhone"
