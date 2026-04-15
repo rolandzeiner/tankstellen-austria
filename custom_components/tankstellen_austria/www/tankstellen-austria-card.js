@@ -653,28 +653,6 @@ class TankstellenAustriaCard extends HTMLElement {
     }
   }
 
-  _attachEditorListeners() {
-    const customInput = this.querySelector("#pm-custom-input");
-    const customAddBtn = this.querySelector("#pm-custom-add");
-    if (customAddBtn && customInput) {
-      const addCustom = () => {
-        const val = customInput.value.trim();
-        if (!val) return;
-        let current = [...(this._config.payment_filter || [])];
-        if (!current.includes(val)) {
-          current.push(val);
-          this._config = { ...this._config, payment_filter: current };
-          this._fireChanged();
-          this._render();
-        } else {
-          customInput.value = "";
-        }
-      };
-      customAddBtn.addEventListener("click", addCustom);
-      customInput.addEventListener("keydown", (e) => { if (e.key === "Enter") addCustom(); });
-    }
-  }
-
   _getStyles() {
     return `<style>
       ha-card {
@@ -1341,7 +1319,25 @@ class TankstellenAustriaCardEditor extends HTMLElement {
     });
 
     // Custom payment method input
-    this._attachEditorListeners();
+    const customInput = this.querySelector("#pm-custom-input");
+    const customAddBtn = this.querySelector("#pm-custom-add");
+    if (customAddBtn && customInput) {
+      const addCustom = () => {
+        const val = customInput.value.trim();
+        if (!val) return;
+        let current = [...(this._config.payment_filter || [])];
+        if (!current.includes(val)) {
+          current.push(val);
+          this._config = { ...this._config, payment_filter: current };
+          this._fireChanged();
+          this._render();
+        } else {
+          customInput.value = "";
+        }
+      };
+      customAddBtn.addEventListener("click", addCustom);
+      customInput.addEventListener("keydown", (e) => { if (e.key === "Enter") addCustom(); });
+    }
   }
 }
 
