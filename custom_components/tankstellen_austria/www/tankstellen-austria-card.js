@@ -1199,20 +1199,9 @@ class TankstellenAustriaCardEditor extends HTMLElement {
           .pm-custom-row ha-textfield {
             flex: 1;
           }
-          .pm-custom-row button {
-            padding: 4px 12px;
-            border-radius: 8px;
-            border: 1px solid var(--primary-color);
-            background: transparent;
+          .pm-custom-row ha-icon-button {
             color: var(--primary-color);
-            font-size: 18px;
-            line-height: 1;
-            cursor: pointer;
-            transition: all 0.15s;
-          }
-          .pm-custom-row button:hover {
-            background: var(--primary-color);
-            color: var(--text-primary-color, #fff);
+            flex-shrink: 0;
           }
         </style>
 
@@ -1284,7 +1273,7 @@ class TankstellenAustriaCardEditor extends HTMLElement {
           </div>
           <div class="pm-custom-row">
             <ha-textfield id="pm-custom-input" label="${this._et("payment_filter_custom_placeholder")}"></ha-textfield>
-            <button id="pm-custom-add">+</button>
+            <ha-icon-button id="pm-custom-add" title="+"><ha-icon icon="mdi:plus-circle"></ha-icon></ha-icon-button>
           </div>
           <div class="editor-hint">${this._et("payment_filter_custom_hint")}</div>
           ${paymentFilter.length ? `
