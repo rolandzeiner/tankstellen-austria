@@ -999,7 +999,7 @@ class TankstellenAustriaCard extends HTMLElement {
       show_payment_methods: true,
       show_history: true,
       payment_filter: [],
-      payment_highlight_mode: false,
+      payment_highlight_mode: true,
     };
   }
 }
@@ -1373,26 +1373,15 @@ class TankstellenAustriaCardEditor extends HTMLElement {
           customInput.value = "";
         }
       };
-      // ha-textfield uses shadow DOM — attach keyboard listeners to the internal
-      // input so stopPropagation prevents HA global shortcuts from stealing focus
-      const attachKeyListeners = () => {
-        const inner = customInput.shadowRoot?.querySelector("input");
-        if (!inner) return;
-        ["keydown", "keyup", "keypress"].forEach((evt) => {
-          inner.addEventListener(evt, (e) => {
-            e.stopPropagation();
-            if (evt === "keydown" && e.key === "Enter") addCustom();
-          });
+      // Keyboard events from inside ha-textfield's shadow DOM bubble up as
+      // composed events, so we can intercept them on the host element.
+      // stopPropagation here prevents HA global shortcuts from stealing focus.
+      ["keydown", "keyup", "keypress"].forEach((evt) => {
+        customInput.addEventListener(evt, (e) => {
+          e.stopPropagation();
+          if (evt === "keydown" && e.key === "Enter") addCustom();
         });
-      };
-      // ha-textfield may not be upgraded yet on first render
-      if (customInput.shadowRoot) {
-        attachKeyListeners();
-      } else {
-        customInput.addEventListener("connected", attachKeyListeners, { once: true });
-        // fallback: wait one microtask for upgrade
-        Promise.resolve().then(attachKeyListeners);
-      }
+      });
       customAddBtn.addEventListener("click", addCustom);
     }
   }
