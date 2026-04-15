@@ -21,7 +21,7 @@ and/or CNG.
 - **Payment highlight mode** *(1.4.3)* – switch between hiding non-matching stations (filter) and highlighting them with a green accent instead
 - **Custom payment method values** *(1.4.3)* – add fleet cards or other values not listed by nearby stations (e.g. Routex, DKV) directly in the card editor
 - **Car fill-up cost widget** *(1.5.0)* – define your cars (name, fuel type, tank size) in the card editor and see the total fill-up cost at the cheapest nearby station, shown below the price header; each car gets its own MDI icon picked from a built-in icon grid
-- **Best refuel time recommendation** *(1.5.0)* – analyses 7 days of price history to identify the cheapest weekday and hour; shown below the sparkline with a green marker on the graph; displays a "not enough data" hint until 7 days of history are available
+- **Best refuel time recommendation** *(1.5.0)* – analyses up to 4 weeks of price history using time-weighted hourly sampling to identify the cheapest weekday and hour; shown below the sparkline with a green marker on the graph; requires data spanning at least 2 weeks before a recommendation is shown (a "not enough data" hint is displayed until then)
 - **Auto-detection** – the card automatically finds all Tankstellen Austria sensors, no manual entity configuration needed
 - **Visual card editor** – configure everything through the HA UI
 - **Average price tracking** – average of all 5 stations as sensor attribute, tracked in HA history for long-term analysis
@@ -175,7 +175,7 @@ cars:
 
 **Fixed mode:**
 - Fuel type header with cheapest price and average price (Ø)
-- 7-day sparkline of cheapest price history with min/max labels, green marker at the historically cheapest hour, and a refuel time recommendation below ("Tip: Cheapest on Monday between 11:00–12:00"); shows a "not enough data" hint until 7 days of history are available
+- 7-day sparkline of cheapest price history with min/max labels, green dashed marker at the historically cheapest hour, and a refuel time recommendation below (e.g. "Tip: Cheapest on Monday between 11:00–12:00"); uses time-weighted hourly sampling over up to 4 weeks of history for accuracy; shows a "not enough data" hint until at least 2 weeks of data are available
 - Station list ranked by price with name, address, and map link
 - Expandable detail panel per station (click to open): opening hours + payment method badges
 - **Closed** badge (red) on currently closed stations
