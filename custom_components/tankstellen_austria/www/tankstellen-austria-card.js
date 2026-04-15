@@ -1,10 +1,10 @@
 /**
- * Tankstellen Austria Card v1.4.1
+ * Tankstellen Austria Card v1.4.2
  * Custom Lovelace card for displaying Austrian fuel prices.
  * https://github.com/rolandzeiner/tankstellen-austria
  */
 
-const CARD_VERSION = "1.4.1";
+const CARD_VERSION = "1.4.2";
 
 const TRANSLATIONS = {
   de: {
@@ -15,6 +15,11 @@ const TRANSLATIONS = {
     closing_soon: "Schließt bald",
     open_now: "Geöffnet",
     opening_hours: "Öffnungszeiten",
+    payment: "Zahlung",
+    cash: "Bar",
+    debit_card: "Bankomat",
+    credit_card: "Kreditkarte",
+    payment_filter_active: "Zahlungsfilter aktiv",
     no_data: "Keine Daten verfügbar",
     mon_fri: "Mo–Fr",
     sat: "Sa",
@@ -35,7 +40,9 @@ const TRANSLATIONS = {
       max_stations: "Anzahl Tankstellen",
       show_map_links: "Google Maps Links anzeigen",
       show_opening_hours: "Öffnungszeiten anzeigen",
+      show_payment_methods: "Zahlungsarten anzeigen",
       show_history: "Preisverlauf anzeigen",
+      payment_filter: "Nur Stationen mit",
     },
   },
   en: {
@@ -46,6 +53,11 @@ const TRANSLATIONS = {
     closing_soon: "Closing soon",
     open_now: "Open",
     opening_hours: "Opening hours",
+    payment: "Payment",
+    cash: "Cash",
+    debit_card: "Debit card",
+    credit_card: "Credit card",
+    payment_filter_active: "Payment filter active",
     no_data: "No data available",
     mon_fri: "Mon–Fri",
     sat: "Sat",
@@ -66,7 +78,9 @@ const TRANSLATIONS = {
       max_stations: "Number of stations",
       show_map_links: "Show Google Maps links",
       show_opening_hours: "Show opening hours",
+      show_payment_methods: "Show payment methods",
       show_history: "Show price history",
+      payment_filter: "Only stations with",
     },
   },
 };
@@ -371,8 +385,10 @@ class TankstellenAustriaCard extends HTMLElement {
 
     const showMapLinks = this._config.show_map_links !== false;
     const showHours = this._config.show_opening_hours !== false;
+    const showPayment = this._config.show_payment_methods !== false;
     const showHistory = this._config.show_history !== false;
     const maxStations = Math.min(5, Math.max(1, parseInt(this._config.max_stations, 10) || 5));
+    const paymentFilter = this._config.payment_filter || [];
 
     let html = `<ha-card>`;
 
@@ -466,11 +482,17 @@ class TankstellenAustriaCard extends HTMLElement {
         </div>`;
     }
 
-    if (!stations.length) {
+    const filteredStations = stations.filter((s) =>
+      this._matchesPaymentFilter(s, paymentFilter)
+    );
+
+    if (!filteredStations.length && paymentFilter.length && stations.length) {
+      html += `<div class="empty">${this._t("payment_filter_active")} — ${this._t("no_data")}</div>`;
+    } else if (!filteredStations.length) {
       html += `<div class="empty">${this._t("no_data")}</div>`;
     } else {
       html += `<div class="stations">`;
-      stations.forEach((s, idx) => {
+      filteredStations.forEach((s, idx) => {
         const loc = s.location || {};
         const isExpanded = this._expandedStations.has(`${this._activeTab}-${idx}`);
         const expandClass = isExpanded ? "expanded" : "";
@@ -498,12 +520,17 @@ class TankstellenAustriaCard extends HTMLElement {
             : ""
           }
             </div>
-            ${showHours
-            ? `<div class="hours ${expandClass}">
-                    ${this._renderHours(s.opening_hours || [])}
-                  </div>`
-            : ""
-          }
+            ${(() => {
+              const hasHours = showHours && s.opening_hours && s.opening_hours.length;
+              const hasPm = showPayment && this._hasPaymentMethods(s.payment_methods);
+              if (!hasHours && !hasPm) return "";
+              return `<div class="station-detail ${expandClass}">
+                  <div class="detail-cols">
+                    ${hasHours ? `<div class="detail-col">${this._renderHours(s.opening_hours)}</div>` : ""}
+                    ${hasPm ? `<div class="detail-col">${this._renderPaymentMethods(s.payment_methods)}</div>` : ""}
+                  </div>
+                </div>`;
+            })()}
           </div>`;
       });
       html += `</div>`;
@@ -529,6 +556,40 @@ class TankstellenAustriaCard extends HTMLElement {
     if (fe) html += `<span class="day">${this._t("holiday")}</span><span>${fe.from} – ${fe.to}</span>`;
     html += `</div>`;
     return html;
+  }
+
+  _hasPaymentMethods(pm) {
+    if (!pm) return false;
+    return pm.cash || pm.debit_card || pm.credit_card || (pm.others && pm.others.length > 0);
+  }
+
+  _matchesPaymentFilter(s, filter) {
+    if (!filter || !filter.length) return true;
+    const pm = s.payment_methods || {};
+    return filter.every((method) => {
+      if (method === "cash") return pm.cash;
+      if (method === "debit_card") return pm.debit_card;
+      if (method === "credit_card") return pm.credit_card;
+      return (pm.others || []).some((o) => o.toLowerCase() === method.toLowerCase());
+    });
+  }
+
+  _renderPaymentMethods(pm) {
+    if (!pm) return "";
+    const cashSvg = `<svg viewBox="0 0 24 24" width="13" height="13" style="vertical-align:-2px"><path fill="currentColor" d="M2 9a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h20a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2H2zm10 2a3 3 0 1 1 0 6 3 3 0 0 1 0-6z"/></svg>`;
+    const cardSvg = `<svg viewBox="0 0 24 24" width="13" height="13" style="vertical-align:-2px"><path fill="currentColor" d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 5H4V7h16v2z"/></svg>`;
+    const badges = [];
+    if (pm.cash) badges.push(`<span class="pm-badge">${cashSvg} ${this._t("cash")}</span>`);
+    if (pm.debit_card) badges.push(`<span class="pm-badge">${cardSvg} ${this._t("debit_card")}</span>`);
+    if (pm.credit_card) badges.push(`<span class="pm-badge">${cardSvg} ${this._t("credit_card")}</span>`);
+    for (const other of (pm.others || [])) {
+      badges.push(`<span class="pm-badge pm-other">${other}</span>`);
+    }
+    if (!badges.length) return "";
+    return `<div class="pm-section">
+      <div class="pm-label">${this._t("payment")}</div>
+      <div class="pm-badges">${badges.join("")}</div>
+    </div>`;
   }
 
   _attachListeners() {
@@ -826,15 +887,23 @@ class TankstellenAustriaCard extends HTMLElement {
         background: var(--primary-color);
         color: var(--text-primary-color, #fff);
       }
-      .hours {
+      .station-detail {
         max-height: 0;
         overflow: hidden;
-        transition: max-height 0.25s ease, padding 0.25s ease;
+        transition: max-height 0.3s ease, padding 0.3s ease;
         padding: 0 16px 0 52px;
       }
-      .hours.expanded {
-        max-height: 120px;
+      .station-detail.expanded {
+        max-height: 200px;
         padding: 0 16px 12px 52px;
+      }
+      .detail-cols {
+        display: flex;
+        gap: 16px;
+      }
+      .detail-col {
+        flex: 1;
+        min-width: 0;
       }
       .hours-grid {
         display: grid;
@@ -846,6 +915,35 @@ class TankstellenAustriaCard extends HTMLElement {
       .hours-grid .day {
         font-weight: 500;
         color: var(--primary-text-color);
+      }
+      .pm-section {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .pm-label {
+        font-size: 12px;
+        font-weight: 500;
+        color: var(--primary-text-color);
+      }
+      .pm-badges {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+      }
+      .pm-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+        padding: 2px 7px;
+        border-radius: 10px;
+        font-size: 11px;
+        background: var(--secondary-background-color, #f5f5f5);
+        color: var(--secondary-text-color);
+        border: 1px solid var(--divider-color, #e0e0e0);
+      }
+      .pm-badge.pm-other {
+        font-style: italic;
       }
       .empty {
         padding: 24px 16px;
@@ -870,7 +968,9 @@ class TankstellenAustriaCard extends HTMLElement {
       max_stations: 5,
       show_map_links: true,
       show_opening_hours: true,
+      show_payment_methods: true,
       show_history: true,
+      payment_filter: [],
     };
   }
 }
@@ -917,7 +1017,18 @@ class TankstellenAustriaCardEditor extends HTMLElement {
     const maxStations = this._config.max_stations ?? 5;
     const showMap = this._config.show_map_links !== false;
     const showHours = this._config.show_opening_hours !== false;
+    const showPayment = this._config.show_payment_methods !== false;
     const showHistory = this._config.show_history !== false;
+    const paymentFilter = this._config.payment_filter || [];
+
+    // Gather all payment methods available across current entity states
+    const allPmKeys = new Set(["cash", "debit_card", "credit_card"]);
+    (this._config.entities || []).forEach((eid) => {
+      const state = this._hass?.states[eid];
+      (state?.attributes?.stations || []).forEach((s) => {
+        (s.payment_methods?.others || []).forEach((o) => allPmKeys.add(o));
+      });
+    });
 
     this.innerHTML = `
       <div class="editor">
@@ -1004,6 +1115,29 @@ class TankstellenAustriaCardEditor extends HTMLElement {
             font-size: 14px;
             color: var(--primary-text-color);
           }
+          .pm-filter-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+          }
+          .pm-filter-chip {
+            padding: 4px 10px;
+            border-radius: 14px;
+            font-size: 12px;
+            cursor: pointer;
+            border: 1px solid var(--divider-color);
+            background: transparent;
+            color: var(--primary-text-color);
+            transition: all 0.15s;
+          }
+          .pm-filter-chip.active {
+            background: var(--primary-color);
+            color: var(--text-primary-color, #fff);
+            border-color: var(--primary-color);
+          }
+          .pm-filter-chip:hover {
+            opacity: 0.85;
+          }
         </style>
 
         <div class="editor-title">Tankstellen Austria</div>
@@ -1046,8 +1180,28 @@ class TankstellenAustriaCardEditor extends HTMLElement {
             <ha-switch id="toggle-hours" ${showHours ? "checked" : ""} data-field="show_opening_hours"></ha-switch>
           </div>
           <div class="toggle-row">
+            <label for="toggle-payment">${this._et("show_payment_methods")}</label>
+            <ha-switch id="toggle-payment" ${showPayment ? "checked" : ""} data-field="show_payment_methods"></ha-switch>
+          </div>
+          <div class="toggle-row">
             <label for="toggle-history">${this._et("show_history")}</label>
             <ha-switch id="toggle-history" ${showHistory ? "checked" : ""} data-field="show_history"></ha-switch>
+          </div>
+        </div>
+
+        <!-- Payment filter -->
+        <div class="editor-section">
+          <div class="editor-label">${this._et("payment_filter")}</div>
+          <div class="editor-hint">${paymentFilter.length ? "● " + paymentFilter.join(", ") : "–"}</div>
+          <div class="pm-filter-chips">
+            ${[...allPmKeys].map((key) => {
+              const isActive = paymentFilter.includes(key);
+              const label = key === "cash" ? this._et("cash_label") || "Cash"
+                : key === "debit_card" ? this._et("debit_label") || "Bankomat"
+                : key === "credit_card" ? this._et("credit_label") || "Kreditkarte"
+                : key;
+              return `<button class="pm-filter-chip ${isActive ? "active" : ""}" data-pm="${key}">${label}</button>`;
+            }).join("")}
           </div>
         </div>
       </div>
@@ -1088,6 +1242,22 @@ class TankstellenAustriaCardEditor extends HTMLElement {
         const field = e.target.dataset.field;
         this._config = { ...this._config, [field]: e.target.checked };
         this._fireChanged();
+      });
+    });
+
+    // Payment filter chips
+    this.querySelectorAll(".pm-filter-chip").forEach((chip) => {
+      chip.addEventListener("click", () => {
+        const key = chip.dataset.pm;
+        let current = [...(this._config.payment_filter || [])];
+        if (current.includes(key)) {
+          current = current.filter((k) => k !== key);
+        } else {
+          current.push(key);
+        }
+        this._config = { ...this._config, payment_filter: current };
+        this._fireChanged();
+        this._render();
       });
     });
   }

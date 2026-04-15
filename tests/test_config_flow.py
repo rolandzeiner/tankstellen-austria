@@ -60,6 +60,8 @@ async def test_form_creates_entry(hass: HomeAssistant, mock_fetch) -> None:
     assert result["data"][CONF_LATITUDE] == 48.2082
     assert result["data"][CONF_LONGITUDE] == 15.6256
     assert result["data"][CONF_FUEL_TYPES] == ["DIE", "SUP"]
+    assert result["data"][CONF_INCLUDE_CLOSED] is True
+    assert result["data"][CONF_SCAN_INTERVAL] == 30
 
 
 async def test_form_accepts_zero_coordinates(hass: HomeAssistant, mock_fetch) -> None:
@@ -125,6 +127,7 @@ async def test_options_flow_updates(hass: HomeAssistant, mock_fetch) -> None:
     assert result["type"] == FlowResultType.CREATE_ENTRY
     assert entry.options[CONF_FUEL_TYPES] == ["DIE"]
     assert entry.options[CONF_SCAN_INTERVAL] == 60
+    assert entry.options[CONF_INCLUDE_CLOSED] is False
 
 
 async def test_form_cannot_connect(hass: HomeAssistant) -> None:
