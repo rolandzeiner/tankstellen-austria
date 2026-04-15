@@ -2,7 +2,7 @@
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
 [![HA min version](https://img.shields.io/badge/Home%20Assistant-%3E%3D2024.6-blue.svg)](https://www.home-assistant.io/)
-[![Version](https://img.shields.io/badge/version-1.4.2-blue.svg)](https://github.com/rolandzeiner/tankstellen-austria/releases)
+[![Version](https://img.shields.io/badge/version-1.4.3-blue.svg)](https://github.com/rolandzeiner/tankstellen-austria/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![vibe-coded](https://img.shields.io/badge/vibe-coded-ff69b4?logo=musicbrainz&logoColor=white)](https://en.wikipedia.org/wiki/Vibe_coding)
 
@@ -17,7 +17,9 @@ and/or CNG.
 - **Config-flow UI** – set up via the HA integrations page (map picker for coordinates)
 - **One sensor per fuel type** – state = cheapest price, attributes contain all 5 stations with name, address, opening hours, payment methods, and Google Maps link
 - **Custom Lovelace card** – `tankstellen-austria-card` with fuel-type tabs, expandable detail panel (opening hours + payment methods), map links, and 7-day price sparkline
-- **Payment method filter** *(1.4.2)* – filter the card to show only stations accepting specific payment methods (cash, Bankomat, credit card, Austrocard, UTA, DKV, …)
+- **Payment method filter** *(1.4.2)* – filter or highlight stations by accepted payment methods (cash, Bankomat, credit card, Austrocard, UTA, DKV, …)
+- **Payment highlight mode** *(1.4.3)* – switch between hiding non-matching stations (filter) and highlighting them with a green accent instead
+- **Custom payment method values** *(1.4.3)* – add fleet cards or other values not listed by nearby stations (e.g. Routex, DKV) directly in the card editor
 - **Auto-detection** – the card automatically finds all Tankstellen Austria sensors, no manual entity configuration needed
 - **Visual card editor** – configure everything through the HA UI
 - **Average price tracking** – average of all 5 stations as sensor attribute, tracked in HA history for long-term analysis
@@ -138,6 +140,7 @@ show_history: true
 payment_filter:
   - cash
   - Austrocard
+payment_highlight_mode: false
 ```
 
 ### Card options
@@ -151,7 +154,8 @@ payment_filter:
 | `show_opening_hours` | `true` | Show expandable opening hours on click |
 | `show_payment_methods` | `true` | Show payment method badges in expandable detail |
 | `show_history` | `true` | Show 7-day sparkline price graph (fixed mode only) |
-| `payment_filter` | `[]` | Only show stations accepting **at least one** of the listed methods. Values: `cash`, `debit_card`, `credit_card`, or any string from the API `others` field (e.g. `Austrocard`, `UTA`, `DKV`). Configurable via the visual editor. |
+| `payment_filter` | `[]` | Show/highlight stations accepting **at least one** of the listed methods. Values: `cash`, `debit_card`, `credit_card`, or any string from the API `others` field (e.g. `Austrocard`, `UTA`, `DKV`, `Routex`). Configurable via the visual editor. |
+| `payment_highlight_mode` | `false` | When `true`, matching stations are highlighted with a green accent instead of non-matching ones being hidden. |
 
 ### What the card shows
 
@@ -162,7 +166,8 @@ payment_filter:
 - Expandable detail panel per station (click to open): opening hours + payment method badges
 - **Closed** badge (red) on currently closed stations
 - **Closing Soon** badge (amber) on stations closing within 30 minutes
-- Optional **payment filter** — hide stations that don't accept required methods
+- Optional **payment filter** — hide stations that don't accept any of the required methods, or use **highlight mode** to keep all stations visible with matching ones accented in green
+- Custom payment values can be added in the editor (e.g. `Routex`, `DKV`) — common API values: `Austrocard`, `UTA`, `DKV`, `Routex`, `Fleetcard`, `ADAC`
 
 **Dynamic mode (additional/different):**
 - Tab label includes tracker name — e.g. "Diesel · iPhone"
