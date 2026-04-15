@@ -124,6 +124,11 @@ const CAR_ICONS = [
   "mdi:motorbike", "mdi:bus", "mdi:truck", "mdi:rv-truck",
 ];
 
+// Shared HTML escape — safe for both attribute values and text content.
+const _escHtml = (s) => String(s)
+  .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+  .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
 // Helper: find all tankstellen_austria sensors in hass states
 function _findTankstellenEntities(hass) {
   if (!hass || !hass.states) return [];
@@ -148,6 +153,7 @@ class TankstellenAustriaCard extends HTMLElement {
   _expandedStations = new Set();
   _historyData = {};
   _historyLoading = {};
+  _historyInterval = null;
   _lastManualRefresh = 0;
   _cooldownInterval = null;
   _noNewData = false;
@@ -657,7 +663,6 @@ class TankstellenAustriaCard extends HTMLElement {
         const effectiveCheapest = highlightMode
           ? stations[0]?.price
           : filteredStations[0]?.price;
-        const _esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
         html += `<div class="cars-fillup">`;
         configCars.forEach((car) => {
           const costStr = effectiveCheapest != null
@@ -665,8 +670,8 @@ class TankstellenAustriaCard extends HTMLElement {
             : "–";
           html += `<div class="car-fillup-row">
             <span class="car-fillup-name">
-              <ha-icon icon="${_esc(car.icon || "mdi:car")}" class="car-icon"></ha-icon>
-              ${_esc(car.name)} <span class="car-fillup-liters">${car.tank_size} L</span>
+              <ha-icon icon="${_escHtml(car.icon || "mdi:car")}" class="car-icon"></ha-icon>
+              ${_escHtml(car.name)} <span class="car-fillup-liters">${car.tank_size} L</span>
             </span>
             <span class="car-fillup-cost">${costStr}</span>
           </div>`;
@@ -1256,9 +1261,6 @@ class TankstellenAustriaCardEditor extends HTMLElement {
 
   set hass(hass) {
     this._hass = hass;
-    // Skip re-render while the user is typing — HA calls set hass() on every
-    // state change, which would nuke any focused input before blur/change fires.
-    if (this.contains(document.activeElement)) return;
     this._render();
   }
 
@@ -1278,6 +1280,43 @@ class TankstellenAustriaCardEditor extends HTMLElement {
     );
   }
 
+  _captureInputState() {
+    const active = document.activeElement;
+    const state = { inputs: [], focused: null, cursor: null };
+    this.querySelectorAll('input[type="text"], input[type="number"]').forEach((el) => {
+      const key = el.dataset.carIdx != null
+        ? { type: "car", idx: el.dataset.carIdx, field: el.dataset.carField }
+        : el.id ? { type: "id", id: el.id } : null;
+      if (!key) return;
+      state.inputs.push({ key, value: el.value });
+      if (el === active) {
+        state.focused = key;
+        try { state.cursor = { start: el.selectionStart, end: el.selectionEnd }; } catch (_) {}
+      }
+    });
+    return state;
+  }
+
+  _restoreInputState(state) {
+    if (!state) return;
+    const findEl = (key) => key.type === "car"
+      ? this.querySelector(`input[data-car-idx="${key.idx}"][data-car-field="${key.field}"]`)
+      : this.querySelector(`#${key.id}`);
+    state.inputs.forEach(({ key, value }) => {
+      const el = findEl(key);
+      if (el) el.value = value;
+    });
+    if (state.focused) {
+      const el = findEl(state.focused);
+      if (el) {
+        el.focus();
+        if (state.cursor) {
+          try { el.setSelectionRange(state.cursor.start, state.cursor.end); } catch (_) {}
+        }
+      }
+    }
+  }
+
   _render() {
     if (!this._hass) return;
 
@@ -1294,7 +1333,7 @@ class TankstellenAustriaCardEditor extends HTMLElement {
     const showCars = this._config.show_cars === true;
     const cars = this._config.cars || [];
 
-    const escHtml = (s) => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+    const escHtml = _escHtml;
 
     // Keys available from live API data (builtin + whatever stations report)
     const apiPmKeys = new Set(["cash", "debit_card", "credit_card"]);
@@ -1307,6 +1346,8 @@ class TankstellenAustriaCardEditor extends HTMLElement {
     // allPmKeys also includes user-typed filter values not in live data
     const allPmKeys = new Set([...apiPmKeys]);
     paymentFilter.forEach((f) => allPmKeys.add(f));
+
+    const _inputState = this._captureInputState();
 
     this.innerHTML = `
       <div class="editor">
@@ -1881,6 +1922,8 @@ class TankstellenAustriaCardEditor extends HTMLElement {
         this._render();
       });
     }
+
+    this._restoreInputState(_inputState);
   }
 }
 
