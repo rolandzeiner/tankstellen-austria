@@ -998,6 +998,7 @@ class TankstellenAustriaCard extends HTMLElement {
 class TankstellenAustriaCardEditor extends HTMLElement {
   _config = {};
   _hass = null;
+  _pendingRemove = null;
 
   setConfig(config) {
     this._config = { ...config };
@@ -1038,6 +1039,8 @@ class TankstellenAustriaCardEditor extends HTMLElement {
     const showHistory = this._config.show_history !== false;
     const paymentFilter = this._config.payment_filter || [];
     const highlightMode = this._config.payment_highlight_mode === true;
+
+    const escHtml = (s) => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 
     // Gather all payment methods available across current entity states
     const allPmKeys = new Set(["cash", "debit_card", "credit_card"]);
@@ -1158,6 +1161,11 @@ class TankstellenAustriaCardEditor extends HTMLElement {
           .pm-filter-chip:hover {
             opacity: 0.85;
           }
+          .pm-filter-chip.confirm {
+            background: var(--error-color, #db4437);
+            color: #fff;
+            border-color: var(--error-color, #db4437);
+          }
           .pm-custom-row {
             display: flex;
             gap: 6px;
@@ -1248,7 +1256,8 @@ class TankstellenAustriaCardEditor extends HTMLElement {
                 : key === "debit_card" ? _tl.debit_card
                 : key === "credit_card" ? _tl.credit_card
                 : key;
-              return `<button class="pm-filter-chip ${isActive ? "active" : ""}" data-pm="${key}">${label}</button>`;
+              const isPending = key === this._pendingRemove;
+              return `<button class="pm-filter-chip ${isActive ? "active" : ""} ${isPending ? "confirm" : ""}" data-pm="${escHtml(key)}">${isPending ? "✕ " + escHtml(label) + "?" : escHtml(label)}</button>`;
             }).join("")}
           </div>
           <div class="pm-custom-row">
@@ -1303,17 +1312,36 @@ class TankstellenAustriaCardEditor extends HTMLElement {
     });
 
     // Payment filter chips
+    const builtinKeys = ["cash", "debit_card", "credit_card"];
     this.querySelectorAll(".pm-filter-chip").forEach((chip) => {
       chip.addEventListener("click", () => {
         const key = chip.dataset.pm;
         let current = [...(this._config.payment_filter || [])];
-        if (current.includes(key)) {
-          current = current.filter((k) => k !== key);
+        const isActive = current.includes(key);
+        const isCustom = !builtinKeys.includes(key);
+
+        if (isActive && isCustom) {
+          if (this._pendingRemove === key) {
+            // Second click: confirmed, remove
+            this._pendingRemove = null;
+            current = current.filter((k) => k !== key);
+            this._config = { ...this._config, payment_filter: current };
+            this._fireChanged();
+          } else {
+            // First click: enter confirm state
+            this._pendingRemove = key;
+          }
         } else {
-          current.push(key);
+          // Built-in chip or adding: toggle directly, cancel any pending
+          this._pendingRemove = null;
+          if (isActive) {
+            current = current.filter((k) => k !== key);
+          } else {
+            current.push(key);
+          }
+          this._config = { ...this._config, payment_filter: current };
+          this._fireChanged();
         }
-        this._config = { ...this._config, payment_filter: current };
-        this._fireChanged();
         this._render();
       });
     });
@@ -1322,9 +1350,11 @@ class TankstellenAustriaCardEditor extends HTMLElement {
     const customInput = this.querySelector("#pm-custom-input");
     const customAddBtn = this.querySelector("#pm-custom-add");
     if (customAddBtn && customInput) {
+      const sanitize = (s) => s.replace(/[<>"'&]/g, "").slice(0, 50).trim();
       const addCustom = () => {
-        const val = customInput.value.trim();
+        const val = sanitize(customInput.value);
         if (!val) return;
+        this._pendingRemove = null;
         let current = [...(this._config.payment_filter || [])];
         if (!current.includes(val)) {
           current.push(val);
@@ -1335,8 +1365,14 @@ class TankstellenAustriaCardEditor extends HTMLElement {
           customInput.value = "";
         }
       };
+      // Stop propagation on all keyboard events so HA shortcuts don't steal focus
+      ["keydown", "keyup", "keypress"].forEach((evt) => {
+        customInput.addEventListener(evt, (e) => {
+          e.stopPropagation();
+          if (evt === "keydown" && e.key === "Enter") addCustom();
+        });
+      });
       customAddBtn.addEventListener("click", addCustom);
-      customInput.addEventListener("keydown", (e) => { if (e.key === "Enter") addCustom(); });
     }
   }
 }
