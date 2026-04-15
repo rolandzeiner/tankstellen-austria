@@ -4,7 +4,7 @@
  * https://github.com/rolandzeiner/tankstellen-austria
  */
 
-const CARD_VERSION = "1.5.0-beta-3";
+const CARD_VERSION = "1.5.0-beta-4";
 
 const TRANSLATIONS = {
   de: {
@@ -271,7 +271,9 @@ class TankstellenAustriaCard extends HTMLElement {
       if (result && result[entityId]) {
         this._historyData[entityId] = result[entityId]
           .map((entry) => ({
-            time: new Date(entry.lu || entry.last_updated || entry.last_changed).getTime(),
+            time: typeof entry.lu === 'number'
+              ? Math.round(entry.lu * 1000)
+              : new Date(entry.lu || entry.last_updated || entry.last_changed).getTime(),
             value: parseFloat(entry.s || entry.state),
           }))
           .filter((d) => !isNaN(d.value));
