@@ -47,6 +47,9 @@ const TRANSLATIONS = {
       payment_filter_custom_placeholder: "Benutzerdefiniert, z.B. Routex",
       payment_filter_custom_hint: "Der Wert muss exakt dem API-String entsprechen. Häufige Werte: Routex, UTA, DKV, Austrocard, Fleetcard, ADAC",
       payment_highlight_mode: "Hervorheben statt filtern",
+      section_sensors: "Sensoren",
+      section_display: "Anzeige",
+      section_payment_filter: "Zahlungsfilter",
     },
   },
   en: {
@@ -89,6 +92,9 @@ const TRANSLATIONS = {
       payment_filter_custom_placeholder: "Custom, e.g. Routex",
       payment_filter_custom_hint: "Must match the API string exactly. Common values: Routex, UTA, DKV, Austrocard, Fleetcard, ADAC",
       payment_highlight_mode: "Highlight instead of filter",
+      section_sensors: "Sensors",
+      section_display: "Display",
+      section_payment_filter: "Payment filter",
     },
   },
 };
@@ -1073,27 +1079,28 @@ class TankstellenAustriaCardEditor extends HTMLElement {
             padding: 16px;
             display: flex;
             flex-direction: column;
-            gap: 16px;
-          }
-          .editor-title {
-            font-weight: 600;
-            font-size: 16px;
-            color: var(--primary-text-color);
+            gap: 12px;
           }
           .editor-section {
+            background: var(--secondary-background-color, rgba(0,0,0,0.04));
+            border-radius: 12px;
+            padding: 14px 16px;
             display: flex;
             flex-direction: column;
-            gap: 8px;
+            gap: 10px;
           }
-          .editor-label {
-            font-size: 13px;
-            font-weight: 500;
-            color: var(--primary-text-color);
+          .section-header {
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.6px;
+            text-transform: uppercase;
+            color: var(--secondary-text-color);
+            margin-bottom: 2px;
           }
           .editor-hint {
             font-size: 12px;
             color: var(--secondary-text-color);
-            margin-top: -4px;
+            line-height: 1.4;
           }
           .entity-chips {
             display: flex;
@@ -1104,13 +1111,13 @@ class TankstellenAustriaCardEditor extends HTMLElement {
             display: flex;
             align-items: center;
             gap: 4px;
-            padding: 4px 10px;
+            padding: 5px 12px;
             border-radius: 16px;
             font-size: 13px;
             cursor: pointer;
             transition: all 0.15s;
             border: 1px solid var(--divider-color);
-            background: transparent;
+            background: var(--card-background-color, #fff);
             color: var(--primary-text-color);
           }
           .entity-chip.selected {
@@ -1128,12 +1135,17 @@ class TankstellenAustriaCardEditor extends HTMLElement {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 4px 0;
+            padding: 2px 0;
           }
           .toggle-row label {
             font-size: 13px;
             color: var(--primary-text-color);
             cursor: pointer;
+          }
+          .divider {
+            height: 1px;
+            background: var(--divider-color);
+            margin: 2px 0;
           }
           .slider-row {
             display: flex;
@@ -1149,7 +1161,7 @@ class TankstellenAustriaCardEditor extends HTMLElement {
             text-align: center;
             font-weight: 600;
             font-size: 14px;
-            color: var(--primary-text-color);
+            color: var(--primary-color);
           }
           .pm-filter-chips {
             display: flex;
@@ -1157,12 +1169,12 @@ class TankstellenAustriaCardEditor extends HTMLElement {
             gap: 6px;
           }
           .pm-filter-chip {
-            padding: 4px 10px;
+            padding: 4px 12px;
             border-radius: 14px;
             font-size: 12px;
             cursor: pointer;
             border: 1px solid var(--divider-color);
-            background: transparent;
+            background: var(--card-background-color, #fff);
             color: var(--primary-text-color);
             transition: all 0.15s;
           }
@@ -1183,19 +1195,20 @@ class TankstellenAustriaCardEditor extends HTMLElement {
             display: flex;
             align-items: center;
             gap: 6px;
-            margin-top: 4px;
           }
           .pm-custom-row ha-textfield {
             flex: 1;
           }
           .pm-custom-row button {
-            padding: 4px 10px;
-            border-radius: 6px;
+            padding: 4px 12px;
+            border-radius: 8px;
             border: 1px solid var(--primary-color);
             background: transparent;
             color: var(--primary-color);
-            font-size: 12px;
+            font-size: 18px;
+            line-height: 1;
             cursor: pointer;
+            transition: all 0.15s;
           }
           .pm-custom-row button:hover {
             background: var(--primary-color);
@@ -1203,12 +1216,9 @@ class TankstellenAustriaCardEditor extends HTMLElement {
           }
         </style>
 
-        <div class="editor-title">Tankstellen Austria</div>
-
         <!-- Entity selection -->
         <div class="editor-section">
-          <div class="editor-label">${this._et("entities")}</div>
-          <div class="editor-hint">${this._et("entities_hint")}</div>
+          <div class="section-header">${this._et("section_sensors")}</div>
           <div class="entity-chips">
             ${available.map((eid) => {
       const state = this._hass.states[eid];
@@ -1221,41 +1231,45 @@ class TankstellenAustriaCardEditor extends HTMLElement {
               </button>`;
     }).join("")}
           </div>
+          <div class="editor-hint">${this._et("entities_hint")}</div>
         </div>
 
-        <!-- Max stations slider -->
+        <!-- Display options -->
         <div class="editor-section">
-          <div class="editor-label">${this._et("max_stations")}</div>
-          <div class="slider-row">
-            <input type="range" min="1" max="5" step="1" value="${maxStations}" data-field="max_stations" />
-            <span class="slider-value">${maxStations}</span>
-          </div>
-        </div>
-
-        <!-- Toggles -->
-        <div class="editor-section">
+          <div class="section-header">${this._et("section_display")}</div>
           <div class="toggle-row">
             <label for="toggle-map">${this._et("show_map_links")}</label>
             <ha-switch id="toggle-map" ${showMap ? "checked" : ""} data-field="show_map_links"></ha-switch>
           </div>
+          <div class="divider"></div>
           <div class="toggle-row">
             <label for="toggle-hours">${this._et("show_opening_hours")}</label>
             <ha-switch id="toggle-hours" ${showHours ? "checked" : ""} data-field="show_opening_hours"></ha-switch>
           </div>
+          <div class="divider"></div>
           <div class="toggle-row">
             <label for="toggle-payment">${this._et("show_payment_methods")}</label>
             <ha-switch id="toggle-payment" ${showPayment ? "checked" : ""} data-field="show_payment_methods"></ha-switch>
           </div>
+          <div class="divider"></div>
           <div class="toggle-row">
             <label for="toggle-history">${this._et("show_history")}</label>
             <ha-switch id="toggle-history" ${showHistory ? "checked" : ""} data-field="show_history"></ha-switch>
           </div>
+          <div class="divider"></div>
+          <div class="toggle-row" style="padding-top:4px">
+            <label for="slider-stations">${this._et("max_stations")}</label>
+          </div>
+          <div class="slider-row">
+            <input id="slider-stations" type="range" min="1" max="5" step="1" value="${maxStations}" data-field="max_stations" />
+            <span class="slider-value">${maxStations}</span>
+          </div>
         </div>
 
-        <!-- Payment filter -->
+        <!-- Payment filter (only when show_payment_methods is on) -->
+        ${showPayment ? `
         <div class="editor-section">
-          <div class="editor-label">${this._et("payment_filter")}</div>
-          <div class="editor-hint">${paymentFilter.length ? "● " + paymentFilter.join(", ") : "–"}</div>
+          <div class="section-header">${this._et("section_payment_filter")}</div>
           <div class="pm-filter-chips">
             ${[...allPmKeys].map((key) => {
               const isActive = paymentFilter.includes(key);
@@ -1274,11 +1288,12 @@ class TankstellenAustriaCardEditor extends HTMLElement {
           </div>
           <div class="editor-hint">${this._et("payment_filter_custom_hint")}</div>
           ${paymentFilter.length ? `
-          <div class="toggle-row" style="margin-top:6px">
+          <div class="divider"></div>
+          <div class="toggle-row">
             <label for="toggle-highlight">${this._et("payment_highlight_mode")}</label>
             <ha-switch id="toggle-highlight" ${highlightMode ? "checked" : ""} data-field="payment_highlight_mode"></ha-switch>
           </div>` : ""}
-        </div>
+        </div>` : ""}
       </div>
     `;
 
