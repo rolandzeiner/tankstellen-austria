@@ -113,9 +113,9 @@ const TRANSLATIONS = {
 
 const CAR_ICONS = [
   "mdi:car", "mdi:car-sports", "mdi:car-hatchback", "mdi:car-estate",
-  "mdi:car-suv", "mdi:car-convertible", "mdi:car-pickup", "mdi:car-electric",
+  "mdi:car-convertible", "mdi:car-pickup", "mdi:car-electric",
   "mdi:car-electric-outline", "mdi:car-side", "mdi:van-passenger",
-  "mdi:motorbike", "mdi:bus", "mdi:truck", "mdi:rv-truck", "mdi:bicycle",
+  "mdi:motorbike", "mdi:bus", "mdi:truck", "mdi:rv-truck",
 ];
 
 // Helper: find all tankstellen_austria sensors in hass states
