@@ -1,10 +1,10 @@
 /**
- * Tankstellen Austria Card v1.5.0-beta-2
+ * Tankstellen Austria Card v1.5.0-beta-3
  * Custom Lovelace card for displaying Austrian fuel prices.
  * https://github.com/rolandzeiner/tankstellen-austria
  */
 
-const CARD_VERSION = "1.5.0-beta-2";
+const CARD_VERSION = "1.5.0-beta-3";
 
 const TRANSLATIONS = {
   de: {
@@ -364,9 +364,15 @@ class TankstellenAustriaCard extends HTMLElement {
     const allData = this._historyData[entityId];
     if (!allData || allData.length < 2) return "";
 
-    // Sparkline always shows last 7 days only
+    // Sparkline shows last 7 days. With significant_changes_only the most recent
+    // change event may be older than 7 days (stable price) — prepend the last
+    // known point before the cutoff so the sparkline always renders.
     const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
-    const data = allData.filter((d) => d.time >= cutoff);
+    let data = allData.filter((d) => d.time >= cutoff);
+    if (data.length < 2) {
+      const lastKnown = allData.filter((d) => d.time < cutoff).at(-1);
+      if (lastKnown) data = [lastKnown, ...data];
+    }
     if (data.length < 2) return "";
 
     const width = 280;
