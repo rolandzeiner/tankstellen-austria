@@ -460,7 +460,7 @@ class TankstellenAustriaCard extends HTMLElement {
         <div class="card-header">
           <div class="header-top">
             <div class="fuel-label">
-              <svg viewBox="0 0 24 24" width="18" height="18" class="fuel-icon"><path fill="currentColor" d="M18 10a1 1 0 0 1-1-1 1 1 0 0 1 1-1 1 1 0 0 1 1 1 1 1 0 0 1-1 1m-6 0H8V5h4m7.77 2.23l.01-.01-3.72-3.72L15 4.56l2.11 2.11C16.17 7 15.5 7.93 15.5 9a2.5 2.5 0 0 0 2.5 2.5c.36 0 .69-.08 1-.21v7.21a1 1 0 0 1-1 1 1 1 0 0 1-1-1V14a2 2 0 0 0-2-2h-1V5a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16h10v-7.5h1.5v5A2.5 2.5 0 0 0 20 21a2.5 2.5 0 0 0 2.5-2.5V9c0-.69-.28-1.32-.73-1.77z"/></svg>
+              <ha-icon icon="mdi:gas-station" class="fuel-icon"></ha-icon>
               <span>${fuelTypeName}</span>
             </div>
             ${isDynamic ? `
@@ -471,7 +471,7 @@ class TankstellenAustriaCard extends HTMLElement {
               </div>
             </div>
             <button class="refresh-btn${refreshCoolingDown ? " cooling" : ""}" data-refresh>
-              <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+              <ha-icon icon="mdi:refresh" class="refresh-icon"></ha-icon>
               ${refreshCoolingDown ? countdownText : this._t("refresh")}
             </button>` : `
             <div class="header-prices">
@@ -526,7 +526,7 @@ class TankstellenAustriaCard extends HTMLElement {
               <div class="price">${this._formatPrice(s.price)}</div>
               ${showMapLinks
             ? `<a class="map-link" href="${this._mapsUrl(loc)}" target="_blank" rel="noopener noreferrer" title="${this._t("map")}">
-                      <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+                      <ha-icon icon="mdi:map-marker" class="map-icon"></ha-icon>
                     </a>`
             : ""
           }
@@ -587,12 +587,10 @@ class TankstellenAustriaCard extends HTMLElement {
 
   _renderPaymentMethods(pm) {
     if (!pm) return "";
-    const cashSvg = `<svg viewBox="0 0 24 24" width="13" height="13" style="vertical-align:-2px"><path fill="currentColor" d="M2 9a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h20a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2H2zm10 2a3 3 0 1 1 0 6 3 3 0 0 1 0-6z"/></svg>`;
-    const cardSvg = `<svg viewBox="0 0 24 24" width="13" height="13" style="vertical-align:-2px"><path fill="currentColor" d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 5H4V7h16v2z"/></svg>`;
     const badges = [];
-    if (pm.cash) badges.push(`<span class="pm-badge">${cashSvg} ${this._t("cash")}</span>`);
-    if (pm.debit_card) badges.push(`<span class="pm-badge">${cardSvg} ${this._t("debit_card")}</span>`);
-    if (pm.credit_card) badges.push(`<span class="pm-badge">${cardSvg} ${this._t("credit_card")}</span>`);
+    if (pm.cash) badges.push(`<span class="pm-badge"><ha-icon icon="mdi:cash" class="pm-icon"></ha-icon> ${this._t("cash")}</span>`);
+    if (pm.debit_card) badges.push(`<span class="pm-badge"><ha-icon icon="mdi:credit-card" class="pm-icon"></ha-icon> ${this._t("debit_card")}</span>`);
+    if (pm.credit_card) badges.push(`<span class="pm-badge"><ha-icon icon="mdi:credit-card" class="pm-icon"></ha-icon> ${this._t("credit_card")}</span>`);
     for (const other of (pm.others || [])) {
       badges.push(`<span class="pm-badge pm-other">${other}</span>`);
     }
@@ -723,6 +721,18 @@ class TankstellenAustriaCard extends HTMLElement {
       }
       .fuel-icon {
         color: var(--primary-color);
+        --mdc-icon-size: 18px;
+      }
+      .refresh-icon {
+        --mdc-icon-size: 16px;
+        vertical-align: middle;
+      }
+      .map-icon {
+        --mdc-icon-size: 20px;
+      }
+      .pm-icon {
+        --mdc-icon-size: 13px;
+        vertical-align: middle;
       }
       .header-prices {
         display: flex;
