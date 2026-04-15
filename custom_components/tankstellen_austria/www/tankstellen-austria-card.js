@@ -1,10 +1,10 @@
 /**
- * Tankstellen Austria Card v1.5.0-beta-1
+ * Tankstellen Austria Card v1.5.0-beta-2
  * Custom Lovelace card for displaying Austrian fuel prices.
  * https://github.com/rolandzeiner/tankstellen-austria
  */
 
-const CARD_VERSION = "1.5.0-beta-1";
+const CARD_VERSION = "1.5.0-beta-2";
 
 const TRANSLATIONS = {
   de: {
@@ -36,6 +36,9 @@ const TRANSLATIONS = {
     version_reload: "Neu laden",
     fuel_types: { DIE: "Diesel", SUP: "Super 95", GAS: "CNG Erdgas" },
     fill_up: "Volltanken",
+    best_refuel: "Tipp: Am {day} zwischen {h1}:00–{h2}:00 am günstigsten tanken",
+    not_enough_data_hint: "Noch zu wenig Daten für Empfehlung (mind. 7 Tage)",
+    weekdays: ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"],
     editor: {
       entities: "Sensoren",
       entities_hint: "Leer lassen für automatische Erkennung",
@@ -87,6 +90,9 @@ const TRANSLATIONS = {
     version_reload: "Reload",
     fuel_types: { DIE: "Diesel", SUP: "Super 95", GAS: "CNG" },
     fill_up: "Fill up",
+    best_refuel: "Tip: Cheapest on {day} between {h1}:00–{h2}:00",
+    not_enough_data_hint: "Not enough data yet for a tip (min. 7 days)",
+    weekdays: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
     editor: {
       entities: "Sensors",
       entities_hint: "Leave empty for auto-detection",
@@ -296,6 +302,53 @@ class TankstellenAustriaCard extends HTMLElement {
     clearInterval(this._cooldownInterval);
   }
 
+  // --- Best refuel time analysis ---
+  _analyzeBestRefuelTime(data) {
+    if (!data || data.length < 2) return null;
+
+    // Require at least 7 distinct calendar days
+    const days = new Set(data.map((d) => {
+      const dt = new Date(d.time);
+      return `${dt.getFullYear()}-${dt.getMonth()}-${dt.getDate()}`;
+    }));
+    if (days.size < 7) return { hasEnoughData: false };
+
+    // Group by (weekday, hour) and accumulate prices
+    const buckets = {};
+    data.forEach((point) => {
+      const dt = new Date(point.time);
+      const key = `${dt.getDay()}-${dt.getHours()}`;
+      if (!buckets[key]) buckets[key] = { weekday: dt.getDay(), hour: dt.getHours(), sum: 0, count: 0 };
+      buckets[key].sum += point.value;
+      buckets[key].count++;
+    });
+
+    // Find bucket with lowest average
+    let best = null;
+    Object.values(buckets).forEach((b) => {
+      const avg = b.sum / b.count;
+      if (!best || avg < best.avg) best = { weekday: b.weekday, hour: b.hour, avg };
+    });
+    if (!best) return { hasEnoughData: false };
+
+    // Find the most recent data point matching that (weekday, hour) for the sparkline marker
+    let bestIdx = -1;
+    for (let i = data.length - 1; i >= 0; i--) {
+      const dt = new Date(data[i].time);
+      if (dt.getDay() === best.weekday && dt.getHours() === best.hour) {
+        bestIdx = i;
+        break;
+      }
+    }
+    // Fallback: mark the global minimum value point
+    if (bestIdx === -1) {
+      let minVal = Infinity;
+      data.forEach((d, i) => { if (d.value < minVal) { minVal = d.value; bestIdx = i; } });
+    }
+
+    return { hasEnoughData: true, weekday: best.weekday, hour: best.hour, bestIdx };
+  }
+
   // --- Sparkline ---
   _renderSparkline(entityId) {
     const data = this._historyData[entityId];
@@ -313,12 +366,49 @@ class TankstellenAustriaCard extends HTMLElement {
     const points = data.map((d, i) => {
       const x = (i / (data.length - 1)) * width;
       const y = height - padY - ((d.value - min) / range) * (height - 2 * padY);
-      return `${x.toFixed(1)},${y.toFixed(1)}`;
+      return { x, y, str: `${x.toFixed(1)},${y.toFixed(1)}` };
     });
 
-    const polyline = points.join(" ");
+    const polyline = points.map((p) => p.str).join(" ");
     const areaPoints = `${polyline} ${width},${height} 0,${height}`;
     const gradId = `spark-grad-${entityId.replace(/\./g, "_")}`;
+
+    const analysis = this._analyzeBestRefuelTime(data);
+
+    // Marker: dashed vertical line + dot at best-time data point
+    let markerSvg = "";
+    if (analysis?.hasEnoughData && analysis.bestIdx >= 0 && analysis.bestIdx < points.length) {
+      const mp = points[analysis.bestIdx];
+      markerSvg = `
+        <line x1="${mp.x.toFixed(1)}" y1="0" x2="${mp.x.toFixed(1)}" y2="${height}"
+              stroke="var(--success-color,#4CAF50)" stroke-width="1" stroke-dasharray="3,2" opacity="0.8"/>
+        <circle cx="${mp.x.toFixed(1)}" cy="${mp.y.toFixed(1)}" r="3.5"
+                fill="var(--success-color,#4CAF50)" stroke="var(--card-background-color,#fff)" stroke-width="1.5"/>`;
+    }
+
+    // Recommendation text
+    let recommendationHtml = "";
+    if (analysis) {
+      if (!analysis.hasEnoughData) {
+        recommendationHtml = `
+          <div class="refuel-hint">
+            <ha-icon icon="mdi:information-outline" class="refuel-icon"></ha-icon>
+            ${this._t("not_enough_data_hint")}
+          </div>`;
+      } else {
+        const weekdays = this._t("weekdays");
+        const day = weekdays[analysis.weekday];
+        const h1 = String(analysis.hour).padStart(2, "0");
+        const h2 = String((analysis.hour + 1) % 24).padStart(2, "0");
+        const text = this._t("best_refuel")
+          .replace("{day}", day).replace("{h1}", h1).replace("{h2}", h2);
+        recommendationHtml = `
+          <div class="refuel-recommendation">
+            <ha-icon icon="mdi:lightbulb-outline" class="refuel-icon"></ha-icon>
+            ${text}
+          </div>`;
+      }
+    }
 
     return `
       <svg class="sparkline" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none">
@@ -329,13 +419,15 @@ class TankstellenAustriaCard extends HTMLElement {
           </linearGradient>
         </defs>
         <polygon points="${areaPoints}" fill="url(#${gradId})" />
+        ${markerSvg}
         <polyline points="${polyline}" fill="none" stroke="var(--primary-color)" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" />
       </svg>
       <div class="sparkline-labels">
         <span>${this._formatPriceShort(min)}</span>
         <span class="sparkline-period">${this._t("last_7_days")}</span>
         <span>${this._formatPriceShort(max)}</span>
-      </div>`;
+      </div>
+      ${recommendationHtml}`;
   }
 
   _handleRefresh() {
@@ -870,6 +962,29 @@ class TankstellenAustriaCard extends HTMLElement {
       .sparkline-period {
         font-size: 10px;
         opacity: 0.6;
+      }
+      .refuel-recommendation {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 11px;
+        font-weight: 500;
+        color: var(--success-color, #4CAF50);
+        margin-top: 5px;
+        line-height: 1.3;
+      }
+      .refuel-hint {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 11px;
+        color: var(--secondary-text-color);
+        opacity: 0.75;
+        margin-top: 5px;
+      }
+      .refuel-icon {
+        --mdc-icon-size: 13px;
+        flex-shrink: 0;
       }
       .stations {
         padding: 0;

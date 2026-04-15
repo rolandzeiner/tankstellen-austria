@@ -30,7 +30,7 @@ DYNAMIC_SAFETY_INTERVAL_HOURS = 6      # fallback timer when no movement detecte
 # Key inside hass.data[DOMAIN] for cross-entry rate limiting
 DOMAIN_LAST_API_CALL_KEY = "last_api_call"
 
-CARD_VERSION = "1.5.0-beta-1"
+CARD_VERSION = "1.5.0-beta-2"
 
 # Retry delay when the API returns no station data (e.g. mid-update window)
 NO_DATA_RETRY_MINUTES = 10
