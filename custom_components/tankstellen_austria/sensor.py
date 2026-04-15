@@ -13,6 +13,20 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from .const import CONF_FUEL_TYPES, FUEL_TYPES
 from .coordinator import TankstellenCoordinator
 
+
+def _parse_payment_methods(raw: dict | None) -> dict:
+    """Normalise the paymentMethods API dict into a consistent structure."""
+    if not raw:
+        return {"cash": False, "debit_card": False, "credit_card": False, "others": []}
+    others_raw = raw.get("others") or ""
+    others = [o.strip() for o in others_raw.split(",") if o.strip()]
+    return {
+        "cash": bool(raw.get("cash")),
+        "debit_card": bool(raw.get("debitCard")),
+        "credit_card": bool(raw.get("creditCard")),
+        "others": others,
+    }
+
 PARALLEL_UPDATES = 0
 
 
@@ -87,6 +101,7 @@ class TankstellenSensor(CoordinatorEntity, SensorEntity):
                 "open": s.get("open"),
                 "location": s.get("location", {}),
                 "opening_hours": s.get("openingHours", []),
+                "payment_methods": _parse_payment_methods(s.get("paymentMethods")),
             })
         prices = [s["price"] for s in attr_stations if s.get("price") is not None]
         avg_price = round(sum(prices) / len(prices), 3) if prices else None

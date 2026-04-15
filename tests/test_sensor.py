@@ -23,6 +23,12 @@ MOCK_STATION = {
     "location": {"latitude": 48.2082, "longitude": 15.6256},
     "prices": [{"amount": 1.459}],
     "openingHours": [{"day": "MO-FR", "from": "06:00", "to": "22:00"}],
+    "paymentMethods": {
+        "cash": True,
+        "debitCard": True,
+        "creditCard": False,
+        "others": "Austrocard, UTA",
+    },
 }
 
 MOCK_STATION_2 = {
@@ -153,6 +159,7 @@ async def test_sensor_stations_attribute(hass: HomeAssistant) -> None:
     assert s["open"] is True
     assert "location" in s
     assert "opening_hours" in s
+    assert "payment_methods" in s
 
 
 async def test_sensor_average_price_multiple_stations(hass: HomeAssistant) -> None:
@@ -179,6 +186,14 @@ async def test_sensor_average_price_multiple_stations(hass: HomeAssistant) -> No
 # ---------------------------------------------------------------------------
 
 
+async def test_sensor_include_closed_saved(hass: HomeAssistant) -> None:
+    """CONF_INCLUDE_CLOSED=False is correctly stored on the coordinator."""
+    entry = await _setup_entry(hass, {CONF_INCLUDE_CLOSED: False})
+    from custom_components.tankstellen_austria.coordinator import TankstellenCoordinator
+    coordinator: TankstellenCoordinator = entry.runtime_data
+    assert coordinator._include_closed is False
+
+
 async def test_sensor_dynamic_mode_attributes(hass: HomeAssistant) -> None:
     """Sensors expose dynamic_mode=True and dynamic_entity when in dynamic mode."""
     entry = MockConfigEntry(
@@ -200,3 +215,48 @@ async def test_sensor_dynamic_mode_attributes(hass: HomeAssistant) -> None:
     state = hass.states.get("sensor.test_diesel")
     assert state.attributes["dynamic_mode"] is True
     assert state.attributes["dynamic_entity"] == "device_tracker.phone"
+
+
+# ---------------------------------------------------------------------------
+# Payment methods
+# ---------------------------------------------------------------------------
+
+
+async def test_sensor_payment_methods_parsed(hass: HomeAssistant) -> None:
+    """paymentMethods API dict is normalised into a structured payment_methods attribute."""
+    await _setup_entry(hass)
+    state = hass.states.get("sensor.test_diesel")
+    pm = state.attributes["stations"][0]["payment_methods"]
+
+    assert pm["cash"] is True
+    assert pm["debit_card"] is True
+    assert pm["credit_card"] is False
+    assert pm["others"] == ["Austrocard", "UTA"]
+
+
+async def test_sensor_payment_methods_missing(hass: HomeAssistant) -> None:
+    """Stations without paymentMethods get a safe all-false fallback."""
+    station_no_pm = {
+        "id": 2,
+        "name": "Kein Payment",
+        "open": True,
+        "location": {"latitude": 48.2, "longitude": 15.6},
+        "prices": [{"amount": 1.499}],
+        "openingHours": [],
+    }
+    entry = MockConfigEntry(domain=DOMAIN, data=BASE_ENTRY_DATA, options={}, title="Test")
+    entry.add_to_hass(hass)
+
+    with patch(
+        "custom_components.tankstellen_austria.coordinator.TankstellenCoordinator._fetch",
+        new_callable=AsyncMock,
+        return_value=[station_no_pm],
+    ):
+        await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    pm = hass.states.get("sensor.test_diesel").attributes["stations"][0]["payment_methods"]
+    assert pm["cash"] is False
+    assert pm["debit_card"] is False
+    assert pm["credit_card"] is False
+    assert pm["others"] == []

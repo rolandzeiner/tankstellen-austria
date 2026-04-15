@@ -97,6 +97,25 @@ async def test_api_failure_raises_update_failed(hass: HomeAssistant) -> None:
         await coordinator._async_update_data()
 
 
+async def test_config_entry_not_ready_on_first_refresh_failure(
+    hass: HomeAssistant,
+) -> None:
+    """When the API fails on first setup, the entry ends up in SETUP_RETRY state."""
+    from homeassistant.config_entries import ConfigEntryState
+
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+
+    with patch(
+        "custom_components.tankstellen_austria.coordinator.TankstellenCoordinator._fetch",
+        side_effect=Exception("connection refused"),
+    ):
+        await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    assert entry.state is ConfigEntryState.SETUP_RETRY
+
+
 # ---------------------------------------------------------------------------
 # Dynamic mode — properties
 # ---------------------------------------------------------------------------

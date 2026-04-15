@@ -2,7 +2,7 @@
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
 [![HA min version](https://img.shields.io/badge/Home%20Assistant-%3E%3D2024.6-blue.svg)](https://www.home-assistant.io/)
-[![Version](https://img.shields.io/badge/version-1.4.1-blue.svg)](https://github.com/rolandzeiner/tankstellen-austria/releases)
+[![Version](https://img.shields.io/badge/version-1.4.2-blue.svg)](https://github.com/rolandzeiner/tankstellen-austria/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![vibe-coded](https://img.shields.io/badge/vibe-coded-ff69b4?logo=musicbrainz&logoColor=white)](https://en.wikipedia.org/wiki/Vibe_coding)
 
@@ -15,8 +15,9 @@ and/or CNG.
 ## Features
 
 - **Config-flow UI** – set up via the HA integrations page (map picker for coordinates)
-- **One sensor per fuel type** – state = cheapest price, attributes contain all 5 stations with name, address, opening hours, and Google Maps link
-- **Custom Lovelace card** – `tankstellen-austria-card` with fuel-type tabs, expandable opening hours, map links, and 7-day price sparkline
+- **One sensor per fuel type** – state = cheapest price, attributes contain all 5 stations with name, address, opening hours, payment methods, and Google Maps link
+- **Custom Lovelace card** – `tankstellen-austria-card` with fuel-type tabs, expandable detail panel (opening hours + payment methods), map links, and 7-day price sparkline
+- **Payment method filter** *(1.4.2)* – filter the card to show only stations accepting specific payment methods (cash, Bankomat, credit card, Austrocard, UTA, DKV, …)
 - **Auto-detection** – the card automatically finds all Tankstellen Austria sensors, no manual entity configuration needed
 - **Visual card editor** – configure everything through the HA UI
 - **Average price tracking** – average of all 5 stations as sensor attribute, tracked in HA history for long-term analysis
@@ -132,7 +133,11 @@ entities:
 max_stations: 3
 show_map_links: true
 show_opening_hours: true
+show_payment_methods: true
 show_history: true
+payment_filter:
+  - cash
+  - Austrocard
 ```
 
 ### Card options
@@ -144,7 +149,9 @@ show_history: true
 | `language` | HA language | `de` or `en` |
 | `show_map_links` | `true` | Show Google Maps link per station |
 | `show_opening_hours` | `true` | Show expandable opening hours on click |
+| `show_payment_methods` | `true` | Show payment method badges in expandable detail |
 | `show_history` | `true` | Show 7-day sparkline price graph (fixed mode only) |
+| `payment_filter` | `[]` | Only show stations accepting **at least one** of the listed methods. Values: `cash`, `debit_card`, `credit_card`, or any string from the API `others` field (e.g. `Austrocard`, `UTA`, `DKV`). Configurable via the visual editor. |
 
 ### What the card shows
 
@@ -152,9 +159,10 @@ show_history: true
 - Fuel type header with cheapest price and average price (Ø)
 - 7-day sparkline of cheapest price history with min/max labels
 - Station list ranked by price with name, address, and map link
-- Opening hours expandable per station on click
+- Expandable detail panel per station (click to open): opening hours + payment method badges
 - **Closed** badge (red) on currently closed stations
 - **Closing Soon** badge (amber) on stations closing within 30 minutes
+- Optional **payment filter** — hide stations that don't accept required methods
 
 **Dynamic mode (additional/different):**
 - Tab label includes tracker name — e.g. "Diesel · iPhone"
@@ -178,9 +186,23 @@ Each fuel type creates one sensor:
 | `fuel_type_name` | Diesel / Super 95 / CNG Erdgas |
 | `station_count` | Number of stations with prices |
 | `average_price` | Average price across all stations |
-| `stations` | List of station objects (id, name, price, open, location, opening_hours) |
+| `stations` | List of station objects (id, name, price, open, location, opening_hours, payment_methods) |
 | `dynamic_mode` | `true` when the entry tracks a device_tracker entity |
 | `dynamic_entity` | Entity ID of the tracked device_tracker (dynamic mode only) |
+
+Each station object in `stations` includes a `payment_methods` dict:
+
+```yaml
+payment_methods:
+  cash: true
+  debit_card: true
+  credit_card: false
+  others:
+    - Austrocard
+    - UTA
+```
+
+This can be used directly in automations and templates, e.g. to alert when the cheapest station doesn't accept your preferred card.
 
 ## API Info
 
