@@ -45,6 +45,7 @@ const TRANSLATIONS = {
       show_history: "Preisverlauf anzeigen",
       payment_filter: "Nur Tankstellen mit",
       payment_filter_custom_placeholder: "Benutzerdefiniert, z.B. Routex",
+      payment_filter_custom_hint: "Der Wert muss exakt dem API-String entsprechen. Häufige Werte: Routex, UTA, DKV, Austrocard, Fleetcard, ADAC",
       payment_highlight_mode: "Hervorheben statt filtern",
     },
   },
@@ -86,6 +87,7 @@ const TRANSLATIONS = {
       show_history: "Show price history",
       payment_filter: "Only stations with",
       payment_filter_custom_placeholder: "Custom, e.g. Routex",
+      payment_filter_custom_hint: "Must match the API string exactly. Common values: Routex, UTA, DKV, Austrocard, Fleetcard, ADAC",
       payment_highlight_mode: "Highlight instead of filter",
     },
   },
@@ -1259,6 +1261,7 @@ class TankstellenAustriaCardEditor extends HTMLElement {
             <ha-textfield id="pm-custom-input" label="${this._et("payment_filter_custom_placeholder")}"></ha-textfield>
             <button id="pm-custom-add">+</button>
           </div>
+          <div class="editor-hint">${this._et("payment_filter_custom_hint")}</div>
           ${paymentFilter.length ? `
           <div class="toggle-row" style="margin-top:6px">
             <label for="toggle-highlight">${this._et("payment_highlight_mode")}</label>
