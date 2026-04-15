@@ -248,7 +248,9 @@ class TankstellenAustriaCard extends HTMLElement {
 
     this._historyLoading[entityId] = true;
     const now = new Date();
-    const startTime = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    // Fetch 4 weeks so the recommendation has enough data across many weekday/hour buckets.
+    // The sparkline only displays the last 7 days (filtered in _renderSparkline).
+    const startTime = new Date(now.getTime() - 28 * 24 * 60 * 60 * 1000);
 
     try {
       const result = await this._hass.callWS({
@@ -306,53 +308,60 @@ class TankstellenAustriaCard extends HTMLElement {
   _analyzeBestRefuelTime(data) {
     if (!data || data.length < 2) return null;
 
-    // Require at least 7 distinct calendar days
-    const days = new Set(data.map((d) => {
-      const dt = new Date(d.time);
-      return `${dt.getFullYear()}-${dt.getMonth()}-${dt.getDate()}`;
-    }));
-    if (days.size < 7) return { hasEnoughData: false };
+    // Require data spanning at least 7 days.
+    const span = data[data.length - 1].time - data[0].time;
+    if (span < 7 * 24 * 60 * 60 * 1000) return { hasEnoughData: false };
 
-    // Group by (weekday, hour) and accumulate prices
-    const buckets = {};
-    data.forEach((point) => {
-      const dt = new Date(point.time);
-      const key = `${dt.getDay()}-${dt.getHours()}`;
-      if (!buckets[key]) buckets[key] = { weekday: dt.getDay(), hour: dt.getHours(), sum: 0, count: 0 };
-      buckets[key].sum += point.value;
-      buckets[key].count++;
-    });
+    // Time-weighted hourly sampling.
+    // Each data point represents a price that was valid from that timestamp until
+    // the next one (step function). We reconstruct the full hourly price series by
+    // walking every hour boundary within each interval and assigning it the price
+    // that was valid at that time. This correctly captures how long each price
+    // was actually in effect, unlike naive bucketing of change events.
+    const HOUR_MS = 60 * 60 * 1000;
+    const buckets = {}; // "weekday-hour" → { weekday, hour, sum, count }
 
-    // Find bucket with lowest average
+    const addSamples = (price, intervalStart, intervalEnd) => {
+      const firstBoundary = Math.ceil(intervalStart / HOUR_MS) * HOUR_MS;
+      for (let t = firstBoundary; t < intervalEnd; t += HOUR_MS) {
+        const dt = new Date(t);
+        const key = `${dt.getDay()}-${dt.getHours()}`;
+        if (!buckets[key]) buckets[key] = { weekday: dt.getDay(), hour: dt.getHours(), sum: 0, count: 0 };
+        buckets[key].sum += price;
+        buckets[key].count++;
+      }
+    };
+
+    // Intervals between consecutive change events
+    for (let i = 0; i < data.length - 1; i++) {
+      addSamples(data[i].value, data[i].time, data[i + 1].time);
+    }
+    // Last known price is still valid up to now
+    addSamples(data[data.length - 1].value, data[data.length - 1].time, Date.now());
+
+    // Find bucket with lowest average.
+    // Require at least 2 observations per slot so a single outlier week
+    // doesn't dominate — a slot needs to have appeared in at least 2 weeks.
     let best = null;
     Object.values(buckets).forEach((b) => {
+      if (b.count < 2) return;
       const avg = b.sum / b.count;
       if (!best || avg < best.avg) best = { weekday: b.weekday, hour: b.hour, avg };
     });
     if (!best) return { hasEnoughData: false };
 
-    // Find the most recent data point matching that (weekday, hour) for the sparkline marker
-    let bestIdx = -1;
-    for (let i = data.length - 1; i >= 0; i--) {
-      const dt = new Date(data[i].time);
-      if (dt.getDay() === best.weekday && dt.getHours() === best.hour) {
-        bestIdx = i;
-        break;
-      }
-    }
-    // Fallback: mark the global minimum value point
-    if (bestIdx === -1) {
-      let minVal = Infinity;
-      data.forEach((d, i) => { if (d.value < minVal) { minVal = d.value; bestIdx = i; } });
-    }
-
-    return { hasEnoughData: true, weekday: best.weekday, hour: best.hour, bestIdx };
+    return { hasEnoughData: true, weekday: best.weekday, hour: best.hour };
   }
 
   // --- Sparkline ---
   _renderSparkline(entityId) {
-    const data = this._historyData[entityId];
-    if (!data || data.length < 2) return "";
+    const allData = this._historyData[entityId];
+    if (!allData || allData.length < 2) return "";
+
+    // Sparkline always shows last 7 days only
+    const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    const data = allData.filter((d) => d.time >= cutoff);
+    if (data.length < 2) return "";
 
     const width = 280;
     const height = 48;
@@ -373,12 +382,29 @@ class TankstellenAustriaCard extends HTMLElement {
     const areaPoints = `${polyline} ${width},${height} 0,${height}`;
     const gradId = `spark-grad-${entityId.replace(/\./g, "_")}`;
 
-    const analysis = this._analyzeBestRefuelTime(data);
+    // Analyse full history (up to 4 weeks) for a statistically meaningful recommendation.
+    // Then find the most recent matching point within the visible 7-day slice for the marker.
+    const analysis = this._analyzeBestRefuelTime(allData);
+    let sparklineMarkerIdx = -1;
+    if (analysis?.hasEnoughData) {
+      for (let i = data.length - 1; i >= 0; i--) {
+        const dt = new Date(data[i].time);
+        if (dt.getDay() === analysis.weekday && dt.getHours() === analysis.hour) {
+          sparklineMarkerIdx = i;
+          break;
+        }
+      }
+      // Fallback: minimum value point within the sparkline slice
+      if (sparklineMarkerIdx === -1) {
+        let minVal = Infinity;
+        data.forEach((d, i) => { if (d.value < minVal) { minVal = d.value; sparklineMarkerIdx = i; } });
+      }
+    }
 
     // Marker: dashed vertical line + dot at best-time data point
     let markerSvg = "";
-    if (analysis?.hasEnoughData && analysis.bestIdx >= 0 && analysis.bestIdx < points.length) {
-      const mp = points[analysis.bestIdx];
+    if (sparklineMarkerIdx >= 0 && sparklineMarkerIdx < points.length) {
+      const mp = points[sparklineMarkerIdx];
       markerSvg = `
         <line x1="${mp.x.toFixed(1)}" y1="0" x2="${mp.x.toFixed(1)}" y2="${height}"
               stroke="var(--success-color,#4CAF50)" stroke-width="1" stroke-dasharray="3,2" opacity="0.8"/>
