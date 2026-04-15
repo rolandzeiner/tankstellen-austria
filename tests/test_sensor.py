@@ -186,12 +186,20 @@ async def test_sensor_average_price_multiple_stations(hass: HomeAssistant) -> No
 # ---------------------------------------------------------------------------
 
 
-async def test_sensor_include_closed_saved(hass: HomeAssistant) -> None:
+async def test_sensor_include_closed_false_saved(hass: HomeAssistant) -> None:
     """CONF_INCLUDE_CLOSED=False is correctly stored on the coordinator."""
     entry = await _setup_entry(hass, {CONF_INCLUDE_CLOSED: False})
     from custom_components.tankstellen_austria.coordinator import TankstellenCoordinator
     coordinator: TankstellenCoordinator = entry.runtime_data
     assert coordinator._include_closed is False
+
+
+async def test_sensor_include_closed_true_saved(hass: HomeAssistant) -> None:
+    """CONF_INCLUDE_CLOSED=True (the default) is correctly stored on the coordinator."""
+    entry = await _setup_entry(hass, {CONF_INCLUDE_CLOSED: True})
+    from custom_components.tankstellen_austria.coordinator import TankstellenCoordinator
+    coordinator: TankstellenCoordinator = entry.runtime_data
+    assert coordinator._include_closed is True
 
 
 async def test_sensor_dynamic_mode_attributes(hass: HomeAssistant) -> None:
