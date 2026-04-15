@@ -316,40 +316,63 @@ class TankstellenAustriaCard extends HTMLElement {
   _analyzeBestRefuelTime(data) {
     if (!data || data.length < 2) return null;
 
-    // Require data spanning at least 7 days.
     const span = data[data.length - 1].time - data[0].time;
     if (span < 7 * 24 * 60 * 60 * 1000) return { hasEnoughData: false };
 
-    // Time-weighted hourly sampling.
-    // Each data point represents a price that was valid from that timestamp until
-    // the next one (step function). We reconstruct the full hourly price series by
-    // walking every hour boundary within each interval and assigning it the price
-    // that was valid at that time. This correctly captures how long each price
-    // was actually in effect, unlike naive bucketing of change events.
+    // Time-weighted hourly expansion: each price event is valid until the next one
+    // (step function). Walk every hour boundary within each interval to reconstruct
+    // the full hourly price series.
     const HOUR_MS = 60 * 60 * 1000;
-    const buckets = {}; // "weekday-hour" → { weekday, hour, sum, count }
-
-    const addSamples = (price, intervalStart, intervalEnd) => {
-      const firstBoundary = Math.ceil(intervalStart / HOUR_MS) * HOUR_MS;
-      for (let t = firstBoundary; t < intervalEnd; t += HOUR_MS) {
-        const dt = new Date(t);
-        const key = `${dt.getDay()}-${dt.getHours()}`;
-        if (!buckets[key]) buckets[key] = { weekday: dt.getDay(), hour: dt.getHours(), sum: 0, count: 0 };
-        buckets[key].sum += price;
-        buckets[key].count++;
-      }
+    const hourly = [];
+    const addSamples = (price, start, end) => {
+      const first = Math.ceil(start / HOUR_MS) * HOUR_MS;
+      for (let t = first; t < end; t += HOUR_MS) hourly.push({ t, price });
     };
-
-    // Intervals between consecutive change events
     for (let i = 0; i < data.length - 1; i++) {
       addSamples(data[i].value, data[i].time, data[i + 1].time);
     }
-    // Last known price is still valid up to now
     addSamples(data[data.length - 1].value, data[data.length - 1].time, Date.now());
 
-    // Find bucket with lowest average.
-    // Require at least 2 observations per slot so a single outlier week
-    // doesn't dominate — a slot needs to have appeared in at least 2 weeks.
+    if (hourly.length === 0) return { hasEnoughData: false };
+
+    // Group samples into Monday-aligned calendar weeks and compute each week's
+    // average price. Normalising against the weekly average means we rank slots by
+    // how cheap they are *relative to their own week*, so a slot that is consistently
+    // the weekly low point wins — even in weeks where the overall price level is high.
+    const getMondayKey = (t) => {
+      const d = new Date(t);
+      d.setHours(0, 0, 0, 0);
+      const day = d.getDay();
+      d.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
+      return d.getTime();
+    };
+
+    const weeks = {};
+    hourly.forEach(({ t, price }) => {
+      const wk = getMondayKey(t);
+      if (!weeks[wk]) weeks[wk] = { sum: 0, count: 0, samples: [] };
+      weeks[wk].sum += price;
+      weeks[wk].count++;
+      weeks[wk].samples.push({ t, price });
+    });
+
+    // Bucket normalised deltas (price − week_avg) by (weekday, hour).
+    // Skip partial-week slivers with fewer than 24 hourly samples.
+    const buckets = {};
+    Object.values(weeks).forEach((wk) => {
+      if (wk.count < 24) return;
+      const weekAvg = wk.sum / wk.count;
+      wk.samples.forEach(({ t, price }) => {
+        const dt = new Date(t);
+        const key = `${dt.getDay()}-${dt.getHours()}`;
+        if (!buckets[key]) buckets[key] = { weekday: dt.getDay(), hour: dt.getHours(), sum: 0, count: 0 };
+        buckets[key].sum += price - weekAvg;
+        buckets[key].count++;
+      });
+    });
+
+    // Best slot = lowest average normalised delta.
+    // count >= 2 means the slot was observed in at least 2 separate weekly appearances.
     let best = null;
     Object.values(buckets).forEach((b) => {
       if (b.count < 2) return;
