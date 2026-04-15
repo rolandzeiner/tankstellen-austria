@@ -1168,17 +1168,12 @@ class TankstellenAustriaCardEditor extends HTMLElement {
           }
           .pm-custom-row {
             display: flex;
+            align-items: center;
             gap: 6px;
             margin-top: 4px;
           }
-          .pm-custom-row input {
+          .pm-custom-row ha-textfield {
             flex: 1;
-            padding: 4px 8px;
-            border-radius: 6px;
-            border: 1px solid var(--divider-color);
-            background: var(--card-background-color, #fff);
-            color: var(--primary-text-color);
-            font-size: 12px;
           }
           .pm-custom-row button {
             padding: 4px 10px;
@@ -1261,7 +1256,7 @@ class TankstellenAustriaCardEditor extends HTMLElement {
             }).join("")}
           </div>
           <div class="pm-custom-row">
-            <input type="text" id="pm-custom-input" placeholder="${this._et("payment_filter_custom_placeholder")}" />
+            <ha-textfield id="pm-custom-input" label="${this._et("payment_filter_custom_placeholder")}"></ha-textfield>
             <button id="pm-custom-add">+</button>
           </div>
           ${paymentFilter.length ? `
@@ -1365,13 +1360,26 @@ class TankstellenAustriaCardEditor extends HTMLElement {
           customInput.value = "";
         }
       };
-      // Stop propagation on all keyboard events so HA shortcuts don't steal focus
-      ["keydown", "keyup", "keypress"].forEach((evt) => {
-        customInput.addEventListener(evt, (e) => {
-          e.stopPropagation();
-          if (evt === "keydown" && e.key === "Enter") addCustom();
+      // ha-textfield uses shadow DOM — attach keyboard listeners to the internal
+      // input so stopPropagation prevents HA global shortcuts from stealing focus
+      const attachKeyListeners = () => {
+        const inner = customInput.shadowRoot?.querySelector("input");
+        if (!inner) return;
+        ["keydown", "keyup", "keypress"].forEach((evt) => {
+          inner.addEventListener(evt, (e) => {
+            e.stopPropagation();
+            if (evt === "keydown" && e.key === "Enter") addCustom();
+          });
         });
-      });
+      };
+      // ha-textfield may not be upgraded yet on first render
+      if (customInput.shadowRoot) {
+        attachKeyListeners();
+      } else {
+        customInput.addEventListener("connected", attachKeyListeners, { once: true });
+        // fallback: wait one microtask for upgrade
+        Promise.resolve().then(attachKeyListeners);
+      }
       customAddBtn.addEventListener("click", addCustom);
     }
   }
