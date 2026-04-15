@@ -140,7 +140,7 @@ show_history: true
 payment_filter:
   - cash
   - Austrocard
-payment_highlight_mode: false
+payment_highlight_mode: true
 ```
 
 ### Card options
@@ -150,12 +150,12 @@ payment_highlight_mode: false
 | `entities` | auto-detect | List of Tankstellen Austria sensor entities |
 | `max_stations` | `5` | Number of stations to show (1–5) |
 | `language` | HA language | `de` or `en` |
-| `show_map_links` | `true` | Show Google Maps link per station |
+| `show_map_links` | `true` | Show map link per station — opens Google Maps for addresses with a street number, Google Search otherwise |
 | `show_opening_hours` | `true` | Show expandable opening hours on click |
 | `show_payment_methods` | `true` | Show payment method badges in expandable detail |
 | `show_history` | `true` | Show 7-day sparkline price graph (fixed mode only) |
 | `payment_filter` | `[]` | Show/highlight stations accepting **at least one** of the listed methods. Values: `cash`, `debit_card`, `credit_card`, or any string from the API `others` field (e.g. `Austrocard`, `UTA`, `DKV`, `Routex`). Configurable via the visual editor. |
-| `payment_highlight_mode` | `false` | When `true`, matching stations are highlighted with a green accent instead of non-matching ones being hidden. |
+| `payment_highlight_mode` | `true` | When `true`, matching stations are highlighted with a green accent instead of non-matching ones being hidden. |
 
 ### What the card shows
 
