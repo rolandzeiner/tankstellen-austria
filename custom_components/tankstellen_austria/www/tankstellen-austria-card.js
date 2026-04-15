@@ -1,10 +1,10 @@
 /**
- * Tankstellen Austria Card v1.4.2
+ * Tankstellen Austria Card v1.4.3-beta-1
  * Custom Lovelace card for displaying Austrian fuel prices.
  * https://github.com/rolandzeiner/tankstellen-austria
  */
 
-const CARD_VERSION = "1.4.2";
+const CARD_VERSION = "1.4.3-beta-1";
 
 const TRANSLATIONS = {
   de: {
@@ -20,6 +20,7 @@ const TRANSLATIONS = {
     debit_card: "Bankomat",
     credit_card: "Kreditkarte",
     payment_filter_active: "Zahlungsfilter aktiv",
+    payment_highlight_active: "Zahlungsfilter (Hervorhebung)",
     no_data: "Keine Daten verfügbar",
     mon_fri: "Mo–Fr",
     sat: "Sa",
@@ -43,6 +44,8 @@ const TRANSLATIONS = {
       show_payment_methods: "Zahlungsarten anzeigen",
       show_history: "Preisverlauf anzeigen",
       payment_filter: "Nur Tankstellen mit",
+      payment_filter_custom_placeholder: "Benutzerdefiniert, z.B. Routex",
+      payment_highlight_mode: "Hervorheben statt filtern",
     },
   },
   en: {
@@ -58,6 +61,7 @@ const TRANSLATIONS = {
     debit_card: "Debit card",
     credit_card: "Credit card",
     payment_filter_active: "Payment filter active",
+    payment_highlight_active: "Payment filter (highlight)",
     no_data: "No data available",
     mon_fri: "Mon–Fri",
     sat: "Sat",
@@ -81,6 +85,8 @@ const TRANSLATIONS = {
       show_payment_methods: "Show payment methods",
       show_history: "Show price history",
       payment_filter: "Only stations with",
+      payment_filter_custom_placeholder: "Custom, e.g. Routex",
+      payment_highlight_mode: "Highlight instead of filter",
     },
   },
 };
@@ -482,9 +488,11 @@ class TankstellenAustriaCard extends HTMLElement {
         </div>`;
     }
 
-    const filteredStations = stations.filter((s) =>
-      this._matchesPaymentFilter(s, paymentFilter)
-    );
+    const highlightMode = this._config.payment_highlight_mode === true;
+
+    const filteredStations = highlightMode
+      ? stations
+      : stations.filter((s) => this._matchesPaymentFilter(s, paymentFilter));
 
     if (!filteredStations.length && paymentFilter.length && stations.length) {
       html += `<div class="empty">${this._t("payment_filter_active")} — ${this._t("no_data")}</div>`;
@@ -503,9 +511,10 @@ class TankstellenAustriaCard extends HTMLElement {
           : isClosingSoon
             ? `<span class="badge closing-soon">${this._t("closing_soon")}</span>`
             : "";
+        const isHighlighted = highlightMode && paymentFilter.length && this._matchesPaymentFilter(s, paymentFilter);
 
         html += `
-          <div class="station">
+          <div class="station${isHighlighted ? " pm-highlight" : ""}">
             <div class="station-main" data-expand="${this._activeTab}-${idx}">
               <div class="rank">${idx + 1}</div>
               <div class="info">
@@ -644,6 +653,28 @@ class TankstellenAustriaCard extends HTMLElement {
     }
   }
 
+  _attachEditorListeners() {
+    const customInput = this.querySelector("#pm-custom-input");
+    const customAddBtn = this.querySelector("#pm-custom-add");
+    if (customAddBtn && customInput) {
+      const addCustom = () => {
+        const val = customInput.value.trim();
+        if (!val) return;
+        let current = [...(this._config.payment_filter || [])];
+        if (!current.includes(val)) {
+          current.push(val);
+          this._config = { ...this._config, payment_filter: current };
+          this._fireChanged();
+          this._render();
+        } else {
+          customInput.value = "";
+        }
+      };
+      customAddBtn.addEventListener("click", addCustom);
+      customInput.addEventListener("keydown", (e) => { if (e.key === "Enter") addCustom(); });
+    }
+  }
+
   _getStyles() {
     return `<style>
       ha-card {
@@ -765,6 +796,13 @@ class TankstellenAustriaCard extends HTMLElement {
       }
       .station:last-child {
         border-bottom: none;
+      }
+      .station.pm-highlight {
+        border-left: 3px solid var(--success-color, #4caf50);
+        background: rgba(76, 175, 80, 0.06);
+      }
+      .station.pm-highlight .station-main:hover {
+        background: rgba(76, 175, 80, 0.12);
       }
       .station-main {
         display: flex;
@@ -971,6 +1009,7 @@ class TankstellenAustriaCard extends HTMLElement {
       show_payment_methods: true,
       show_history: true,
       payment_filter: [],
+      payment_highlight_mode: false,
     };
   }
 }
@@ -1020,6 +1059,7 @@ class TankstellenAustriaCardEditor extends HTMLElement {
     const showPayment = this._config.show_payment_methods !== false;
     const showHistory = this._config.show_history !== false;
     const paymentFilter = this._config.payment_filter || [];
+    const highlightMode = this._config.payment_highlight_mode === true;
 
     // Gather all payment methods available across current entity states
     const allPmKeys = new Set(["cash", "debit_card", "credit_card"]);
@@ -1029,6 +1069,8 @@ class TankstellenAustriaCardEditor extends HTMLElement {
         (s.payment_methods?.others || []).forEach((o) => allPmKeys.add(o));
       });
     });
+    // Ensure custom filter values always appear as chips even when not in live data
+    paymentFilter.forEach((f) => allPmKeys.add(f));
 
     this.innerHTML = `
       <div class="editor">
@@ -1138,6 +1180,33 @@ class TankstellenAustriaCardEditor extends HTMLElement {
           .pm-filter-chip:hover {
             opacity: 0.85;
           }
+          .pm-custom-row {
+            display: flex;
+            gap: 6px;
+            margin-top: 4px;
+          }
+          .pm-custom-row input {
+            flex: 1;
+            padding: 4px 8px;
+            border-radius: 6px;
+            border: 1px solid var(--divider-color);
+            background: var(--card-background-color, #fff);
+            color: var(--primary-text-color);
+            font-size: 12px;
+          }
+          .pm-custom-row button {
+            padding: 4px 10px;
+            border-radius: 6px;
+            border: 1px solid var(--primary-color);
+            background: transparent;
+            color: var(--primary-color);
+            font-size: 12px;
+            cursor: pointer;
+          }
+          .pm-custom-row button:hover {
+            background: var(--primary-color);
+            color: var(--text-primary-color, #fff);
+          }
         </style>
 
         <div class="editor-title">Tankstellen Austria</div>
@@ -1204,6 +1273,15 @@ class TankstellenAustriaCardEditor extends HTMLElement {
               return `<button class="pm-filter-chip ${isActive ? "active" : ""}" data-pm="${key}">${label}</button>`;
             }).join("")}
           </div>
+          <div class="pm-custom-row">
+            <input type="text" id="pm-custom-input" placeholder="${this._et("payment_filter_custom_placeholder")}" />
+            <button id="pm-custom-add">+</button>
+          </div>
+          ${paymentFilter.length ? `
+          <div class="toggle-row" style="margin-top:6px">
+            <label for="toggle-highlight">${this._et("payment_highlight_mode")}</label>
+            <ha-switch id="toggle-highlight" ${highlightMode ? "checked" : ""} data-field="payment_highlight_mode"></ha-switch>
+          </div>` : ""}
         </div>
       </div>
     `;
@@ -1261,6 +1339,9 @@ class TankstellenAustriaCardEditor extends HTMLElement {
         this._render();
       });
     });
+
+    // Custom payment method input
+    this._attachEditorListeners();
   }
 }
 
