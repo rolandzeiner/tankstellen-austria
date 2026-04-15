@@ -203,11 +203,17 @@ class TankstellenAustriaCard extends HTMLElement {
     return Number(price).toFixed(3).replace(".", ",");
   }
 
-  _mapsUrl(loc) {
+  _mapsUrl(loc, stationName) {
     if (!loc) return "#";
-    return `https://maps.google.com/?q=${encodeURIComponent(
-      `${loc.postalCode || ""} ${loc.city || ""} ${loc.address || ""}`
-    )}`;
+    const hasStreetNumber = /\d/.test(loc.address || "");
+    if (hasStreetNumber) {
+      return `https://maps.google.com/?q=${encodeURIComponent(
+        `${loc.postalCode || ""} ${loc.city || ""} ${loc.address || ""}`.trim()
+      )}`;
+    }
+    // No street number — fall back to Google search with station name + what we have
+    const parts = [stationName, loc.address, loc.postalCode, loc.city].filter(Boolean);
+    return `https://www.google.com/search?q=${encodeURIComponent(parts.join(" "))}`;
   }
 
   // --- History ---
@@ -531,7 +537,7 @@ class TankstellenAustriaCard extends HTMLElement {
               </div>
               <div class="price">${this._formatPrice(s.price)}</div>
               ${showMapLinks
-            ? `<a class="map-link" href="${this._mapsUrl(loc)}" target="_blank" rel="noopener noreferrer" title="${this._t("map")}">
+            ? `<a class="map-link" href="${this._mapsUrl(loc, s.name)}" target="_blank" rel="noopener noreferrer" title="${this._t("map")}">
                       <ha-icon icon="mdi:map-marker" class="map-icon"></ha-icon>
                     </a>`
             : ""
