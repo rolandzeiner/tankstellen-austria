@@ -1054,15 +1054,16 @@ class TankstellenAustriaCardEditor extends HTMLElement {
 
     const escHtml = (s) => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 
-    // Gather all payment methods available across current entity states
-    const allPmKeys = new Set(["cash", "debit_card", "credit_card"]);
+    // Keys available from live API data (builtin + whatever stations report)
+    const apiPmKeys = new Set(["cash", "debit_card", "credit_card"]);
     (this._config.entities || []).forEach((eid) => {
       const state = this._hass?.states[eid];
       (state?.attributes?.stations || []).forEach((s) => {
-        (s.payment_methods?.others || []).forEach((o) => allPmKeys.add(o));
+        (s.payment_methods?.others || []).forEach((o) => apiPmKeys.add(o));
       });
     });
-    // Ensure custom filter values always appear as chips even when not in live data
+    // allPmKeys also includes user-typed filter values not in live data
+    const allPmKeys = new Set([...apiPmKeys]);
     paymentFilter.forEach((f) => allPmKeys.add(f));
 
     this.innerHTML = `
@@ -1320,13 +1321,14 @@ class TankstellenAustriaCardEditor extends HTMLElement {
     });
 
     // Payment filter chips
-    const builtinKeys = ["cash", "debit_card", "credit_card"];
+    // A chip needs confirmation only if removing it would make it disappear
+    // (i.e. it was user-typed and is not present in live API data)
     this.querySelectorAll(".pm-filter-chip").forEach((chip) => {
       chip.addEventListener("click", () => {
         const key = chip.dataset.pm;
         let current = [...(this._config.payment_filter || [])];
         const isActive = current.includes(key);
-        const isCustom = !builtinKeys.includes(key);
+        const isCustom = !apiPmKeys.has(key);
 
         if (isActive && isCustom) {
           if (this._pendingRemove === key) {
