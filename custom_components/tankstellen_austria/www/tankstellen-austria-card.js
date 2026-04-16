@@ -56,6 +56,9 @@ const TRANSLATIONS = {
       section_payment_filter: "Zahlungsfilter",
       section_cars: "Fahrzeuge",
       show_cars: "Tankkosten anzeigen",
+      show_car_fillup: "Tankkosten anzeigen",
+      show_car_consumption: "Verbrauch anzeigen",
+      cars_both_off_hint: "Keine Zeile aktiv. Um Fahrzeuge komplett auszublenden, nutze „Tankkosten anzeigen“ in den Anzeige-Optionen.",
       car_name_placeholder: "Name (z.B. Golf TDI)",
       car_tank_placeholder: "Liter",
       car_consumption_placeholder: "⌀ l/100km",
@@ -111,6 +114,9 @@ const TRANSLATIONS = {
       section_payment_filter: "Payment filter",
       section_cars: "Cars",
       show_cars: "Show fill-up costs",
+      show_car_fillup: "Show fill-up cost",
+      show_car_consumption: "Show consumption",
+      cars_both_off_hint: "No rows enabled. To hide cars entirely, use \"Show fill-up costs\" in Display options.",
       car_name_placeholder: "Name (e.g. Golf TDI)",
       car_tank_placeholder: "Liters",
       car_consumption_placeholder: "⌀ l/100km",
@@ -688,35 +694,56 @@ class TankstellenAustriaCard extends HTMLElement {
     // In filter mode: use cheapest visible (filtered) station — "–" when none pass the filter.
     // In highlight mode: all stations are visible so use overall cheapest.
     const showCars = this._config.show_cars === true;
-    if (showCars && stations.length) {
-      const configCars = (this._config.cars || []).filter(
+    const showCarFillup = this._config.show_car_fillup !== false;
+    const showCarConsumption = this._config.show_car_consumption !== false;
+    if (showCars && stations.length && (showCarFillup || showCarConsumption)) {
+      const allCars = (this._config.cars || []).filter(
         (c) => c.fuel_type === fuelType && c.tank_size > 0 && c.name
       );
+      // Verbrauch-only mode hides cars without consumption set.
+      const configCars = showCarFillup
+        ? allCars
+        : allCars.filter((c) => Number(c.consumption) > 0);
       if (configCars.length) {
         const effectiveCheapest = highlightMode
           ? stations[0]?.price
           : filteredStations[0]?.price;
         html += `<div class="cars-fillup">`;
         configCars.forEach((car) => {
-          const costStr = effectiveCheapest != null
-            ? `€ ${(effectiveCheapest * Number(car.tank_size)).toFixed(2).replace(".", ",")}`
-            : "–";
-          html += `<div class="car-fillup-row">
-            <span class="car-fillup-name">
-              <ha-icon icon="${_escHtml(car.icon || "mdi:car")}" class="car-icon"></ha-icon>
-              ${_escHtml(car.name)} <span class="car-fillup-liters">${car.tank_size} L</span>
-            </span>
-            <span class="car-fillup-cost">${costStr}</span>
-          </div>`;
           const consumption = Number(car.consumption);
-          if (consumption > 0) {
+          if (showCarFillup) {
+            const costStr = effectiveCheapest != null
+              ? `€ ${(effectiveCheapest * Number(car.tank_size)).toFixed(2).replace(".", ",")}`
+              : "–";
+            html += `<div class="car-fillup-row">
+              <span class="car-fillup-name">
+                <ha-icon icon="${_escHtml(car.icon || "mdi:car")}" class="car-icon"></ha-icon>
+                ${_escHtml(car.name)} <span class="car-fillup-liters">${car.tank_size} L</span>
+              </span>
+              <span class="car-fillup-cost">${costStr}</span>
+            </div>`;
+            if (showCarConsumption && consumption > 0) {
+              const per100Str = effectiveCheapest != null
+                ? `€ ${(effectiveCheapest * consumption).toFixed(2).replace(".", ",")}`
+                : "–";
+              const consumptionStr = consumption.toFixed(1).replace(".", ",");
+              html += `<div class="car-per100-row">
+                <span class="car-per100-label">${consumptionStr} l/100 km</span>
+                <span class="car-per100-cost">${per100Str} / 100 km</span>
+              </div>`;
+            }
+          } else {
+            // Verbrauch-only: use fill-up styling with consumption instead of tank size.
             const per100Str = effectiveCheapest != null
               ? `€ ${(effectiveCheapest * consumption).toFixed(2).replace(".", ",")}`
               : "–";
             const consumptionStr = consumption.toFixed(1).replace(".", ",");
-            html += `<div class="car-per100-row">
-              <span class="car-per100-label">${consumptionStr} l/100 km</span>
-              <span class="car-per100-cost">${per100Str} / 100 km</span>
+            html += `<div class="car-fillup-row">
+              <span class="car-fillup-name">
+                <ha-icon icon="${_escHtml(car.icon || "mdi:car")}" class="car-icon"></ha-icon>
+                ${_escHtml(car.name)} <span class="car-fillup-liters">${consumptionStr} l/100 km</span>
+              </span>
+              <span class="car-fillup-cost">${per100Str} / 100 km</span>
             </div>`;
           }
         });
@@ -1355,6 +1382,8 @@ class TankstellenAustriaCardEditor extends HTMLElement {
     const paymentFilter = this._config.payment_filter || [];
     const highlightMode = this._config.payment_highlight_mode === true;
     const showCars = this._config.show_cars === true;
+    const showCarFillup = this._config.show_car_fillup !== false;
+    const showCarConsumption = this._config.show_car_consumption !== false;
     const cars = this._config.cars || [];
 
     const escHtml = _escHtml;
@@ -1721,6 +1750,17 @@ class TankstellenAustriaCardEditor extends HTMLElement {
         ${showCars ? `
         <div class="editor-section">
           <div class="section-header">${this._et("section_cars")}</div>
+          <div class="toggle-row">
+            <label for="toggle-car-fillup">${this._et("show_car_fillup")}</label>
+            <ha-switch id="toggle-car-fillup" ${showCarFillup ? "checked" : ""} data-field="show_car_fillup"></ha-switch>
+          </div>
+          <div class="toggle-row">
+            <label for="toggle-car-consumption">${this._et("show_car_consumption")}</label>
+            <ha-switch id="toggle-car-consumption" ${showCarConsumption ? "checked" : ""} data-field="show_car_consumption"></ha-switch>
+          </div>
+          ${!showCarFillup && !showCarConsumption ? `
+          <div class="editor-hint">${this._et("cars_both_off_hint")}</div>` : ""}
+          <div class="divider"></div>
           ${cars.map((car, idx) => `
             <div class="car-editor-group">
               <div class="car-editor-row">
