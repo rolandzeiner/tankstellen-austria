@@ -1504,42 +1504,44 @@ class TankstellenAustriaCardEditor extends HTMLElement {
           }
           .car-editor-row {
             display: flex;
-            flex-wrap: wrap;
             align-items: center;
-            gap: 8px;
+            gap: 6px;
           }
           .car-input {
             background: var(--input-fill-color, rgba(0,0,0,0.06));
             border: 1px solid var(--divider-color);
             border-radius: 8px;
-            padding: 8px 10px;
+            padding: 6px 8px;
             font-size: 13px;
             color: var(--primary-text-color);
             outline: none;
             font-family: inherit;
+            min-width: 0;
           }
           .car-input:focus {
             border-color: var(--primary-color);
           }
           .car-name-input {
-            flex: 1;
-            min-width: 0;
+            flex: 1 1 60px;
           }
           .car-tank-input {
-            width: 64px;
+            width: 58px;
+            flex-shrink: 0;
           }
           .car-consumption-input {
-            width: 84px;
+            width: 68px;
+            flex-shrink: 0;
           }
           .car-select {
             background: var(--input-fill-color, rgba(0,0,0,0.06));
             border: 1px solid var(--divider-color);
             border-radius: 8px;
-            padding: 8px 6px;
+            padding: 6px 4px;
             font-size: 13px;
             color: var(--primary-text-color);
             cursor: pointer;
             font-family: inherit;
+            flex-shrink: 0;
           }
           .car-delete-btn {
             background: none;
