@@ -20,7 +20,7 @@ MOCK_STATION = {
     "id": 1,
     "name": "Test Tankstelle",
     "open": True,
-    "location": {"latitude": 48.2082, "longitude": 15.6256},
+    "location": {"latitude": 48.1478, "longitude": 16.5147},
     "prices": [{"amount": 1.459}],
     "openingHours": [{"day": "MO-FR", "from": "06:00", "to": "22:00"}],
     "paymentMethods": {
@@ -35,14 +35,14 @@ MOCK_STATION_2 = {
     "id": 2,
     "name": "Zweite Tankstelle",
     "open": False,
-    "location": {"latitude": 48.21, "longitude": 15.63},
+    "location": {"latitude": 48.15, "longitude": 16.52},
     "prices": [{"amount": 1.519}],
     "openingHours": [],
 }
 
 BASE_ENTRY_DATA = {
-    CONF_LATITUDE: 48.2082,
-    CONF_LONGITUDE: 15.6256,
+    CONF_LATITUDE: 48.1478,
+    CONF_LONGITUDE: 16.5147,
     CONF_FUEL_TYPES: ["DIE"],
     CONF_INCLUDE_CLOSED: True,
     CONF_SCAN_INTERVAL: 30,
@@ -248,7 +248,7 @@ async def test_sensor_payment_methods_missing(hass: HomeAssistant) -> None:
         "id": 2,
         "name": "Kein Payment",
         "open": True,
-        "location": {"latitude": 48.2, "longitude": 15.6},
+        "location": {"latitude": 48.15, "longitude": 16.51},
         "prices": [{"amount": 1.499}],
         "openingHours": [],
     }
