@@ -68,6 +68,8 @@ and/or CNG.
 
 ## Setup
 
+[![Open your Home Assistant instance and start setting up a new integration.](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=tankstellen_austria)
+
 1. Go to **Settings → Devices & Services → + Add Integration**
 2. Search for **Tankstellen Austria**
 3. Enter a name, pick your location on the map, select fuel types, configure the update interval, and optionally select a dynamic location tracker
