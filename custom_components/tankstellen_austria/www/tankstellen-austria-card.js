@@ -1,10 +1,10 @@
 /**
- * Tankstellen Austria Card v1.5.0-beta-3
+ * Tankstellen Austria Card v1.5.0-beta-5
  * Custom Lovelace card for displaying Austrian fuel prices.
  * https://github.com/rolandzeiner/tankstellen-austria
  */
 
-const CARD_VERSION = "1.5.0-beta-4";
+const CARD_VERSION = "1.5.0-beta-5";
 
 const TRANSLATIONS = {
   de: {
@@ -58,6 +58,7 @@ const TRANSLATIONS = {
       show_cars: "Tankkosten anzeigen",
       car_name_placeholder: "Name (z.B. Golf TDI)",
       car_tank_placeholder: "Liter",
+      car_consumption_placeholder: "⌀ l/100km",
       add_car: "+ Fahrzeug hinzufügen",
     },
   },
@@ -112,6 +113,7 @@ const TRANSLATIONS = {
       show_cars: "Show fill-up costs",
       car_name_placeholder: "Name (e.g. Golf TDI)",
       car_tank_placeholder: "Liters",
+      car_consumption_placeholder: "⌀ l/100km",
       add_car: "+ Add car",
     },
   },
@@ -706,6 +708,17 @@ class TankstellenAustriaCard extends HTMLElement {
             </span>
             <span class="car-fillup-cost">${costStr}</span>
           </div>`;
+          const consumption = Number(car.consumption);
+          if (consumption > 0) {
+            const per100Str = effectiveCheapest != null
+              ? `€ ${(effectiveCheapest * consumption).toFixed(2).replace(".", ",")}`
+              : "–";
+            const consumptionStr = consumption.toFixed(1).replace(".", ",");
+            html += `<div class="car-per100-row">
+              <span class="car-per100-label">${consumptionStr} l/100 km</span>
+              <span class="car-per100-cost">${per100Str} / 100 km</span>
+            </div>`;
+          }
         });
         html += `</div>`;
       }
@@ -1005,6 +1018,22 @@ class TankstellenAustriaCard extends HTMLElement {
         font-weight: 600;
         color: var(--primary-text-color);
       }
+      .car-per100-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding-left: 19px;
+        margin-top: -2px;
+      }
+      .car-per100-label {
+        font-size: 11px;
+        color: var(--secondary-text-color);
+        opacity: 0.75;
+      }
+      .car-per100-cost {
+        font-size: 12px;
+        color: var(--secondary-text-color);
+      }
       .sparkline-container {
         margin-top: 8px;
         cursor: pointer;
@@ -1291,8 +1320,9 @@ class TankstellenAustriaCardEditor extends HTMLElement {
   }
 
   set hass(hass) {
+    const firstTime = !this._hass;
     this._hass = hass;
-    this._render();
+    if (firstTime) this._render();
   }
 
   _lang() {
@@ -1309,43 +1339,6 @@ class TankstellenAustriaCardEditor extends HTMLElement {
     this.dispatchEvent(
       new CustomEvent("config-changed", { detail: { config: { ...this._config } } })
     );
-  }
-
-  _captureInputState() {
-    const active = document.activeElement;
-    const state = { inputs: [], focused: null, cursor: null };
-    this.querySelectorAll('input[type="text"], input[type="number"]').forEach((el) => {
-      const key = el.dataset.carIdx != null
-        ? { type: "car", idx: el.dataset.carIdx, field: el.dataset.carField }
-        : el.id ? { type: "id", id: el.id } : null;
-      if (!key) return;
-      state.inputs.push({ key, value: el.value });
-      if (el === active) {
-        state.focused = key;
-        try { state.cursor = { start: el.selectionStart, end: el.selectionEnd }; } catch (_) {}
-      }
-    });
-    return state;
-  }
-
-  _restoreInputState(state) {
-    if (!state) return;
-    const findEl = (key) => key.type === "car"
-      ? this.querySelector(`input[data-car-idx="${key.idx}"][data-car-field="${key.field}"]`)
-      : this.querySelector(`#${key.id}`);
-    state.inputs.forEach(({ key, value }) => {
-      const el = findEl(key);
-      if (el) el.value = value;
-    });
-    if (state.focused) {
-      const el = findEl(state.focused);
-      if (el) {
-        el.focus();
-        if (state.cursor) {
-          try { el.setSelectionRange(state.cursor.start, state.cursor.end); } catch (_) {}
-        }
-      }
-    }
   }
 
   _render() {
@@ -1377,8 +1370,6 @@ class TankstellenAustriaCardEditor extends HTMLElement {
     // allPmKeys also includes user-typed filter values not in live data
     const allPmKeys = new Set([...apiPmKeys]);
     paymentFilter.forEach((f) => allPmKeys.add(f));
-
-    const _inputState = this._captureInputState();
 
     this.innerHTML = `
       <div class="editor">
@@ -1513,6 +1504,7 @@ class TankstellenAustriaCardEditor extends HTMLElement {
           }
           .car-editor-row {
             display: flex;
+            flex-wrap: wrap;
             align-items: center;
             gap: 8px;
           }
@@ -1535,6 +1527,9 @@ class TankstellenAustriaCardEditor extends HTMLElement {
           }
           .car-tank-input {
             width: 64px;
+          }
+          .car-consumption-input {
+            width: 84px;
           }
           .car-select {
             background: var(--input-fill-color, rgba(0,0,0,0.06));
@@ -1741,6 +1736,10 @@ class TankstellenAustriaCardEditor extends HTMLElement {
                   placeholder="${this._et("car_tank_placeholder")}"
                   value="${car.tank_size || ""}"
                   data-car-idx="${idx}" data-car-field="tank_size" />
+                <input class="car-input car-consumption-input" type="number" min="0" max="30" step="0.1"
+                  placeholder="${this._et("car_consumption_placeholder")}"
+                  value="${car.consumption || ""}"
+                  data-car-idx="${idx}" data-car-field="consumption" />
                 <button class="car-delete-btn" data-car-idx="${idx}">
                   <ha-icon icon="mdi:delete-outline"></ha-icon>
                 </button>
@@ -1893,8 +1892,8 @@ class TankstellenAustriaCardEditor extends HTMLElement {
       });
     });
 
-    // Car name / tank-size inputs
-    this.querySelectorAll(".car-name-input, .car-tank-input").forEach((input) => {
+    // Car name / tank-size / consumption inputs
+    this.querySelectorAll(".car-name-input, .car-tank-input, .car-consumption-input").forEach((input) => {
       ["keydown", "keyup", "keypress"].forEach((evt) => {
         input.addEventListener(evt, (e) => e.stopPropagation());
       });
@@ -1905,10 +1904,26 @@ class TankstellenAustriaCardEditor extends HTMLElement {
         const idx = parseInt(e.target.dataset.carIdx, 10);
         const field = e.target.dataset.carField;
         const newCars = [...(this._config.cars || [])];
-        const val = field === "tank_size"
-          ? Math.max(1, parseInt(e.target.value, 10) || 1)
-          : e.target.value.replace(/[<>"'&]/g, "").slice(0, 50);
-        newCars[idx] = { ...newCars[idx], [field]: val };
+        if (field === "consumption") {
+          const raw = e.target.value.trim();
+          const next = { ...newCars[idx] };
+          if (raw === "") {
+            delete next.consumption;
+          } else {
+            const num = parseFloat(raw);
+            if (Number.isFinite(num) && num > 0) {
+              next.consumption = Math.min(30, Math.round(num * 10) / 10);
+            } else {
+              delete next.consumption;
+            }
+          }
+          newCars[idx] = next;
+        } else {
+          const val = field === "tank_size"
+            ? Math.max(1, parseInt(e.target.value, 10) || 1)
+            : e.target.value.replace(/[<>"'&]/g, "").slice(0, 50);
+          newCars[idx] = { ...newCars[idx], [field]: val };
+        }
         this._config = { ...this._config, cars: newCars };
         this._fireChanged();
       });
@@ -1953,8 +1968,6 @@ class TankstellenAustriaCardEditor extends HTMLElement {
         this._render();
       });
     }
-
-    this._restoreInputState(_inputState);
   }
 }
 

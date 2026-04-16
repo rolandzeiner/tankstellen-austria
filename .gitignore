@@ -22,3 +22,6 @@ target/
 
 # Claude Code
 .claude/
+
+# Local test data (HA exports, analysis scratch)
+test/
