@@ -2095,10 +2095,7 @@ class TankstellenAustriaCardEditor extends HTMLElement {
           <div class="recorder-hint">
             <div class="recorder-hint-text">${this._et("recorder_hint_intro")}</div>
             <pre class="recorder-snippet"><code>recorder:
-  purge_keep_days: 30
-  include:
-    entity_globs:
-      - sensor.tankstellen_*</code></pre>
+  purge_keep_days: 30</code></pre>
             <button class="recorder-copy-btn" type="button">
               <ha-icon icon="mdi:content-copy"></ha-icon>
               <span class="recorder-copy-label">${this._et("copy")}</span>

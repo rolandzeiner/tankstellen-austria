@@ -218,18 +218,17 @@ The recommendation is computed in the browser from up to **4 weeks** of your sen
 
 The algorithm works best with the full 28-day window. Home Assistant's default `recorder.purge_keep_days` is **10 days**, so out of the box only the last ~10 days are available and the card will report lower confidence until the window fills up.
 
-To give it the full 28 days, extend retention for the fuel-price sensors:
+To give it the full 28 days, extend global recorder retention:
 
 ```yaml
 # configuration.yaml
 recorder:
   purge_keep_days: 30
-  include:
-    entity_globs:
-      - sensor.tankstellen_*
 ```
 
 Restart Home Assistant after editing. Existing data already beyond the default window is lost; the card will keep improving as new weeks accumulate.
+
+> **Note:** Home Assistant's recorder `include:` option is a whitelist — adding `include:` would stop HA recording everything _not_ listed, which is almost never what you want. To reduce database growth at 30-day retention, use an `exclude:` list for chatty entities you don't need long-term (e.g. `sun.sun`, weather entities, fast-updating meters). The `tankstellen_*` sensors only change when the cheapest nearby price changes, so they contribute very little by themselves.
 
 **Limitations**
 
