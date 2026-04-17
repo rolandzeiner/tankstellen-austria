@@ -168,6 +168,7 @@ cars:
 | `show_opening_hours` | `true` | Show expandable opening hours on click |
 | `show_payment_methods` | `true` | Show payment method badges in expandable detail |
 | `show_history` | `true` | Show 7-day sparkline price graph with best refuel time marker and recommendation (fixed mode only) |
+| `show_best_refuel` | `true` | Show the refuel-time recommendation and green sparkline marker (requires `show_history`) |
 | `payment_filter` | `[]` | Show/highlight stations accepting **at least one** of the listed methods. Values: `cash`, `debit_card`, `credit_card`, or any string from the API `others` field (e.g. `Austrocard`, `UTA`, `DKV`, `Routex`). Configurable via the visual editor. |
 | `payment_highlight_mode` | `true` | When `true`, matching stations are highlighted with a green accent instead of non-matching ones being hidden. |
 | `show_cars` | `false` | Show the fill-up cost row below the price header. |
@@ -177,7 +178,7 @@ cars:
 
 **Fixed mode:**
 - Fuel type header with cheapest price and average price (Ø)
-- 7-day sparkline of cheapest price history with min/max labels, green dashed marker at the best refuel hour, and a recommendation below (e.g. "Tip: Cheapest on Monday between 11:00–12:00"); analyses up to 4 weeks of history using time-weighted hourly sampling and per-week price normalisation — identifies the slot that is consistently cheapest *relative to that week*, not just in weeks where prices happened to be low overall; shows a "not enough data" hint until at least 2 weeks of data are available; hover over the sparkline (or touch on mobile) to see a thin vertical indicator and a tooltip with the exact date/time and price at that point
+- 7-day sparkline of cheapest price history with min/max labels, green dashed marker at the best refuel hour, and a recommendation below (e.g. "Tip: Cheapest between 11:00–12:00" with a High/Medium/Low confidence badge — hover the badge for the score breakdown); analyses up to 4 weeks of history with per-week winsorising, recency weighting, and weighted medians; the weekday is only added to the tip when its signal is strong enough to be meaningful; shows a "not enough data" hint until at least 7 days of data are available; hover over the sparkline (or touch on mobile) to see a thin vertical indicator and a tooltip with the exact date/time and price at that point
 - Station list ranked by price with name, address, and map link
 - Expandable detail panel per station (click to open): opening hours + payment method badges
 - **Closed** badge (red) on currently closed stations
@@ -194,20 +195,50 @@ cars:
 
 ### How the best refuel time is calculated
 
-The "Tip: Cheapest on \<day\> between HH:00–HH+1:00" recommendation is computed in the browser from up to **4 weeks** of your sensor's own price history (refetched every 30 minutes). Three steps:
+The recommendation is computed in the browser from up to **4 weeks** of your sensor's own price history (refetched every 30 minutes). The algorithm separates two different signals:
 
-1. **Time-weighted hourly expansion** — the sensor only records a value when the cheapest nearby price changes, so each event is held constant across every full hour until the next event. This turns a sparse event stream into a dense hourly sample series.
-2. **Per-week normalisation** — samples are grouped into Monday-aligned weeks; each sample's delta (`price − week_avg`) is used instead of the raw price. Slots are then ranked by how cheap they are *relative to their own week*, so a slot that is consistently the weekly low wins even in weeks where the overall price level was high.
-3. **(Weekday, hour) bucketing** — deltas are averaged across the 168 possible (7 days × 24 hours) buckets; the bucket with the lowest average delta is the tip.
+- **Best hour-of-day** (strong signal) — Austrian law (Preisauszeichnungsgesetz) allows prices to rise only once per day at 12:00 noon; they can drop at any time. This produces a reliable daily sawtooth where prices drift down through the afternoon/evening and reset upward at noon.
+- **Best weekday** (weak signal) — typically noise with only 4 weeks of data. It is **only added to the tip when its own confidence is high**, otherwise the tip shows the hour alone.
+
+**Pipeline**
+
+1. **Time-weighted hourly expansion** — the sensor only records a value when the cheapest nearby price changes, so each event is held constant across every full hour until the next event. Turns a sparse event stream into a dense hourly sample series.
+2. **Per-week winsorising** — samples are grouped into Monday-aligned weeks; values outside the 5th–95th percentile of that week are clipped before aggregation. This blunts sensor glitches and the sharp noon-reset spike.
+3. **Per-week normalisation** — each sample's delta (`price − week_mean_after_clipping`) is used instead of the raw price. Slots are then ranked by how cheap they are *relative to their own week*, so a slot that is consistently the weekly low wins even in weeks where the overall price level was high.
+4. **Independent bucketing** — deltas are aggregated once by hour-of-day (24 buckets) and once by weekday (7 buckets). Bucketing them together (the old 168-bucket grid) mixes strong and weak signals and overstates weekday precision.
+5. **Weighted median per bucket** — recency matters: each sample is weighted by `0.5^(age_in_days / 14)`, so samples from two weeks ago count half as much as today's, four weeks ago a quarter as much. The winning bucket is the one with the lowest weighted median delta.
+6. **Confidence score** — three components are averaged:
+   - **Data span** — how much of the 28-day target window actually contains data.
+   - **Coverage** — fraction of the 24 hours that have at least 3 observations.
+   - **Separation** — how far the winning hour sits below the cross-bucket median, measured in cents (≥ 1.5¢ gap = full score).
+
+   Combined score maps to a **High / Medium / Low** badge next to the tip; hover the badge for the breakdown.
+
+**Home Assistant recorder retention**
+
+The algorithm works best with the full 28-day window. Home Assistant's default `recorder.purge_keep_days` is **10 days**, so out of the box only the last ~10 days are available and the card will report lower confidence until the window fills up.
+
+To give it the full 28 days, extend retention for the fuel-price sensors:
+
+```yaml
+# configuration.yaml
+recorder:
+  purge_keep_days: 30
+  include:
+    entity_globs:
+      - sensor.tankstellen_*
+```
+
+Restart Home Assistant after editing. Existing data already beyond the default window is lost; the card will keep improving as new weeks accumulate.
 
 **Limitations**
-- At least 2 weeks of history are needed before any tip appears. Weeks with fewer than 24 hourly samples are skipped, and each bucket needs ≥ 2 distinct weekly appearances to count.
-- Accuracy improves with more data — a 2-week recommendation is noisy, at 4 weeks it stabilises, and it continues to refine as new weeks accumulate.
-- Granularity is one hour; no confidence interval or uncertainty is shown.
-- The Austrian daily 12:00 max-price reset and public holidays are not modelled explicitly — they are averaged into the numbers along with everything else.
-- The tip reflects the *cheapest nearby station at each point in time* (what the sensor records), not any single station's pattern.
 
-Have an idea to improve the algorithm (e.g. weighting recent weeks more heavily, holiday awareness, confidence intervals)? Open an issue or discussion on GitHub — feedback is welcome.
+- At least **7 days** of history are needed before any tip appears. Weeks with fewer than 24 hourly samples are skipped.
+- Granularity is one hour; no sub-hour window.
+- Austrian public holidays are not modelled explicitly — they are averaged into the numbers along with normal days.
+- The tip reflects the *cheapest nearby station at each point in time* (what the sensor records), not any single station's own pattern.
+
+Have an idea to improve the algorithm (e.g. holiday calendars, seasonal splits)? Open an issue or discussion on GitHub — feedback is welcome.
 
 ## Sensors
 
