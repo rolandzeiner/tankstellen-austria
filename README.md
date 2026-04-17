@@ -192,6 +192,23 @@ cars:
 - **Refresh** button with live countdown cooldown (2 min)
 - Sparkline hidden
 
+### How the best refuel time is calculated
+
+The "Tip: Cheapest on \<day\> between HH:00–HH+1:00" recommendation is computed in the browser from up to **4 weeks** of your sensor's own price history (refetched every 30 minutes). Three steps:
+
+1. **Time-weighted hourly expansion** — the sensor only records a value when the cheapest nearby price changes, so each event is held constant across every full hour until the next event. This turns a sparse event stream into a dense hourly sample series.
+2. **Per-week normalisation** — samples are grouped into Monday-aligned weeks; each sample's delta (`price − week_avg`) is used instead of the raw price. Slots are then ranked by how cheap they are *relative to their own week*, so a slot that is consistently the weekly low wins even in weeks where the overall price level was high.
+3. **(Weekday, hour) bucketing** — deltas are averaged across the 168 possible (7 days × 24 hours) buckets; the bucket with the lowest average delta is the tip.
+
+**Limitations**
+- At least 2 weeks of history are needed before any tip appears. Weeks with fewer than 24 hourly samples are skipped, and each bucket needs ≥ 2 distinct weekly appearances to count.
+- Accuracy improves with more data — a 2-week recommendation is noisy, at 4 weeks it stabilises, and it continues to refine as new weeks accumulate.
+- Granularity is one hour; no confidence interval or uncertainty is shown.
+- The Austrian daily 12:00 max-price reset and public holidays are not modelled explicitly — they are averaged into the numbers along with everything else.
+- The tip reflects the *cheapest nearby station at each point in time* (what the sensor records), not any single station's pattern.
+
+Have an idea to improve the algorithm (e.g. weighting recent weeks more heavily, holiday awareness, confidence intervals)? Open an issue or discussion on GitHub — feedback is welcome.
+
 ## Sensors
 
 Each fuel type creates one sensor:
