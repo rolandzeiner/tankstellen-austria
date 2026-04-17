@@ -18,7 +18,7 @@ and/or CNG.
 - **One sensor per fuel type** – state = cheapest price, attributes contain all 5 stations with name, address, opening hours, payment methods, and Google Maps link
 - **Custom Lovelace card** – `tankstellen-austria-card` with fuel-type tabs, expandable detail panel (opening hours + payment methods), map links, and 7-day price sparkline
 - **Payment method filter** *(1.4.2)* – filter or highlight stations by accepted payment methods (cash, Bankomat, credit card, Austrocard, UTA, DKV, …)
-- **Payment highlight mode** *(1.4.3)* – switch between hiding non-matching stations (filter) and highlighting them with a green accent instead
+- **Payment highlight mode** *(1.4.3)* – switch between hiding non-matching stations (filter) and highlighting them with a green accent instead; highlighted stations also show a green chip after the name listing each payment method that matched the filter
 - **Custom payment method values** *(1.4.3)* – add fleet cards or other values not listed by nearby stations (e.g. Routex, DKV) directly in the card editor
 - **Car fill-up cost widget** *(1.5.0)* – define your cars (name, fuel type, tank size, optional ⌀ consumption in l/100 km) in the card editor and see the total fill-up cost at the cheapest nearby station, shown below the price header; when consumption is set, the cost per 100 km is shown as a second line; each car gets its own MDI icon picked from a built-in icon grid; per-row toggles ("Tankkosten anzeigen" / "Verbrauch anzeigen") let you show only the fill-up cost, only the per-100 km cost (cars without consumption are hidden in that mode), or both
 - **Best refuel time recommendation** *(1.5.0)* – analyses up to 4 weeks of price history to identify the weekday and hour that is consistently cheapest *relative to that week's prices*; uses time-weighted hourly sampling and per-week normalisation so a slot that is always the weekly low point wins regardless of whether prices were generally high or low that week; shown below the sparkline with a green marker on the graph; requires data spanning at least 2 weeks before a recommendation is shown (a "not enough data" hint is displayed until then)
@@ -177,12 +177,12 @@ cars:
 
 **Fixed mode:**
 - Fuel type header with cheapest price and average price (Ø)
-- 7-day sparkline of cheapest price history with min/max labels, green dashed marker at the best refuel hour, and a recommendation below (e.g. "Tip: Cheapest on Monday between 11:00–12:00"); analyses up to 4 weeks of history using time-weighted hourly sampling and per-week price normalisation — identifies the slot that is consistently cheapest *relative to that week*, not just in weeks where prices happened to be low overall; shows a "not enough data" hint until at least 2 weeks of data are available
+- 7-day sparkline of cheapest price history with min/max labels, green dashed marker at the best refuel hour, and a recommendation below (e.g. "Tip: Cheapest on Monday between 11:00–12:00"); analyses up to 4 weeks of history using time-weighted hourly sampling and per-week price normalisation — identifies the slot that is consistently cheapest *relative to that week*, not just in weeks where prices happened to be low overall; shows a "not enough data" hint until at least 2 weeks of data are available; hover over the sparkline (or touch on mobile) to see a thin vertical indicator and a tooltip with the exact date/time and price at that point
 - Station list ranked by price with name, address, and map link
 - Expandable detail panel per station (click to open): opening hours + payment method badges
 - **Closed** badge (red) on currently closed stations
 - **Closing Soon** badge (amber) on stations closing within 30 minutes
-- Optional **payment filter** — hide stations that don't accept any of the required methods, or use **highlight mode** to keep all stations visible with matching ones accented in green
+- Optional **payment filter** — hide stations that don't accept any of the required methods, or use **highlight mode** to keep all stations visible with matching ones accented in green and tagged with a chip naming which method(s) matched
 - Custom payment values can be added in the editor (e.g. `Routex`, `DKV`) — common API values: `Austrocard`, `UTA`, `DKV`, `Routex`, `Fleetcard`, `ADAC`
 - Optional **fill-up cost row** — shows total cost to fill each configured car at the cheapest station; only cars matching the active fuel type tab are shown
 

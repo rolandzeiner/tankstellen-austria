@@ -232,6 +232,87 @@ class TankstellenAustriaCard extends HTMLElement {
     return dict.fuel_types[code] || code;
   }
 
+  _attachSparklineHover(container) {
+    const svg = container.querySelector("svg.sparkline");
+    const tooltip = container.querySelector(".sparkline-tooltip");
+    if (!svg || !tooltip) return;
+
+    const line = svg.querySelector(".sparkline-hover-line");
+    const dot = svg.querySelector(".sparkline-hover-dot");
+    const timeEl = tooltip.querySelector(".sparkline-tooltip-time");
+    const priceEl = tooltip.querySelector(".sparkline-tooltip-price");
+
+    let pts;
+    try { pts = JSON.parse(svg.dataset.points || "[]"); } catch (_) { pts = []; }
+    if (!pts.length) return;
+
+    const vbWidth = Number(svg.dataset.width) || 280;
+    const lang = this._config.language || this._hass?.language || "de";
+    const weekdays = this._t("weekdays");
+
+    const fmtTime = (t) => {
+      const d = new Date(t);
+      const wd = weekdays[d.getDay()].slice(0, 2);
+      const date = lang === "de"
+        ? `${d.getDate()}.${d.getMonth() + 1}.`
+        : `${d.getMonth() + 1}/${d.getDate()}`;
+      const hh = String(d.getHours()).padStart(2, "0");
+      const mm = String(d.getMinutes()).padStart(2, "0");
+      return `${wd} ${date} ${hh}:${mm}`;
+    };
+
+    const show = (clientX) => {
+      const rect = svg.getBoundingClientRect();
+      if (rect.width === 0) return;
+      const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+      // Nearest-x lookup (points are evenly spaced along viewBox X)
+      const targetX = ratio * vbWidth;
+      let best = pts[0], bestDist = Math.abs(pts[0].x - targetX);
+      for (const p of pts) {
+        const d = Math.abs(p.x - targetX);
+        if (d < bestDist) { best = p; bestDist = d; }
+      }
+      line.setAttribute("x1", best.x);
+      line.setAttribute("x2", best.x);
+      line.setAttribute("opacity", "0.5");
+      dot.setAttribute("cx", best.x);
+      dot.setAttribute("cy", best.y);
+      dot.setAttribute("opacity", "1");
+
+      timeEl.textContent = fmtTime(best.t);
+      priceEl.textContent = this._formatPrice(best.v);
+      tooltip.hidden = false;
+
+      // Position tooltip in container-local pixel space, clamped to container width.
+      const containerRect = container.getBoundingClientRect();
+      const svgX = (best.x / vbWidth) * rect.width + (rect.left - containerRect.left);
+      tooltip.style.left = "0px"; // reset to measure
+      const tipWidth = tooltip.offsetWidth;
+      const desired = svgX - tipWidth / 2;
+      const clamped = Math.max(0, Math.min(containerRect.width - tipWidth, desired));
+      tooltip.style.left = `${clamped}px`;
+    };
+
+    const hide = () => {
+      line.setAttribute("opacity", "0");
+      dot.setAttribute("opacity", "0");
+      tooltip.hidden = true;
+    };
+
+    // Attach to the SVG directly — something between svg and the container
+    // div swallows mouse-event bubbling in HA's lovelace DOM, so container
+    // listeners never fire in practice.
+    svg.addEventListener("mousemove", (e) => show(e.clientX));
+    svg.addEventListener("mouseleave", hide);
+    svg.addEventListener("touchstart", (e) => {
+      if (e.touches[0]) show(e.touches[0].clientX);
+    }, { passive: true });
+    svg.addEventListener("touchmove", (e) => {
+      if (e.touches[0]) show(e.touches[0].clientX);
+    }, { passive: true });
+    svg.addEventListener("touchend", hide);
+  }
+
   _formatPrice(price) {
     if (price == null) return "–";
     return `€ ${Number(price).toFixed(3).replace(".", ",")}`;
@@ -428,21 +509,25 @@ class TankstellenAustriaCard extends HTMLElement {
     const gradId = `spark-grad-${entityId.replace(/\./g, "_")}`;
 
     // Analyse full history (up to 4 weeks) for a statistically meaningful recommendation.
-    // Then find the most recent matching point within the visible 7-day slice for the marker.
+    // Place the marker on the event closest in time to the most recent occurrence of
+    // the recommended weekday + hour. Exact matches are rare because the sensor only
+    // records price changes, so nearest-in-time produces a visually sensible marker
+    // instead of the previous fallback-to-min-value behaviour.
     const analysis = this._analyzeBestRefuelTime(allData);
     let sparklineMarkerIdx = -1;
     if (analysis?.hasEnoughData) {
-      for (let i = data.length - 1; i >= 0; i--) {
-        const dt = new Date(data[i].time);
-        if (dt.getDay() === analysis.weekday && dt.getHours() === analysis.hour) {
-          sparklineMarkerIdx = i;
-          break;
-        }
-      }
-      // Fallback: minimum value point within the sparkline slice
-      if (sparklineMarkerIdx === -1) {
-        let minVal = Infinity;
-        data.forEach((d, i) => { if (d.value < minVal) { minVal = d.value; sparklineMarkerIdx = i; } });
+      const now = new Date();
+      let daysBack = (now.getDay() - analysis.weekday + 7) % 7;
+      if (daysBack === 0 && now.getHours() < analysis.hour) daysBack = 7;
+      const target = new Date(now);
+      target.setDate(target.getDate() - daysBack);
+      target.setHours(analysis.hour, 0, 0, 0);
+      const targetMs = target.getTime();
+
+      let bestDist = Infinity;
+      for (let i = 0; i < data.length; i++) {
+        const dist = Math.abs(data[i].time - targetMs);
+        if (dist < bestDist) { bestDist = dist; sparklineMarkerIdx = i; }
       }
     }
 
@@ -481,8 +566,19 @@ class TankstellenAustriaCard extends HTMLElement {
       }
     }
 
+    // Hover-data payload (time + value + precomputed x/y) embedded on the SVG
+    // so the mousemove handler can look up the nearest point without re-deriving geometry.
+    const hoverPoints = data.map((d, i) => ({
+      t: d.time,
+      v: d.value,
+      x: +points[i].x.toFixed(1),
+      y: +points[i].y.toFixed(1),
+    }));
+
     return `
-      <svg class="sparkline" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none">
+      <svg class="sparkline" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none"
+           data-points='${JSON.stringify(hoverPoints)}'
+           data-width="${width}" data-height="${height}">
         <defs>
           <linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stop-color="var(--primary-color)" stop-opacity="0.3"/>
@@ -492,7 +588,16 @@ class TankstellenAustriaCard extends HTMLElement {
         <polygon points="${areaPoints}" fill="url(#${gradId})" />
         ${markerSvg}
         <polyline points="${polyline}" fill="none" stroke="var(--primary-color)" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" />
+        <line class="sparkline-hover-line" x1="0" y1="0" x2="0" y2="${height}"
+              stroke="var(--primary-text-color)" stroke-width="0.6" stroke-dasharray="2,2" opacity="0" pointer-events="none"/>
+        <circle class="sparkline-hover-dot" cx="0" cy="0" r="3"
+                fill="var(--primary-color)" stroke="var(--card-background-color,#fff)" stroke-width="1.5"
+                opacity="0" pointer-events="none"/>
       </svg>
+      <div class="sparkline-tooltip" hidden>
+        <span class="sparkline-tooltip-time"></span>
+        <span class="sparkline-tooltip-price"></span>
+      </div>
       <div class="sparkline-labels">
         <span>${this._formatPriceShort(min)}</span>
         <span class="sparkline-period">${this._t("last_7_days")}</span>
@@ -926,6 +1031,7 @@ class TankstellenAustriaCard extends HTMLElement {
           composed: true,
         }));
       });
+      this._attachSparklineHover(sparklineContainer);
     }
   }
 
@@ -1085,11 +1191,37 @@ class TankstellenAustriaCard extends HTMLElement {
       .sparkline-container {
         margin-top: 8px;
         cursor: pointer;
+        position: relative;
       }
       .sparkline {
         width: 100%;
         height: 48px;
         display: block;
+      }
+      .sparkline-tooltip {
+        position: absolute;
+        top: -28px;
+        display: flex;
+        gap: 6px;
+        padding: 3px 7px;
+        background: var(--card-background-color, #fff);
+        border: 1px solid var(--divider-color);
+        border-radius: 6px;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+        font-size: 11px;
+        white-space: nowrap;
+        pointer-events: none;
+        z-index: 2;
+      }
+      .sparkline-tooltip[hidden] {
+        display: none;
+      }
+      .sparkline-tooltip-time {
+        color: var(--secondary-text-color);
+      }
+      .sparkline-tooltip-price {
+        color: var(--primary-text-color);
+        font-weight: 600;
       }
       .sparkline-labels {
         display: flex;
