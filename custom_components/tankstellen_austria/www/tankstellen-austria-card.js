@@ -59,6 +59,9 @@ const TRANSLATIONS = {
       show_payment_methods: "Zahlungsarten anzeigen",
       show_history: "Preisverlauf anzeigen",
       show_best_refuel: "Tank-Tipp anzeigen",
+      recorder_hint_intro: "Home Assistant speichert standardmäßig nur 10 Tage Verlauf. Für bessere Empfehlungen diesen Block in configuration.yaml ergänzen und neu starten:",
+      copy: "Kopieren",
+      copied: "Kopiert",
       payment_filter: "Nur Tankstellen mit",
       payment_filter_custom_placeholder: "Benutzerdefiniert, z.B. Routex",
       payment_filter_custom_hint: "Der Wert muss exakt dem API-String entsprechen. Häufige Werte: Routex, UTA, DKV, Austrocard, Fleetcard, ADAC",
@@ -129,6 +132,9 @@ const TRANSLATIONS = {
       show_payment_methods: "Show payment methods",
       show_history: "Show price history",
       show_best_refuel: "Show refuel tip",
+      recorder_hint_intro: "Home Assistant keeps only 10 days of history by default. For better recommendations, add this block to configuration.yaml and restart:",
+      copy: "Copy",
+      copied: "Copied",
       payment_filter: "Only stations with",
       payment_filter_custom_placeholder: "Custom, e.g. Routex",
       payment_filter_custom_hint: "Must match the API string exactly. Common values: Routex, UTA, DKV, Austrocard, Fleetcard, ADAC",
@@ -1804,6 +1810,50 @@ class TankstellenAustriaCardEditor extends HTMLElement {
             font-size: 12px;
             color: var(--secondary-text-color);
           }
+          .recorder-hint {
+            margin: 4px 0 2px 16px;
+            padding: 8px 10px;
+            border-radius: 6px;
+            background: var(--secondary-background-color, rgba(255,255,255,0.04));
+            border: 1px solid var(--divider-color);
+          }
+          .recorder-hint-text {
+            font-size: 11px;
+            line-height: 1.4;
+            color: var(--secondary-text-color);
+            margin-bottom: 6px;
+          }
+          .recorder-snippet {
+            margin: 0;
+            padding: 8px;
+            border-radius: 4px;
+            background: var(--code-editor-background-color, var(--primary-background-color, #0e0e0e));
+            font-family: var(--code-font-family, monospace);
+            font-size: 11px;
+            line-height: 1.35;
+            color: var(--primary-text-color);
+            overflow-x: auto;
+            white-space: pre;
+          }
+          .recorder-copy-btn {
+            margin-top: 6px;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3px 8px;
+            border-radius: 4px;
+            background: transparent;
+            border: 1px solid var(--divider-color);
+            color: var(--primary-text-color);
+            font-size: 11px;
+            cursor: pointer;
+          }
+          .recorder-copy-btn:hover {
+            background: var(--primary-background-color);
+          }
+          .recorder-copy-btn ha-icon {
+            --mdc-icon-size: 14px;
+          }
           .divider {
             height: 1px;
             background: var(--divider-color);
@@ -2040,7 +2090,20 @@ class TankstellenAustriaCardEditor extends HTMLElement {
           <div class="toggle-row toggle-row-sub">
             <label for="toggle-best-refuel">${this._et("show_best_refuel")}</label>
             <ha-switch id="toggle-best-refuel" ${showBestRefuel ? "checked" : ""} data-field="show_best_refuel"></ha-switch>
-          </div>` : ""}
+          </div>
+          ${showBestRefuel ? `
+          <div class="recorder-hint">
+            <div class="recorder-hint-text">${this._et("recorder_hint_intro")}</div>
+            <pre class="recorder-snippet"><code>recorder:
+  purge_keep_days: 30
+  include:
+    entity_globs:
+      - sensor.tankstellen_*</code></pre>
+            <button class="recorder-copy-btn" type="button">
+              <ha-icon icon="mdi:content-copy"></ha-icon>
+              <span class="recorder-copy-label">${this._et("copy")}</span>
+            </button>
+          </div>` : ""}` : ""}
           <div class="divider"></div>
           <div class="toggle-row">
             <label for="toggle-cars">${this._et("show_cars")}</label>
@@ -2178,6 +2241,22 @@ class TankstellenAustriaCardEditor extends HTMLElement {
         const field = e.target.dataset.field;
         this._config = { ...this._config, [field]: e.target.checked };
         this._fireChanged();
+      });
+    });
+
+    // Recorder snippet copy button — copies the YAML from the adjacent <pre>.
+    this.querySelectorAll(".recorder-copy-btn").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const pre = btn.parentElement?.querySelector(".recorder-snippet code");
+        const snippet = pre ? pre.textContent : "";
+        const label = btn.querySelector(".recorder-copy-label");
+        try {
+          await navigator.clipboard.writeText(snippet);
+          if (label) {
+            label.textContent = this._et("copied");
+            setTimeout(() => { label.textContent = this._et("copy"); }, 1500);
+          }
+        } catch (_) { /* clipboard unavailable (insecure context) — silent */ }
       });
     });
 
