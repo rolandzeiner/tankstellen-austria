@@ -769,13 +769,18 @@ class TankstellenAustriaCard extends HTMLElement {
             ? `<span class="badge closing-soon">${this._t("closing_soon")}</span>`
             : "";
         const isHighlighted = highlightMode && paymentFilter.length && this._matchesPaymentFilter(s, paymentFilter);
+        const matchChips = isHighlighted
+          ? this._matchingPaymentMethods(s, paymentFilter)
+              .map((m) => `<span class="pm-match-chip">${_escHtml(m)}</span>`)
+              .join("")
+          : "";
 
         html += `
           <div class="station${isHighlighted ? " pm-highlight" : ""}">
             <div class="station-main" data-expand="${this._activeTab}-${idx}">
               <div class="rank">${idx + 1}</div>
               <div class="info">
-                <div class="name">${s.name || "–"}${openLabel}</div>
+                <div class="name">${s.name || "–"}${openLabel}${matchChips}</div>
                 <div class="address">${loc.postalCode || ""} ${loc.city || ""}, ${loc.address || ""}</div>
               </div>
               <div class="price">${this._formatPrice(s.price)}</div>
@@ -838,6 +843,22 @@ class TankstellenAustriaCard extends HTMLElement {
       if (method === "credit_card") return pm.credit_card;
       return (pm.others || []).some((o) => o.toLowerCase() === method.toLowerCase());
     });
+  }
+
+  _matchingPaymentMethods(s, filter) {
+    if (!filter || !filter.length) return [];
+    const pm = s.payment_methods || {};
+    const matches = [];
+    filter.forEach((method) => {
+      if (method === "cash" && pm.cash) matches.push(this._t("cash"));
+      else if (method === "debit_card" && pm.debit_card) matches.push(this._t("debit_card"));
+      else if (method === "credit_card" && pm.credit_card) matches.push(this._t("credit_card"));
+      else {
+        const match = (pm.others || []).find((o) => o.toLowerCase() === method.toLowerCase());
+        if (match) matches.push(match);
+      }
+    });
+    return matches;
   }
 
   _renderPaymentMethods(pm) {
@@ -1193,6 +1214,17 @@ class TankstellenAustriaCard extends HTMLElement {
       .badge.closing-soon {
         background: var(--warning-color, #ff9800);
         color: #fff;
+      }
+      .pm-match-chip {
+        font-size: 10px;
+        padding: 1px 6px;
+        border: 1px solid var(--success-color, #4caf50);
+        border-radius: 8px;
+        color: var(--success-color, #4caf50);
+        font-weight: 500;
+        line-height: 14px;
+        white-space: nowrap;
+        flex-shrink: 0;
       }
       .dynamic-meta {
         display: flex;
