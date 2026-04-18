@@ -1,10 +1,10 @@
 /**
- * Tankstellen Austria Card v1.4.3
+ * Tankstellen Austria Card v1.5.0
  * Custom Lovelace card for displaying Austrian fuel prices.
  * https://github.com/rolandzeiner/tankstellen-austria
  */
 
-const CARD_VERSION = "1.4.3";
+const CARD_VERSION = "1.5.0";
 
 const TRANSLATIONS = {
   de: {
@@ -35,6 +35,21 @@ const TRANSLATIONS = {
     version_update: "Tankstellen Austria wurde auf v{v} aktualisiert — bitte neu laden",
     version_reload: "Neu laden",
     fuel_types: { DIE: "Diesel", SUP: "Super 95", GAS: "CNG Erdgas" },
+    fill_up: "Volltanken",
+    best_refuel_hour: "Tipp: Am günstigsten zwischen {h1}:00–{h2}:00",
+    best_refuel_hour_weekday: "Tipp: Am günstigsten zwischen {h1}:00–{h2}:00, meist {day}",
+    not_enough_data_hint: "Noch zu wenig Daten für Empfehlung (mind. 7 Tage)",
+    confidence_high: "Hoch",
+    confidence_medium: "Mittel",
+    confidence_low: "Niedrig",
+    confidence_title: "Empfehlungsgüte",
+    confidence_span: "Datenumfang",
+    confidence_coverage: "Abdeckung",
+    confidence_gap: "Vorsprung",
+    confidence_days: "Tage",
+    confidence_cents: "Cent",
+    confidence_short_history_hint: "Hinweis: Home Assistant speichert standardmäßig nur 10 Tage Verlauf. Für bessere Empfehlungen recorder.purge_keep_days auf 30 erhöhen.",
+    weekdays: ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"],
     editor: {
       entities: "Sensoren",
       entities_hint: "Leer lassen für automatische Erkennung",
@@ -43,6 +58,10 @@ const TRANSLATIONS = {
       show_opening_hours: "Öffnungszeiten anzeigen",
       show_payment_methods: "Zahlungsarten anzeigen",
       show_history: "Preisverlauf anzeigen",
+      show_best_refuel: "Tank-Tipp anzeigen",
+      recorder_hint_intro: "Home Assistant speichert standardmäßig nur 10 Tage Verlauf. Für bessere Empfehlungen diesen Block in configuration.yaml ergänzen und neu starten:",
+      copy: "Kopieren",
+      copied: "Kopiert",
       payment_filter: "Nur Tankstellen mit",
       payment_filter_custom_placeholder: "Benutzerdefiniert, z.B. Routex",
       payment_filter_custom_hint: "Der Wert muss exakt dem API-String entsprechen. Häufige Werte: Routex, UTA, DKV, Austrocard, Fleetcard, ADAC",
@@ -50,6 +69,15 @@ const TRANSLATIONS = {
       section_sensors: "Sensoren",
       section_display: "Anzeige",
       section_payment_filter: "Zahlungsfilter",
+      section_cars: "Fahrzeuge",
+      show_cars: "Tankkosten anzeigen",
+      show_car_fillup: "Tankkosten anzeigen",
+      show_car_consumption: "Verbrauch anzeigen",
+      cars_both_off_hint: "Keine Zeile aktiv. Um Fahrzeuge komplett auszublenden, nutze „Tankkosten anzeigen“ in den Anzeige-Optionen.",
+      car_name_placeholder: "Name (z.B. Golf TDI)",
+      car_tank_placeholder: "Liter",
+      car_consumption_placeholder: "⌀ l/100km",
+      add_car: "+ Fahrzeug hinzufügen",
     },
   },
   en: {
@@ -80,6 +108,21 @@ const TRANSLATIONS = {
     version_update: "Tankstellen Austria updated to v{v} — please reload",
     version_reload: "Reload",
     fuel_types: { DIE: "Diesel", SUP: "Super 95", GAS: "CNG" },
+    fill_up: "Fill up",
+    best_refuel_hour: "Tip: Cheapest between {h1}:00–{h2}:00",
+    best_refuel_hour_weekday: "Tip: Cheapest between {h1}:00–{h2}:00, usually {day}",
+    not_enough_data_hint: "Not enough data yet for a tip (min. 7 days)",
+    confidence_high: "High",
+    confidence_medium: "Medium",
+    confidence_low: "Low",
+    confidence_title: "Recommendation confidence",
+    confidence_span: "Data span",
+    confidence_coverage: "Coverage",
+    confidence_gap: "Gap",
+    confidence_days: "days",
+    confidence_cents: "¢",
+    confidence_short_history_hint: "Note: Home Assistant keeps only 10 days of history by default. For better recommendations raise recorder.purge_keep_days to 30.",
+    weekdays: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
     editor: {
       entities: "Sensors",
       entities_hint: "Leave empty for auto-detection",
@@ -88,6 +131,10 @@ const TRANSLATIONS = {
       show_opening_hours: "Show opening hours",
       show_payment_methods: "Show payment methods",
       show_history: "Show price history",
+      show_best_refuel: "Show refuel tip",
+      recorder_hint_intro: "Home Assistant keeps only 10 days of history by default. For better recommendations, add this block to configuration.yaml and restart:",
+      copy: "Copy",
+      copied: "Copied",
       payment_filter: "Only stations with",
       payment_filter_custom_placeholder: "Custom, e.g. Routex",
       payment_filter_custom_hint: "Must match the API string exactly. Common values: Routex, UTA, DKV, Austrocard, Fleetcard, ADAC",
@@ -95,9 +142,30 @@ const TRANSLATIONS = {
       section_sensors: "Sensors",
       section_display: "Display",
       section_payment_filter: "Payment filter",
+      section_cars: "Cars",
+      show_cars: "Show fill-up costs",
+      show_car_fillup: "Show fill-up cost",
+      show_car_consumption: "Show consumption",
+      cars_both_off_hint: "No rows enabled. To hide cars entirely, use \"Show fill-up costs\" in Display options.",
+      car_name_placeholder: "Name (e.g. Golf TDI)",
+      car_tank_placeholder: "Liters",
+      car_consumption_placeholder: "⌀ l/100km",
+      add_car: "+ Add car",
     },
   },
 };
+
+const CAR_ICONS = [
+  "mdi:car", "mdi:car-sports", "mdi:car-hatchback", "mdi:car-estate",
+  "mdi:car-convertible", "mdi:car-pickup", "mdi:car-electric",
+  "mdi:car-electric-outline", "mdi:car-side", "mdi:van-passenger",
+  "mdi:motorbike", "mdi:bus", "mdi:truck", "mdi:rv-truck",
+];
+
+// Shared HTML escape — safe for both attribute values and text content.
+const _escHtml = (s) => String(s)
+  .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+  .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
 // Helper: find all tankstellen_austria sensors in hass states
 function _findTankstellenEntities(hass) {
@@ -123,6 +191,7 @@ class TankstellenAustriaCard extends HTMLElement {
   _expandedStations = new Set();
   _historyData = {};
   _historyLoading = {};
+  _historyInterval = null;
   _lastManualRefresh = 0;
   _cooldownInterval = null;
   _noNewData = false;
@@ -193,6 +262,87 @@ class TankstellenAustriaCard extends HTMLElement {
     return dict.fuel_types[code] || code;
   }
 
+  _attachSparklineHover(container) {
+    const svg = container.querySelector("svg.sparkline");
+    const tooltip = container.querySelector(".sparkline-tooltip");
+    if (!svg || !tooltip) return;
+
+    const line = svg.querySelector(".sparkline-hover-line");
+    const dot = svg.querySelector(".sparkline-hover-dot");
+    const timeEl = tooltip.querySelector(".sparkline-tooltip-time");
+    const priceEl = tooltip.querySelector(".sparkline-tooltip-price");
+
+    let pts;
+    try { pts = JSON.parse(svg.dataset.points || "[]"); } catch (_) { pts = []; }
+    if (!pts.length) return;
+
+    const vbWidth = Number(svg.dataset.width) || 280;
+    const lang = this._config.language || this._hass?.language || "de";
+    const weekdays = this._t("weekdays");
+
+    const fmtTime = (t) => {
+      const d = new Date(t);
+      const wd = weekdays[d.getDay()].slice(0, 2);
+      const date = lang === "de"
+        ? `${d.getDate()}.${d.getMonth() + 1}.`
+        : `${d.getMonth() + 1}/${d.getDate()}`;
+      const hh = String(d.getHours()).padStart(2, "0");
+      const mm = String(d.getMinutes()).padStart(2, "0");
+      return `${wd} ${date} ${hh}:${mm}`;
+    };
+
+    const show = (clientX) => {
+      const rect = svg.getBoundingClientRect();
+      if (rect.width === 0) return;
+      const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+      // Nearest-x lookup (points are evenly spaced along viewBox X)
+      const targetX = ratio * vbWidth;
+      let best = pts[0], bestDist = Math.abs(pts[0].x - targetX);
+      for (const p of pts) {
+        const d = Math.abs(p.x - targetX);
+        if (d < bestDist) { best = p; bestDist = d; }
+      }
+      line.setAttribute("x1", best.x);
+      line.setAttribute("x2", best.x);
+      line.setAttribute("opacity", "0.5");
+      dot.setAttribute("cx", best.x);
+      dot.setAttribute("cy", best.y);
+      dot.setAttribute("opacity", "1");
+
+      timeEl.textContent = fmtTime(best.t);
+      priceEl.textContent = this._formatPrice(best.v);
+      tooltip.hidden = false;
+
+      // Position tooltip in container-local pixel space, clamped to container width.
+      const containerRect = container.getBoundingClientRect();
+      const svgX = (best.x / vbWidth) * rect.width + (rect.left - containerRect.left);
+      tooltip.style.left = "0px"; // reset to measure
+      const tipWidth = tooltip.offsetWidth;
+      const desired = svgX - tipWidth / 2;
+      const clamped = Math.max(0, Math.min(containerRect.width - tipWidth, desired));
+      tooltip.style.left = `${clamped}px`;
+    };
+
+    const hide = () => {
+      line.setAttribute("opacity", "0");
+      dot.setAttribute("opacity", "0");
+      tooltip.hidden = true;
+    };
+
+    // Attach to the SVG directly — something between svg and the container
+    // div swallows mouse-event bubbling in HA's lovelace DOM, so container
+    // listeners never fire in practice.
+    svg.addEventListener("mousemove", (e) => show(e.clientX));
+    svg.addEventListener("mouseleave", hide);
+    svg.addEventListener("touchstart", (e) => {
+      if (e.touches[0]) show(e.touches[0].clientX);
+    }, { passive: true });
+    svg.addEventListener("touchmove", (e) => {
+      if (e.touches[0]) show(e.touches[0].clientX);
+    }, { passive: true });
+    svg.addEventListener("touchend", hide);
+  }
+
   _formatPrice(price) {
     if (price == null) return "–";
     return `€ ${Number(price).toFixed(3).replace(".", ",")}`;
@@ -223,7 +373,9 @@ class TankstellenAustriaCard extends HTMLElement {
 
     this._historyLoading[entityId] = true;
     const now = new Date();
-    const startTime = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    // Fetch 4 weeks so the recommendation has enough data across many weekday/hour buckets.
+    // The sparkline only displays the last 7 days (filtered in _renderSparkline).
+    const startTime = new Date(now.getTime() - 28 * 24 * 60 * 60 * 1000);
 
     try {
       const result = await this._hass.callWS({
@@ -238,7 +390,9 @@ class TankstellenAustriaCard extends HTMLElement {
       if (result && result[entityId]) {
         this._historyData[entityId] = result[entityId]
           .map((entry) => ({
-            time: new Date(entry.lu || entry.last_updated || entry.last_changed).getTime(),
+            time: typeof entry.lu === 'number'
+              ? Math.round(entry.lu * 1000)
+              : new Date(entry.lu || entry.last_updated || entry.last_changed).getTime(),
             value: parseFloat(entry.s || entry.state),
           }))
           .filter((d) => !isNaN(d.value));
@@ -277,10 +431,180 @@ class TankstellenAustriaCard extends HTMLElement {
     clearInterval(this._cooldownInterval);
   }
 
+  // --- Best refuel time analysis ---
+  // Splits the signal in two: best hour-of-day (strong signal — Austrian law allows
+  // only one price raise per day at noon, so prices drift down each afternoon) and
+  // best weekday (weak signal — usually noise with 4 weeks of data).
+  //
+  // Pipeline: step-function expand to hourly samples → group by Monday-aligned
+  // calendar week → per-week winsorise to [p05, p95] to clip sensor glitches and
+  // noon-reset spikes → normalise each sample as price − week_mean → bucket deltas
+  // by hour-of-day and weekday independently → weighted median per bucket with a
+  // 14-day half-life (recent samples count more) → pick minimum → score confidence
+  // from span, coverage, and separation; weekday is only surfaced when its own
+  // confidence is high.
+  _analyzeBestRefuelTime(data) {
+    if (!data || data.length < 2) return null;
+
+    const HOUR_MS = 3600000;
+    const DAY_MS = 86400000;
+    const now = Date.now();
+    const span = now - data[0].time;
+    if (span < 7 * DAY_MS) return { hasEnoughData: false };
+
+    // 1. Step-function hourly expansion — each price event stays active until the next.
+    const hourly = [];
+    const addSamples = (price, start, end) => {
+      const first = Math.ceil(start / HOUR_MS) * HOUR_MS;
+      for (let t = first; t < end; t += HOUR_MS) hourly.push({ t, price });
+    };
+    for (let i = 0; i < data.length - 1; i++) addSamples(data[i].value, data[i].time, data[i + 1].time);
+    addSamples(data[data.length - 1].value, data[data.length - 1].time, now);
+    if (hourly.length === 0) return { hasEnoughData: false };
+
+    // 2. Monday-aligned calendar-week grouping.
+    const getMondayKey = (t) => {
+      const d = new Date(t);
+      d.setHours(0, 0, 0, 0);
+      const day = d.getDay();
+      d.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
+      return d.getTime();
+    };
+    const weeks = {};
+    hourly.forEach(({ t, price }) => {
+      const wk = getMondayKey(t);
+      (weeks[wk] = weeks[wk] || []).push({ t, price });
+    });
+
+    // Helpers used below.
+    const percentile = (sorted, p) => {
+      if (sorted.length === 0) return NaN;
+      const idx = (sorted.length - 1) * p;
+      const lo = Math.floor(idx), hi = Math.ceil(idx);
+      return sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo);
+    };
+    const weightedMedian = (entries) => {
+      if (entries.length === 0) return NaN;
+      const sorted = [...entries].sort((a, b) => a.value - b.value);
+      const total = sorted.reduce((s, e) => s + e.weight, 0);
+      let cumulative = 0;
+      for (const e of sorted) {
+        cumulative += e.weight;
+        if (cumulative >= total / 2) return e.value;
+      }
+      return sorted[sorted.length - 1].value;
+    };
+
+    // 3. Per-week winsorise (p05/p95) → normalise deltas → weight by recency
+    //    (exponential decay, 14-day half-life).
+    const HALF_LIFE_MS = 14 * DAY_MS;
+    const deltas = [];
+    Object.values(weeks).forEach((samples) => {
+      if (samples.length < 24) return; // skip partial-week slivers
+      const sortedPrices = samples.map((s) => s.price).sort((a, b) => a - b);
+      const p05 = percentile(sortedPrices, 0.05);
+      const p95 = percentile(sortedPrices, 0.95);
+      let sum = 0;
+      const clipped = samples.map((s) => {
+        const price = Math.max(p05, Math.min(p95, s.price));
+        sum += price;
+        return { t: s.t, price };
+      });
+      const mean = sum / clipped.length;
+      clipped.forEach(({ t, price }) => {
+        deltas.push({
+          t,
+          delta: price - mean,
+          weight: Math.pow(0.5, (now - t) / HALF_LIFE_MS),
+        });
+      });
+    });
+    if (deltas.length === 0) return { hasEnoughData: false };
+
+    // 4. Bucket deltas independently by hour-of-day and weekday.
+    const hourBuckets = Array.from({ length: 24 }, () => []);
+    const weekdayBuckets = Array.from({ length: 7 }, () => []);
+    deltas.forEach(({ t, delta, weight }) => {
+      const dt = new Date(t);
+      hourBuckets[dt.getHours()].push({ value: delta, weight });
+      weekdayBuckets[dt.getDay()].push({ value: delta, weight });
+    });
+
+    const pickBest = (buckets, minCount) => {
+      const medians = buckets.map((b) => (b.length >= minCount ? weightedMedian(b) : NaN));
+      let bestIdx = -1, bestVal = Infinity;
+      medians.forEach((m, i) => {
+        if (!isNaN(m) && m < bestVal) { bestVal = m; bestIdx = i; }
+      });
+      return { medians, bestIdx, bestVal };
+    };
+
+    const hourPick = pickBest(hourBuckets, 3);
+    if (hourPick.bestIdx < 0) return { hasEnoughData: false };
+    const weekdayPick = pickBest(weekdayBuckets, 3);
+
+    // 5. Confidence scoring — three inputs, averaged:
+    //    span_score       — how much of the 28-day window we have
+    //    coverage_score   — fraction of buckets with ≥ 3 observations
+    //    separation_score — gap from winner to across-bucket median, in cents,
+    //                       scaled by a reference effect size
+    const spanDays = span / DAY_MS;
+    const span_score = Math.min(1, spanDays / 28);
+
+    const scoreSeparation = (pick, refCents) => {
+      const valid = pick.medians.filter((m) => !isNaN(m)).sort((a, b) => a - b);
+      if (valid.length < 2 || pick.bestIdx < 0) return 0;
+      const mid = percentile(valid, 0.5);
+      const gapCents = (mid - pick.bestVal) * 100;
+      return Math.max(0, Math.min(1, gapCents / refCents));
+    };
+
+    const hourCoverage = hourBuckets.filter((b) => b.length >= 3).length / 24;
+    const hourSep = scoreSeparation(hourPick, 1.5); // 1.5¢ gap = full confidence
+    const hourGapCents = (() => {
+      const valid = hourPick.medians.filter((m) => !isNaN(m)).sort((a, b) => a - b);
+      return valid.length >= 2 ? (percentile(valid, 0.5) - hourPick.bestVal) * 100 : 0;
+    })();
+    const hourConfidence = (span_score + hourCoverage + hourSep) / 3;
+    const hourLevel = hourConfidence >= 0.75 ? 'high' : hourConfidence >= 0.5 ? 'medium' : 'low';
+
+    const weekdayCoverage = weekdayBuckets.filter((b) => b.length >= 3).length / 7;
+    const weekdaySep = scoreSeparation(weekdayPick, 0.8); // weekday signal is weaker, 0.8¢ = full
+    const weekdayConfidence = weekdayPick.bestIdx >= 0
+      ? (span_score + weekdayCoverage + weekdaySep) / 3
+      : 0;
+    // Only surface weekday when its own confidence is high — otherwise it's noise.
+    const showWeekday = weekdayConfidence >= 0.75;
+
+    return {
+      hasEnoughData: true,
+      hour: hourPick.bestIdx,
+      weekday: showWeekday ? weekdayPick.bestIdx : null,
+      confidence: {
+        level: hourLevel,
+        score: hourConfidence,
+        span_days: Math.round(spanDays),
+        coverage_pct: Math.round(hourCoverage * 100),
+        gap_cents: Math.round(hourGapCents * 10) / 10,
+      },
+    };
+  }
+
   // --- Sparkline ---
   _renderSparkline(entityId) {
-    const data = this._historyData[entityId];
-    if (!data || data.length < 2) return "";
+    const allData = this._historyData[entityId];
+    if (!allData || allData.length < 2) return "";
+
+    // Sparkline shows last 7 days. With significant_changes_only the most recent
+    // change event may be older than 7 days (stable price) — prepend the last
+    // known point before the cutoff so the sparkline always renders.
+    const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    let data = allData.filter((d) => d.time >= cutoff);
+    if (data.length < 2) {
+      const lastKnown = allData.filter((d) => d.time < cutoff).at(-1);
+      if (lastKnown) data = [lastKnown, ...data];
+    }
+    if (data.length < 2) return "";
 
     const width = 280;
     const height = 48;
@@ -294,15 +618,107 @@ class TankstellenAustriaCard extends HTMLElement {
     const points = data.map((d, i) => {
       const x = (i / (data.length - 1)) * width;
       const y = height - padY - ((d.value - min) / range) * (height - 2 * padY);
-      return `${x.toFixed(1)},${y.toFixed(1)}`;
+      return { x, y, str: `${x.toFixed(1)},${y.toFixed(1)}` };
     });
 
-    const polyline = points.join(" ");
+    const polyline = points.map((p) => p.str).join(" ");
     const areaPoints = `${polyline} ${width},${height} 0,${height}`;
     const gradId = `spark-grad-${entityId.replace(/\./g, "_")}`;
 
+    // Analyse full history (up to 4 weeks) for a statistically meaningful recommendation.
+    // Marker anchors on the most recent occurrence of the recommended hour (and
+    // weekday, when that signal is confident). Exact matches are rare because the
+    // sensor only records price changes, so nearest-in-time produces a visually
+    // sensible marker instead of falling back to the minimum-value point.
+    const showBestRefuel = this._config.show_best_refuel !== false;
+    const analysis = showBestRefuel ? this._analyzeBestRefuelTime(allData) : null;
+    let sparklineMarkerIdx = -1;
+    if (analysis?.hasEnoughData) {
+      const now = new Date();
+      const target = new Date(now);
+      if (analysis.weekday != null) {
+        let daysBack = (now.getDay() - analysis.weekday + 7) % 7;
+        if (daysBack === 0 && now.getHours() < analysis.hour) daysBack = 7;
+        target.setDate(target.getDate() - daysBack);
+      } else if (now.getHours() < analysis.hour) {
+        target.setDate(target.getDate() - 1);
+      }
+      target.setHours(analysis.hour, 0, 0, 0);
+      const targetMs = target.getTime();
+
+      let bestDist = Infinity;
+      for (let i = 0; i < data.length; i++) {
+        const dist = Math.abs(data[i].time - targetMs);
+        if (dist < bestDist) { bestDist = dist; sparklineMarkerIdx = i; }
+      }
+    }
+
+    // Marker: dashed vertical line + dot at best-time data point
+    let markerSvg = "";
+    if (sparklineMarkerIdx >= 0 && sparklineMarkerIdx < points.length) {
+      const mp = points[sparklineMarkerIdx];
+      markerSvg = `
+        <line x1="${mp.x.toFixed(1)}" y1="0" x2="${mp.x.toFixed(1)}" y2="${height}"
+              stroke="var(--success-color,#4CAF50)" stroke-width="1" stroke-dasharray="3,2" opacity="0.8"/>
+        <circle cx="${mp.x.toFixed(1)}" cy="${mp.y.toFixed(1)}" r="3.5"
+                fill="var(--success-color,#4CAF50)" stroke="var(--card-background-color,#fff)" stroke-width="1.5"/>`;
+    }
+
+    // Recommendation text + confidence badge
+    let recommendationHtml = "";
+    if (analysis) {
+      if (!analysis.hasEnoughData) {
+        recommendationHtml = `
+          <div class="refuel-hint">
+            <ha-icon icon="mdi:information-outline" class="refuel-icon"></ha-icon>
+            ${this._t("not_enough_data_hint")}
+          </div>`;
+      } else {
+        const h1 = String(analysis.hour).padStart(2, "0");
+        const h2 = String((analysis.hour + 1) % 24).padStart(2, "0");
+        let text;
+        if (analysis.weekday != null) {
+          const day = this._t("weekdays")[analysis.weekday];
+          text = this._t("best_refuel_hour_weekday")
+            .replace("{h1}", h1).replace("{h2}", h2).replace("{day}", day);
+        } else {
+          text = this._t("best_refuel_hour").replace("{h1}", h1).replace("{h2}", h2);
+        }
+
+        const c = analysis.confidence;
+        const levelLabel = this._t(`confidence_${c.level}`);
+        const tooltipLines = [
+          `${this._t("confidence_title")}: ${levelLabel}`,
+          `• ${this._t("confidence_span")}: ${c.span_days} ${this._t("confidence_days")}`,
+          `• ${this._t("confidence_coverage")}: ${c.coverage_pct}%`,
+          `• ${this._t("confidence_gap")}: ${c.gap_cents.toFixed(1)} ${this._t("confidence_cents")}`,
+        ];
+        if (c.span_days < 14) tooltipLines.push("", this._t("confidence_short_history_hint"));
+        const tooltip = _escHtml(tooltipLines.join("\n"));
+        const badge = `<span class="refuel-confidence refuel-confidence-${c.level}" title="${tooltip}">${_escHtml(levelLabel)}</span>`;
+
+        recommendationHtml = `
+          <div class="refuel-recommendation">
+            <ha-icon icon="mdi:lightbulb-outline" class="refuel-icon"></ha-icon>
+            <span class="refuel-text">${text}</span>
+            ${badge}
+          </div>`;
+      }
+    }
+
+    // Hover-data payload (time + value + precomputed x/y) embedded on the SVG
+    // so the mousemove handler can look up the nearest point without re-deriving geometry.
+    const hoverPoints = data.map((d, i) => ({
+      t: d.time,
+      v: d.value,
+      x: +points[i].x.toFixed(1),
+      y: +points[i].y.toFixed(1),
+    }));
+
     return `
-      <svg class="sparkline" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none">
+      <svg class="sparkline" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none"
+           data-points='${JSON.stringify(hoverPoints)}'
+           data-width="${width}" data-height="${height}">
         <defs>
           <linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stop-color="var(--primary-color)" stop-opacity="0.3"/>
@@ -310,13 +726,24 @@ class TankstellenAustriaCard extends HTMLElement {
           </linearGradient>
         </defs>
         <polygon points="${areaPoints}" fill="url(#${gradId})" />
+        ${markerSvg}
         <polyline points="${polyline}" fill="none" stroke="var(--primary-color)" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" />
+        <line class="sparkline-hover-line" x1="0" y1="0" x2="0" y2="${height}"
+              stroke="var(--primary-text-color)" stroke-width="0.6" stroke-dasharray="2,2" opacity="0" pointer-events="none"/>
+        <circle class="sparkline-hover-dot" cx="0" cy="0" r="3"
+                fill="var(--primary-color)" stroke="var(--card-background-color,#fff)" stroke-width="1.5"
+                opacity="0" pointer-events="none"/>
       </svg>
+      <div class="sparkline-tooltip" hidden>
+        <span class="sparkline-tooltip-time"></span>
+        <span class="sparkline-tooltip-price"></span>
+      </div>
       <div class="sparkline-labels">
         <span>${this._formatPriceShort(min)}</span>
         <span class="sparkline-period">${this._t("last_7_days")}</span>
         <span>${this._formatPriceShort(max)}</span>
-      </div>`;
+      </div>
+      ${recommendationHtml}`;
   }
 
   _handleRefresh() {
@@ -508,6 +935,67 @@ class TankstellenAustriaCard extends HTMLElement {
       ? stations
       : stations.filter((s) => this._matchesPaymentFilter(s, paymentFilter));
 
+    // Cars fill-up row
+    // In filter mode: use cheapest visible (filtered) station — "–" when none pass the filter.
+    // In highlight mode: all stations are visible so use overall cheapest.
+    const showCars = this._config.show_cars === true;
+    const showCarFillup = this._config.show_car_fillup !== false;
+    const showCarConsumption = this._config.show_car_consumption !== false;
+    if (showCars && stations.length && (showCarFillup || showCarConsumption)) {
+      const allCars = (this._config.cars || []).filter(
+        (c) => c.fuel_type === fuelType && c.tank_size > 0 && c.name
+      );
+      // Verbrauch-only mode hides cars without consumption set.
+      const configCars = showCarFillup
+        ? allCars
+        : allCars.filter((c) => Number(c.consumption) > 0);
+      if (configCars.length) {
+        const effectiveCheapest = highlightMode
+          ? stations[0]?.price
+          : filteredStations[0]?.price;
+        html += `<div class="cars-fillup">`;
+        configCars.forEach((car) => {
+          const consumption = Number(car.consumption);
+          if (showCarFillup) {
+            const costStr = effectiveCheapest != null
+              ? `€ ${(effectiveCheapest * Number(car.tank_size)).toFixed(2).replace(".", ",")}`
+              : "–";
+            html += `<div class="car-fillup-row">
+              <span class="car-fillup-name">
+                <ha-icon icon="${_escHtml(car.icon || "mdi:car")}" class="car-icon"></ha-icon>
+                ${_escHtml(car.name)} <span class="car-fillup-liters">${car.tank_size} L</span>
+              </span>
+              <span class="car-fillup-cost">${costStr}</span>
+            </div>`;
+            if (showCarConsumption && consumption > 0) {
+              const per100Str = effectiveCheapest != null
+                ? `€ ${(effectiveCheapest * consumption).toFixed(2).replace(".", ",")}`
+                : "–";
+              const consumptionStr = consumption.toFixed(1).replace(".", ",");
+              html += `<div class="car-per100-row">
+                <span class="car-per100-label">${consumptionStr} l/100 km</span>
+                <span class="car-per100-cost">${per100Str} / 100 km</span>
+              </div>`;
+            }
+          } else {
+            // Verbrauch-only: use fill-up styling with consumption instead of tank size.
+            const per100Str = effectiveCheapest != null
+              ? `€ ${(effectiveCheapest * consumption).toFixed(2).replace(".", ",")}`
+              : "–";
+            const consumptionStr = consumption.toFixed(1).replace(".", ",");
+            html += `<div class="car-fillup-row">
+              <span class="car-fillup-name">
+                <ha-icon icon="${_escHtml(car.icon || "mdi:car")}" class="car-icon"></ha-icon>
+                ${_escHtml(car.name)} <span class="car-fillup-liters">${consumptionStr} l/100 km</span>
+              </span>
+              <span class="car-fillup-cost">${per100Str} / 100 km</span>
+            </div>`;
+          }
+        });
+        html += `</div>`;
+      }
+    }
+
     if (!filteredStations.length && paymentFilter.length && stations.length) {
       html += `<div class="empty">${this._t("payment_filter_active")} — ${this._t("no_data")}</div>`;
     } else if (!filteredStations.length) {
@@ -526,13 +1014,18 @@ class TankstellenAustriaCard extends HTMLElement {
             ? `<span class="badge closing-soon">${this._t("closing_soon")}</span>`
             : "";
         const isHighlighted = highlightMode && paymentFilter.length && this._matchesPaymentFilter(s, paymentFilter);
+        const matchChips = isHighlighted
+          ? this._matchingPaymentMethods(s, paymentFilter)
+              .map((m) => `<span class="pm-match-chip">${_escHtml(m)}</span>`)
+              .join("")
+          : "";
 
         html += `
           <div class="station${isHighlighted ? " pm-highlight" : ""}">
             <div class="station-main" data-expand="${this._activeTab}-${idx}">
               <div class="rank">${idx + 1}</div>
               <div class="info">
-                <div class="name">${s.name || "–"}${openLabel}</div>
+                <div class="name">${s.name || "–"}${openLabel}${matchChips}</div>
                 <div class="address">${loc.postalCode || ""} ${loc.city || ""}, ${loc.address || ""}</div>
               </div>
               <div class="price">${this._formatPrice(s.price)}</div>
@@ -595,6 +1088,22 @@ class TankstellenAustriaCard extends HTMLElement {
       if (method === "credit_card") return pm.credit_card;
       return (pm.others || []).some((o) => o.toLowerCase() === method.toLowerCase());
     });
+  }
+
+  _matchingPaymentMethods(s, filter) {
+    if (!filter || !filter.length) return [];
+    const pm = s.payment_methods || {};
+    const matches = [];
+    filter.forEach((method) => {
+      if (method === "cash" && pm.cash) matches.push(this._t("cash"));
+      else if (method === "debit_card" && pm.debit_card) matches.push(this._t("debit_card"));
+      else if (method === "credit_card" && pm.credit_card) matches.push(this._t("credit_card"));
+      else {
+        const match = (pm.others || []).find((o) => o.toLowerCase() === method.toLowerCase());
+        if (match) matches.push(match);
+      }
+    });
+    return matches;
   }
 
   _renderPaymentMethods(pm) {
@@ -662,6 +1171,7 @@ class TankstellenAustriaCard extends HTMLElement {
           composed: true,
         }));
       });
+      this._attachSparklineHover(sparklineContainer);
     }
   }
 
@@ -770,14 +1280,88 @@ class TankstellenAustriaCard extends HTMLElement {
         font-weight: 500;
         color: var(--secondary-text-color);
       }
+      .cars-fillup {
+        border-top: 1px solid var(--divider-color, rgba(0,0,0,0.12));
+        padding: 8px 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+      }
+      .car-fillup-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .car-fillup-name {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 13px;
+        color: var(--secondary-text-color);
+      }
+      .car-icon {
+        --mdc-icon-size: 14px;
+        color: var(--secondary-text-color);
+      }
+      .car-fillup-liters {
+        font-size: 11px;
+        opacity: 0.65;
+      }
+      .car-fillup-cost {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--primary-text-color);
+      }
+      .car-per100-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding-left: 19px;
+        margin-top: -2px;
+      }
+      .car-per100-label {
+        font-size: 11px;
+        color: var(--secondary-text-color);
+        opacity: 0.75;
+      }
+      .car-per100-cost {
+        font-size: 12px;
+        color: var(--secondary-text-color);
+      }
       .sparkline-container {
         margin-top: 8px;
         cursor: pointer;
+        position: relative;
       }
       .sparkline {
         width: 100%;
         height: 48px;
         display: block;
+      }
+      .sparkline-tooltip {
+        position: absolute;
+        top: -28px;
+        display: flex;
+        gap: 6px;
+        padding: 3px 7px;
+        background: var(--card-background-color, #fff);
+        border: 1px solid var(--divider-color);
+        border-radius: 6px;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+        font-size: 11px;
+        white-space: nowrap;
+        pointer-events: none;
+        z-index: 2;
+      }
+      .sparkline-tooltip[hidden] {
+        display: none;
+      }
+      .sparkline-tooltip-time {
+        color: var(--secondary-text-color);
+      }
+      .sparkline-tooltip-price {
+        color: var(--primary-text-color);
+        font-weight: 600;
       }
       .sparkline-labels {
         display: flex;
@@ -789,6 +1373,56 @@ class TankstellenAustriaCard extends HTMLElement {
       .sparkline-period {
         font-size: 10px;
         opacity: 0.6;
+      }
+      .refuel-recommendation {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 11px;
+        font-weight: 500;
+        color: var(--success-color, #4CAF50);
+        margin-top: 5px;
+        line-height: 1.3;
+      }
+      .refuel-hint {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 11px;
+        color: var(--secondary-text-color);
+        opacity: 0.75;
+        margin-top: 5px;
+      }
+      .refuel-icon {
+        --mdc-icon-size: 13px;
+        flex-shrink: 0;
+      }
+      .refuel-text {
+        flex: 1;
+        min-width: 0;
+      }
+      .refuel-confidence {
+        flex-shrink: 0;
+        font-size: 9px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+        padding: 1px 5px;
+        border-radius: 3px;
+        cursor: help;
+        white-space: nowrap;
+      }
+      .refuel-confidence-high {
+        background: color-mix(in srgb, var(--success-color, #4CAF50) 18%, transparent);
+        color: var(--success-color, #4CAF50);
+      }
+      .refuel-confidence-medium {
+        background: color-mix(in srgb, var(--warning-color, #FFA726) 18%, transparent);
+        color: var(--warning-color, #FFA726);
+      }
+      .refuel-confidence-low {
+        background: color-mix(in srgb, var(--secondary-text-color, #888) 15%, transparent);
+        color: var(--secondary-text-color, #888);
       }
       .stations {
         padding: 0;
@@ -879,6 +1513,17 @@ class TankstellenAustriaCard extends HTMLElement {
       .badge.closing-soon {
         background: var(--warning-color, #ff9800);
         color: #fff;
+      }
+      .pm-match-chip {
+        font-size: 10px;
+        padding: 1px 6px;
+        border: 1px solid var(--success-color, #4caf50);
+        border-radius: 8px;
+        color: var(--success-color, #4caf50);
+        font-weight: 500;
+        line-height: 14px;
+        white-space: nowrap;
+        flex-shrink: 0;
       }
       .dynamic-meta {
         display: flex;
@@ -1010,8 +1655,11 @@ class TankstellenAustriaCard extends HTMLElement {
       show_opening_hours: true,
       show_payment_methods: true,
       show_history: true,
+      show_best_refuel: true,
       payment_filter: [],
       payment_highlight_mode: true,
+      show_cars: false,
+      cars: [],
     };
   }
 }
@@ -1023,6 +1671,7 @@ class TankstellenAustriaCardEditor extends HTMLElement {
   _config = {};
   _hass = null;
   _pendingRemove = null;
+  _expandedCarIcon = null;
 
   setConfig(config) {
     this._config = { ...config };
@@ -1030,8 +1679,9 @@ class TankstellenAustriaCardEditor extends HTMLElement {
   }
 
   set hass(hass) {
+    const firstTime = !this._hass;
     this._hass = hass;
-    this._render();
+    if (firstTime) this._render();
   }
 
   _lang() {
@@ -1061,10 +1711,15 @@ class TankstellenAustriaCardEditor extends HTMLElement {
     const showHours = this._config.show_opening_hours !== false;
     const showPayment = this._config.show_payment_methods !== false;
     const showHistory = this._config.show_history !== false;
+    const showBestRefuel = this._config.show_best_refuel !== false;
     const paymentFilter = this._config.payment_filter || [];
     const highlightMode = this._config.payment_highlight_mode === true;
+    const showCars = this._config.show_cars === true;
+    const showCarFillup = this._config.show_car_fillup !== false;
+    const showCarConsumption = this._config.show_car_consumption !== false;
+    const cars = this._config.cars || [];
 
-    const escHtml = (s) => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+    const escHtml = _escHtml;
 
     // Keys available from live API data (builtin + whatever stations report)
     const apiPmKeys = new Set(["cash", "debit_card", "credit_card"]);
@@ -1148,6 +1803,57 @@ class TankstellenAustriaCardEditor extends HTMLElement {
             color: var(--primary-text-color);
             cursor: pointer;
           }
+          .toggle-row-sub {
+            padding-left: 16px;
+          }
+          .toggle-row-sub label {
+            font-size: 12px;
+            color: var(--secondary-text-color);
+          }
+          .recorder-hint {
+            margin: 4px 0 2px 16px;
+            padding: 8px 10px;
+            border-radius: 6px;
+            background: var(--secondary-background-color, rgba(255,255,255,0.04));
+            border: 1px solid var(--divider-color);
+          }
+          .recorder-hint-text {
+            font-size: 11px;
+            line-height: 1.4;
+            color: var(--secondary-text-color);
+            margin-bottom: 6px;
+          }
+          .recorder-snippet {
+            margin: 0;
+            padding: 8px;
+            border-radius: 4px;
+            background: var(--code-editor-background-color, var(--primary-background-color, #0e0e0e));
+            font-family: var(--code-font-family, monospace);
+            font-size: 11px;
+            line-height: 1.35;
+            color: var(--primary-text-color);
+            overflow-x: auto;
+            white-space: pre;
+          }
+          .recorder-copy-btn {
+            margin-top: 6px;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3px 8px;
+            border-radius: 4px;
+            background: transparent;
+            border: 1px solid var(--divider-color);
+            color: var(--primary-text-color);
+            font-size: 11px;
+            cursor: pointer;
+          }
+          .recorder-copy-btn:hover {
+            background: var(--primary-background-color);
+          }
+          .recorder-copy-btn ha-icon {
+            --mdc-icon-size: 14px;
+          }
           .divider {
             height: 1px;
             background: var(--divider-color);
@@ -1209,6 +1915,135 @@ class TankstellenAustriaCardEditor extends HTMLElement {
             color: var(--primary-color);
             flex-shrink: 0;
           }
+          .car-editor-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+          }
+          .car-input {
+            background: var(--input-fill-color, rgba(0,0,0,0.06));
+            border: 1px solid var(--divider-color);
+            border-radius: 8px;
+            padding: 6px 8px;
+            font-size: 13px;
+            color: var(--primary-text-color);
+            outline: none;
+            font-family: inherit;
+            min-width: 0;
+          }
+          .car-input:focus {
+            border-color: var(--primary-color);
+          }
+          .car-name-input {
+            flex: 1 1 60px;
+          }
+          .car-tank-input {
+            width: 58px;
+            flex-shrink: 0;
+          }
+          .car-consumption-input {
+            width: 68px;
+            flex-shrink: 0;
+          }
+          .car-select {
+            background: var(--input-fill-color, rgba(0,0,0,0.06));
+            border: 1px solid var(--divider-color);
+            border-radius: 8px;
+            padding: 6px 4px;
+            font-size: 13px;
+            color: var(--primary-text-color);
+            cursor: pointer;
+            font-family: inherit;
+            flex-shrink: 0;
+          }
+          .car-delete-btn {
+            background: none;
+            border: none;
+            color: var(--error-color, #db4437);
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            flex-shrink: 0;
+          }
+          .car-delete-btn:hover {
+            background: rgba(219,68,55,0.1);
+          }
+          .car-add-btn {
+            align-self: flex-start;
+            background: none;
+            border: 1px dashed var(--divider-color);
+            border-radius: 8px;
+            color: var(--primary-color);
+            cursor: pointer;
+            font-size: 13px;
+            padding: 8px 14px;
+            width: 100%;
+            font-family: inherit;
+            transition: background 0.15s;
+          }
+          .car-add-btn:hover {
+            background: rgba(0,0,0,0.04);
+          }
+          .car-editor-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+          }
+          .car-icon-btn {
+            background: var(--secondary-background-color, rgba(0,0,0,0.06));
+            border: 1px solid var(--divider-color);
+            border-radius: 8px;
+            color: var(--primary-color);
+            cursor: pointer;
+            padding: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            transition: background 0.15s, border-color 0.15s;
+            --mdc-icon-size: 20px;
+          }
+          .car-icon-btn.active {
+            border-color: var(--primary-color);
+            background: rgba(var(--rgb-primary-color,33,150,243), 0.1);
+          }
+          .car-icon-btn:hover {
+            border-color: var(--primary-color);
+          }
+          .car-icon-picker {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            padding: 6px 8px;
+            background: var(--secondary-background-color, rgba(0,0,0,0.04));
+            border-radius: 8px;
+            border: 1px solid var(--divider-color);
+          }
+          .car-icon-option {
+            background: none;
+            border: 1px solid transparent;
+            border-radius: 6px;
+            color: var(--secondary-text-color);
+            cursor: pointer;
+            padding: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.15s;
+            --mdc-icon-size: 20px;
+          }
+          .car-icon-option:hover {
+            background: var(--card-background-color, #fff);
+            color: var(--primary-color);
+            border-color: var(--divider-color);
+          }
+          .car-icon-option.active {
+            background: var(--primary-color);
+            color: var(--text-primary-color, #fff);
+            border-color: var(--primary-color);
+          }
         </style>
 
         <!-- Entity selection -->
@@ -1251,6 +2086,26 @@ class TankstellenAustriaCardEditor extends HTMLElement {
             <label for="toggle-history">${this._et("show_history")}</label>
             <ha-switch id="toggle-history" ${showHistory ? "checked" : ""} data-field="show_history"></ha-switch>
           </div>
+          ${showHistory ? `
+          <div class="toggle-row toggle-row-sub">
+            <label for="toggle-best-refuel">${this._et("show_best_refuel")}</label>
+            <ha-switch id="toggle-best-refuel" ${showBestRefuel ? "checked" : ""} data-field="show_best_refuel"></ha-switch>
+          </div>
+          ${showBestRefuel ? `
+          <div class="recorder-hint">
+            <div class="recorder-hint-text">${this._et("recorder_hint_intro")}</div>
+            <pre class="recorder-snippet"><code>recorder:
+  purge_keep_days: 30</code></pre>
+            <button class="recorder-copy-btn" type="button">
+              <ha-icon icon="mdi:content-copy"></ha-icon>
+              <span class="recorder-copy-label">${this._et("copy")}</span>
+            </button>
+          </div>` : ""}` : ""}
+          <div class="divider"></div>
+          <div class="toggle-row">
+            <label for="toggle-cars">${this._et("show_cars")}</label>
+            <ha-switch id="toggle-cars" ${showCars ? "checked" : ""} data-field="show_cars"></ha-switch>
+          </div>
           <div class="divider"></div>
           <div class="toggle-row" style="padding-top:4px">
             <label for="slider-stations">${this._et("max_stations")}</label>
@@ -1289,6 +2144,59 @@ class TankstellenAustriaCardEditor extends HTMLElement {
             <ha-switch id="toggle-highlight" ${highlightMode ? "checked" : ""} data-field="payment_highlight_mode"></ha-switch>
           </div>` : ""}
         </div>` : ""}
+
+        <!-- Cars section (only when show_cars is on) -->
+        ${showCars ? `
+        <div class="editor-section">
+          <div class="section-header">${this._et("section_cars")}</div>
+          <div class="toggle-row">
+            <label for="toggle-car-fillup">${this._et("show_car_fillup")}</label>
+            <ha-switch id="toggle-car-fillup" ${showCarFillup ? "checked" : ""} data-field="show_car_fillup"></ha-switch>
+          </div>
+          <div class="toggle-row">
+            <label for="toggle-car-consumption">${this._et("show_car_consumption")}</label>
+            <ha-switch id="toggle-car-consumption" ${showCarConsumption ? "checked" : ""} data-field="show_car_consumption"></ha-switch>
+          </div>
+          ${!showCarFillup && !showCarConsumption ? `
+          <div class="editor-hint">${this._et("cars_both_off_hint")}</div>` : ""}
+          <div class="divider"></div>
+          ${cars.map((car, idx) => `
+            <div class="car-editor-group">
+              <div class="car-editor-row">
+                <button class="car-icon-btn${this._expandedCarIcon === idx ? " active" : ""}" data-car-idx="${idx}" title="Choose icon">
+                  <ha-icon icon="${escHtml(car.icon || "mdi:car")}"></ha-icon>
+                </button>
+                <input class="car-input car-name-input" type="text"
+                  placeholder="${this._et("car_name_placeholder")}"
+                  value="${escHtml(car.name || "")}"
+                  data-car-idx="${idx}" data-car-field="name" />
+                <select class="car-select" data-car-idx="${idx}" data-car-field="fuel_type">
+                  ${["DIE","SUP","GAS"].map((ft) => `<option value="${ft}"${car.fuel_type === ft ? " selected" : ""}>${(TRANSLATIONS[this._lang()]||TRANSLATIONS.de).fuel_types[ft]||ft}</option>`).join("")}
+                </select>
+                <input class="car-input car-tank-input" type="number" min="1" max="200"
+                  placeholder="${this._et("car_tank_placeholder")}"
+                  value="${car.tank_size || ""}"
+                  data-car-idx="${idx}" data-car-field="tank_size" />
+                <input class="car-input car-consumption-input" type="number" min="0" max="30" step="0.1"
+                  placeholder="${this._et("car_consumption_placeholder")}"
+                  value="${car.consumption || ""}"
+                  data-car-idx="${idx}" data-car-field="consumption" />
+                <button class="car-delete-btn" data-car-idx="${idx}">
+                  <ha-icon icon="mdi:delete-outline"></ha-icon>
+                </button>
+              </div>
+              ${this._expandedCarIcon === idx ? `
+              <div class="car-icon-picker">
+                ${CAR_ICONS.map((icon) => `
+                  <button class="car-icon-option${(car.icon || "mdi:car") === icon ? " active" : ""}" data-car-idx="${idx}" data-icon="${icon}" title="${icon.replace("mdi:", "")}">
+                    <ha-icon icon="${icon}"></ha-icon>
+                  </button>
+                `).join("")}
+              </div>` : ""}
+            </div>
+          `).join("")}
+          <button class="car-add-btn">${this._et("add_car")}</button>
+        </div>` : ""}
       </div>
     `;
 
@@ -1312,6 +2220,9 @@ class TankstellenAustriaCardEditor extends HTMLElement {
 
     // Range slider
     this.querySelectorAll('input[type="range"]').forEach((input) => {
+      ["keydown", "keyup", "keypress"].forEach((evt) => {
+        input.addEventListener(evt, (e) => e.stopPropagation());
+      });
       input.addEventListener("input", (e) => {
         const field = e.target.dataset.field;
         this._config = { ...this._config, [field]: parseInt(e.target.value, 10) };
@@ -1327,6 +2238,22 @@ class TankstellenAustriaCardEditor extends HTMLElement {
         const field = e.target.dataset.field;
         this._config = { ...this._config, [field]: e.target.checked };
         this._fireChanged();
+      });
+    });
+
+    // Recorder snippet copy button — copies the YAML from the adjacent <pre>.
+    this.querySelectorAll(".recorder-copy-btn").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const pre = btn.parentElement?.querySelector(".recorder-snippet code");
+        const snippet = pre ? pre.textContent : "";
+        const label = btn.querySelector(".recorder-copy-label");
+        try {
+          await navigator.clipboard.writeText(snippet);
+          if (label) {
+            label.textContent = this._et("copied");
+            setTimeout(() => { label.textContent = this._et("copy"); }, 1500);
+          }
+        } catch (_) { /* clipboard unavailable (insecure context) — silent */ }
       });
     });
 
@@ -1395,6 +2322,108 @@ class TankstellenAustriaCardEditor extends HTMLElement {
         });
       });
       customAddBtn.addEventListener("click", addCustom);
+    }
+
+    // Car icon button — toggle picker
+    this.querySelectorAll(".car-icon-btn").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const idx = parseInt(btn.dataset.carIdx, 10);
+        this._expandedCarIcon = this._expandedCarIcon === idx ? null : idx;
+        this._render();
+      });
+    });
+
+    // Car icon option — select icon
+    this.querySelectorAll(".car-icon-option").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const idx = parseInt(btn.dataset.carIdx, 10);
+        const icon = btn.dataset.icon;
+        const newCars = [...(this._config.cars || [])];
+        newCars[idx] = { ...newCars[idx], icon };
+        this._config = { ...this._config, cars: newCars };
+        this._expandedCarIcon = null;
+        this._fireChanged();
+        this._render();
+      });
+    });
+
+    // Car name / tank-size / consumption inputs
+    this.querySelectorAll(".car-name-input, .car-tank-input, .car-consumption-input").forEach((input) => {
+      ["keydown", "keyup", "keypress"].forEach((evt) => {
+        input.addEventListener(evt, (e) => e.stopPropagation());
+      });
+      input.addEventListener("click", (e) => e.stopPropagation());
+      input.addEventListener("pointerdown", (e) => e.stopPropagation());
+      input.addEventListener("change", (e) => {
+        e.stopPropagation();
+        const idx = parseInt(e.target.dataset.carIdx, 10);
+        const field = e.target.dataset.carField;
+        const newCars = [...(this._config.cars || [])];
+        if (field === "consumption") {
+          const raw = e.target.value.trim();
+          const next = { ...newCars[idx] };
+          if (raw === "") {
+            delete next.consumption;
+          } else {
+            const num = parseFloat(raw);
+            if (Number.isFinite(num) && num > 0) {
+              next.consumption = Math.min(30, Math.round(num * 10) / 10);
+            } else {
+              delete next.consumption;
+            }
+          }
+          newCars[idx] = next;
+        } else {
+          const val = field === "tank_size"
+            ? Math.max(1, parseInt(e.target.value, 10) || 1)
+            : e.target.value.replace(/[<>"'&]/g, "").slice(0, 50);
+          newCars[idx] = { ...newCars[idx], [field]: val };
+        }
+        this._config = { ...this._config, cars: newCars };
+        this._fireChanged();
+      });
+    });
+
+    // Car fuel-type selects
+    this.querySelectorAll(".car-select").forEach((select) => {
+      select.addEventListener("click", (e) => e.stopPropagation());
+      select.addEventListener("pointerdown", (e) => e.stopPropagation());
+      select.addEventListener("change", (e) => {
+        e.stopPropagation();
+        const idx = parseInt(e.target.dataset.carIdx, 10);
+        const newCars = [...(this._config.cars || [])];
+        newCars[idx] = { ...newCars[idx], fuel_type: e.target.value };
+        this._config = { ...this._config, cars: newCars };
+        this._fireChanged();
+      });
+    });
+
+    // Car delete buttons
+    this.querySelectorAll(".car-delete-btn").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const idx = parseInt(btn.dataset.carIdx, 10);
+        const newCars = [...(this._config.cars || [])];
+        newCars.splice(idx, 1);
+        this._config = { ...this._config, cars: newCars };
+        this._fireChanged();
+        this._render();
+      });
+    });
+
+    // Add car button
+    const addCarBtn = this.querySelector(".car-add-btn");
+    if (addCarBtn) {
+      addCarBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const newCars = [...(this._config.cars || [])];
+        newCars.push({ name: "", fuel_type: "DIE", tank_size: 50 });
+        this._config = { ...this._config, cars: newCars };
+        this._fireChanged();
+        this._render();
+      });
     }
   }
 }

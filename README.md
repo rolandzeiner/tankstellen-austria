@@ -1,8 +1,8 @@
 # Tankstellen Austria
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
-[![HA min version](https://img.shields.io/badge/Home%20Assistant-%3E%3D2024.6-blue.svg)](https://www.home-assistant.io/)
-[![Version](https://img.shields.io/badge/version-1.4.3-blue.svg)](https://github.com/rolandzeiner/tankstellen-austria/releases)
+[![HA min version](https://img.shields.io/badge/Home%20Assistant-%3E%3D2024.11-blue.svg)](https://www.home-assistant.io/)
+[![Version](https://img.shields.io/badge/version-1.5.0-blue.svg)](https://github.com/rolandzeiner/tankstellen-austria/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![vibe-coded](https://img.shields.io/badge/vibe-coded-ff69b4?logo=musicbrainz&logoColor=white)](https://en.wikipedia.org/wiki/Vibe_coding)
 
@@ -18,8 +18,10 @@ and/or CNG.
 - **One sensor per fuel type** – state = cheapest price, attributes contain all 5 stations with name, address, opening hours, payment methods, and Google Maps link
 - **Custom Lovelace card** – `tankstellen-austria-card` with fuel-type tabs, expandable detail panel (opening hours + payment methods), map links, and 7-day price sparkline
 - **Payment method filter** *(1.4.2)* – filter or highlight stations by accepted payment methods (cash, Bankomat, credit card, Austrocard, UTA, DKV, …)
-- **Payment highlight mode** *(1.4.3)* – switch between hiding non-matching stations (filter) and highlighting them with a green accent instead
+- **Payment highlight mode** *(1.4.3)* – switch between hiding non-matching stations (filter) and highlighting them with a green accent instead; highlighted stations also show a green chip after the name listing each payment method that matched the filter
 - **Custom payment method values** *(1.4.3)* – add fleet cards or other values not listed by nearby stations (e.g. Routex, DKV) directly in the card editor
+- **Car fill-up cost widget** *(1.5.0)* – define your cars (name, fuel type, tank size, optional ⌀ consumption in l/100 km) in the card editor and see the total fill-up cost at the cheapest nearby station, shown below the price header; when consumption is set, the cost per 100 km is shown as a second line; each car gets its own MDI icon picked from a built-in icon grid; per-row toggles ("Tankkosten anzeigen" / "Verbrauch anzeigen") let you show only the fill-up cost, only the per-100 km cost (cars without consumption are hidden in that mode), or both
+- **Best refuel time recommendation** *(1.5.0)* – analyses up to 4 weeks of price history to identify the weekday and hour that is consistently cheapest *relative to that week's prices*; uses time-weighted hourly sampling and per-week normalisation so a slot that is always the weekly low point wins regardless of whether prices were generally high or low that week; shown below the sparkline with a green marker on the graph; requires data spanning at least 2 weeks before a recommendation is shown (a "not enough data" hint is displayed until then)
 - **Auto-detection** – the card automatically finds all Tankstellen Austria sensors, no manual entity configuration needed
 - **Visual card editor** – configure everything through the HA UI
 - **Average price tracking** – average of all 5 stations as sensor attribute, tracked in HA history for long-term analysis
@@ -46,7 +48,7 @@ and/or CNG.
 
 ## Requirements
 
-- Home Assistant **2024.6** or newer
+- Home Assistant **2024.11** or newer
 
 ## Installation
 
@@ -65,6 +67,8 @@ and/or CNG.
 2. Restart Home Assistant
 
 ## Setup
+
+[![Open your Home Assistant instance and start setting up a new integration.](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=tankstellen_austria)
 
 1. Go to **Settings → Devices & Services → + Add Integration**
 2. Search for **Tankstellen Austria**
@@ -141,6 +145,16 @@ payment_filter:
   - cash
   - Austrocard
 payment_highlight_mode: true
+show_cars: true
+cars:
+  - name: Golf TDI
+    fuel_type: DIE
+    tank_size: 50
+    icon: mdi:car-hatchback
+  - name: Familienauto
+    fuel_type: SUP
+    tank_size: 65
+    icon: mdi:car-estate
 ```
 
 ### Card options
@@ -153,27 +167,77 @@ payment_highlight_mode: true
 | `show_map_links` | `true` | Show map link per station — opens Google Maps for addresses with a street number, Google Search otherwise |
 | `show_opening_hours` | `true` | Show expandable opening hours on click |
 | `show_payment_methods` | `true` | Show payment method badges in expandable detail |
-| `show_history` | `true` | Show 7-day sparkline price graph (fixed mode only) |
+| `show_history` | `true` | Show 7-day sparkline price graph with best refuel time marker and recommendation (fixed mode only) |
+| `show_best_refuel` | `true` | Show the refuel-time recommendation and green sparkline marker (requires `show_history`) |
 | `payment_filter` | `[]` | Show/highlight stations accepting **at least one** of the listed methods. Values: `cash`, `debit_card`, `credit_card`, or any string from the API `others` field (e.g. `Austrocard`, `UTA`, `DKV`, `Routex`). Configurable via the visual editor. |
 | `payment_highlight_mode` | `true` | When `true`, matching stations are highlighted with a green accent instead of non-matching ones being hidden. |
+| `show_cars` | `false` | Show the fill-up cost row below the price header. |
+| `cars` | `[]` | List of car objects. Each entry: `name` (string), `fuel_type` (`DIE`/`SUP`/`GAS`), `tank_size` (litres), `icon` (MDI icon name, e.g. `mdi:car-sports`). Configurable via the visual editor. |
 
 ### What the card shows
 
 **Fixed mode:**
 - Fuel type header with cheapest price and average price (Ø)
-- 7-day sparkline of cheapest price history with min/max labels
+- 7-day sparkline of cheapest price history with min/max labels, green dashed marker at the best refuel hour, and a recommendation below (e.g. "Tip: Cheapest between 11:00–12:00" with a High/Medium/Low confidence badge — hover the badge for the score breakdown); analyses up to 4 weeks of history with per-week winsorising, recency weighting, and weighted medians; the weekday is only added to the tip when its signal is strong enough to be meaningful; shows a "not enough data" hint until at least 7 days of data are available; hover over the sparkline (or touch on mobile) to see a thin vertical indicator and a tooltip with the exact date/time and price at that point
 - Station list ranked by price with name, address, and map link
 - Expandable detail panel per station (click to open): opening hours + payment method badges
 - **Closed** badge (red) on currently closed stations
 - **Closing Soon** badge (amber) on stations closing within 30 minutes
-- Optional **payment filter** — hide stations that don't accept any of the required methods, or use **highlight mode** to keep all stations visible with matching ones accented in green
+- Optional **payment filter** — hide stations that don't accept any of the required methods, or use **highlight mode** to keep all stations visible with matching ones accented in green and tagged with a chip naming which method(s) matched
 - Custom payment values can be added in the editor (e.g. `Routex`, `DKV`) — common API values: `Austrocard`, `UTA`, `DKV`, `Routex`, `Fleetcard`, `ADAC`
+- Optional **fill-up cost row** — shows total cost to fill each configured car at the cheapest station; only cars matching the active fuel type tab are shown
 
 **Dynamic mode (additional/different):**
 - Tab label includes tracker name — e.g. "Diesel · iPhone"
 - Header shows **"Updated: HH:MM"** instead of prices
 - **Refresh** button with live countdown cooldown (2 min)
 - Sparkline hidden
+
+### How the best refuel time is calculated
+
+The recommendation is computed in the browser from up to **4 weeks** of your sensor's own price history (refetched every 30 minutes). The algorithm separates two different signals:
+
+- **Best hour-of-day** (strong signal) — Austrian law (Preisauszeichnungsgesetz) allows prices to rise only once per day at 12:00 noon; they can drop at any time. This produces a reliable daily sawtooth where prices drift down through the afternoon/evening and reset upward at noon.
+- **Best weekday** (weak signal) — typically noise with only 4 weeks of data. It is **only added to the tip when its own confidence is high**, otherwise the tip shows the hour alone.
+
+**Pipeline**
+
+1. **Time-weighted hourly expansion** — the sensor only records a value when the cheapest nearby price changes, so each event is held constant across every full hour until the next event. Turns a sparse event stream into a dense hourly sample series.
+2. **Per-week winsorising** — samples are grouped into Monday-aligned weeks; values outside the 5th–95th percentile of that week are clipped before aggregation. This blunts sensor glitches and the sharp noon-reset spike.
+3. **Per-week normalisation** — each sample's delta (`price − week_mean_after_clipping`) is used instead of the raw price. Slots are then ranked by how cheap they are *relative to their own week*, so a slot that is consistently the weekly low wins even in weeks where the overall price level was high.
+4. **Independent bucketing** — deltas are aggregated once by hour-of-day (24 buckets) and once by weekday (7 buckets). Bucketing them together (the old 168-bucket grid) mixes strong and weak signals and overstates weekday precision.
+5. **Weighted median per bucket** — recency matters: each sample is weighted by `0.5^(age_in_days / 14)`, so samples from two weeks ago count half as much as today's, four weeks ago a quarter as much. The winning bucket is the one with the lowest weighted median delta.
+6. **Confidence score** — three components are averaged:
+   - **Data span** — how much of the 28-day target window actually contains data.
+   - **Coverage** — fraction of the 24 hours that have at least 3 observations.
+   - **Separation** — how far the winning hour sits below the cross-bucket median, measured in cents (≥ 1.5¢ gap = full score).
+
+   Combined score maps to a **High / Medium / Low** badge next to the tip; hover the badge for the breakdown.
+
+**Home Assistant recorder retention**
+
+The algorithm works best with the full 28-day window. Home Assistant's default `recorder.purge_keep_days` is **10 days**, so out of the box only the last ~10 days are available and the card will report lower confidence until the window fills up.
+
+To give it the full 28 days, extend global recorder retention:
+
+```yaml
+# configuration.yaml
+recorder:
+  purge_keep_days: 30
+```
+
+Restart Home Assistant after editing. Existing data already beyond the default window is lost; the card will keep improving as new weeks accumulate.
+
+> **Note:** Home Assistant's recorder `include:` option is a whitelist — adding `include:` would stop HA recording everything _not_ listed, which is almost never what you want. To reduce database growth at 30-day retention, use an `exclude:` list for chatty entities you don't need long-term (e.g. `sun.sun`, weather entities, fast-updating meters). The `tankstellen_*` sensors only change when the cheapest nearby price changes, so they contribute very little by themselves.
+
+**Limitations**
+
+- At least **7 days** of history are needed before any tip appears. Weeks with fewer than 24 hourly samples are skipped.
+- Granularity is one hour; no sub-hour window.
+- Austrian public holidays are not modelled explicitly — they are averaged into the numbers along with normal days.
+- The tip reflects the *cheapest nearby station at each point in time* (what the sensor records), not any single station's own pattern.
+
+Have an idea to improve the algorithm (e.g. holiday calendars, seasonal splits)? Open an issue or discussion on GitHub — feedback is welcome.
 
 ## Sensors
 

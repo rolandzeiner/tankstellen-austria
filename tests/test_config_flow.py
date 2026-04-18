@@ -16,7 +16,7 @@ from custom_components.tankstellen_austria.const import (
 
 VALID_USER_INPUT = {
     "name": "Test Tankstelle",
-    "location": {"latitude": 48.2082, "longitude": 15.6256},
+    "location": {"latitude": 48.1478, "longitude": 16.5147},
     CONF_FUEL_TYPES: ["DIE", "SUP"],
     CONF_INCLUDE_CLOSED: True,
     CONF_SCAN_INTERVAL: 30,
@@ -57,8 +57,8 @@ async def test_form_creates_entry(hass: HomeAssistant, mock_fetch) -> None:
     )
     assert result["type"] == FlowResultType.CREATE_ENTRY
     assert result["title"] == "Test Tankstelle"
-    assert result["data"][CONF_LATITUDE] == 48.2082
-    assert result["data"][CONF_LONGITUDE] == 15.6256
+    assert result["data"][CONF_LATITUDE] == 48.1478
+    assert result["data"][CONF_LONGITUDE] == 16.5147
     assert result["data"][CONF_FUEL_TYPES] == ["DIE", "SUP"]
     assert result["data"][CONF_INCLUDE_CLOSED] is True
     assert result["data"][CONF_SCAN_INTERVAL] == 30
@@ -118,7 +118,7 @@ async def test_options_flow_updates(hass: HomeAssistant, mock_fetch) -> None:
     result = await hass.config_entries.options.async_configure(
         result["flow_id"],
         {
-            "location": {"latitude": 48.2082, "longitude": 15.6256},
+            "location": {"latitude": 48.1478, "longitude": 16.5147},
             CONF_FUEL_TYPES: ["DIE"],
             CONF_INCLUDE_CLOSED: False,
             CONF_SCAN_INTERVAL: 60,
@@ -160,7 +160,7 @@ async def test_options_flow_no_fuel_type(hass: HomeAssistant, mock_fetch) -> Non
     result = await hass.config_entries.options.async_configure(
         result["flow_id"],
         {
-            "location": {"latitude": 48.2082, "longitude": 15.6256},
+            "location": {"latitude": 48.1478, "longitude": 16.5147},
             CONF_FUEL_TYPES: [],
             CONF_INCLUDE_CLOSED: True,
             CONF_SCAN_INTERVAL: 30,

@@ -6,11 +6,12 @@ import pytest
 
 pytest_plugins = "pytest_homeassistant_custom_component"
 
+# Test fixtures use the coordinates of the Friedhof der Namenlosen in Vienna.
 MOCK_STATION = {
     "id": 1,
     "name": "Test Tankstelle",
     "open": True,
-    "location": {"latitude": 48.2082, "longitude": 15.6256},
+    "location": {"latitude": 48.1478, "longitude": 16.5147},
     "prices": [{"amount": 1.459}],
     "openingHours": [],
 }

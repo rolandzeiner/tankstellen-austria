@@ -23,14 +23,14 @@ MOCK_STATION = {
     "id": 1,
     "name": "Test Tankstelle",
     "open": True,
-    "location": {"latitude": 48.2082, "longitude": 15.6256},
+    "location": {"latitude": 48.1478, "longitude": 16.5147},
     "prices": [{"amount": 1.459}],
     "openingHours": [],
 }
 
 BASE_ENTRY_DATA = {
-    CONF_LATITUDE: 48.2082,
-    CONF_LONGITUDE: 15.6256,
+    CONF_LATITUDE: 48.1478,
+    CONF_LONGITUDE: 16.5147,
     CONF_FUEL_TYPES: ["DIE", "SUP"],
     CONF_INCLUDE_CLOSED: True,
     CONF_SCAN_INTERVAL: 30,
@@ -69,7 +69,7 @@ async def test_fixed_mode_uses_configured_coordinates(hass: HomeAssistant, mock_
     coordinator = TankstellenCoordinator(hass, entry)
     await coordinator.async_refresh()
 
-    mock_fetch.assert_any_call("DIE", 48.2082, 15.6256)
+    mock_fetch.assert_any_call("DIE", 48.1478, 16.5147)
 
 
 async def test_fixed_mode_uses_poll_interval(hass: HomeAssistant) -> None:
@@ -157,7 +157,7 @@ async def test_should_update_first_call_no_prior_position(hass: HomeAssistant) -
     entry = _make_entry({CONF_DYNAMIC_ENTITY: "device_tracker.phone"})
     entry.add_to_hass(hass)
     coordinator = TankstellenCoordinator(hass, entry)
-    assert coordinator._should_update(48.2, 15.6) is True
+    assert coordinator._should_update(48.15, 16.51) is True
 
 
 async def test_should_update_distance_below_threshold(hass: HomeAssistant) -> None:
@@ -169,12 +169,12 @@ async def test_should_update_distance_below_threshold(hass: HomeAssistant) -> No
     coordinator = TankstellenCoordinator(hass, entry)
 
     # Simulate a previous fetch nearby (< 1500 m away)
-    coordinator._last_fetch_lat = 48.2082
-    coordinator._last_fetch_lng = 15.6256
+    coordinator._last_fetch_lat = 48.1478
+    coordinator._last_fetch_lng = 16.5147
     coordinator._last_fetch_time = dt_util.utcnow() - timedelta(hours=1)
 
     # Move only ~10 m
-    assert coordinator._should_update(48.2083, 15.6257) is False
+    assert coordinator._should_update(48.1479, 16.5148) is False
 
 
 async def test_should_update_distance_above_threshold(hass: HomeAssistant) -> None:
@@ -185,12 +185,12 @@ async def test_should_update_distance_above_threshold(hass: HomeAssistant) -> No
     entry.add_to_hass(hass)
     coordinator = TankstellenCoordinator(hass, entry)
 
-    coordinator._last_fetch_lat = 48.2082
-    coordinator._last_fetch_lng = 15.6256
+    coordinator._last_fetch_lat = 48.1478
+    coordinator._last_fetch_lng = 16.5147
     coordinator._last_fetch_time = dt_util.utcnow() - timedelta(hours=1)
 
     # Move ~15 km
-    assert coordinator._should_update(48.3, 15.7) is True
+    assert coordinator._should_update(48.25, 16.6) is True
 
 
 async def test_should_update_per_entry_cooldown(hass: HomeAssistant) -> None:
@@ -220,7 +220,7 @@ async def test_should_update_domain_cooldown(hass: HomeAssistant) -> None:
     # Set domain-wide timestamp to just now
     hass.data.setdefault(DOMAIN, {})[DOMAIN_LAST_API_CALL_KEY] = dt_util.utcnow()
 
-    assert coordinator._should_update(48.2, 15.6) is False
+    assert coordinator._should_update(48.15, 16.51) is False
 
 
 # ---------------------------------------------------------------------------
@@ -266,7 +266,7 @@ async def test_include_closed_true_passed_to_api(hass: HomeAssistant) -> None:
     mock_resp.json = AsyncMock(return_value=[MOCK_STATION])
 
     with patch.object(coordinator._session, "get", new=AsyncMock(return_value=mock_resp)) as mock_get:
-        await coordinator._fetch("DIE", 48.2082, 15.6256)
+        await coordinator._fetch("DIE", 48.1478, 16.5147)
 
     _, kwargs = mock_get.call_args
     assert kwargs["params"]["includeClosed"] == "true"
@@ -283,7 +283,7 @@ async def test_include_closed_false_passed_to_api(hass: HomeAssistant) -> None:
     mock_resp.json = AsyncMock(return_value=[MOCK_STATION])
 
     with patch.object(coordinator._session, "get", new=AsyncMock(return_value=mock_resp)) as mock_get:
-        await coordinator._fetch("DIE", 48.2082, 15.6256)
+        await coordinator._fetch("DIE", 48.1478, 16.5147)
 
     _, kwargs = mock_get.call_args
     assert kwargs["params"]["includeClosed"] == "false"
