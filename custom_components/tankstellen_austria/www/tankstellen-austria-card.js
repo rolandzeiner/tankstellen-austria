@@ -1,10 +1,10 @@
 /**
- * Tankstellen Austria Card v1.5.0-beta-6
+ * Tankstellen Austria Card v1.5.0
  * Custom Lovelace card for displaying Austrian fuel prices.
  * https://github.com/rolandzeiner/tankstellen-austria
  */
 
-const CARD_VERSION = "1.5.0-beta-6";
+const CARD_VERSION = "1.5.0";
 
 const TRANSLATIONS = {
   de: {
