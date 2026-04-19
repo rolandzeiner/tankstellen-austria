@@ -263,6 +263,7 @@ class TankstellenAustriaCard extends HTMLElement {
   }
 
   _attachSparklineHover(container) {
+    try {
     const svg = container.querySelector("svg.sparkline");
     const tooltip = container.querySelector(".sparkline-tooltip");
     if (!svg || !tooltip) return;
@@ -341,6 +342,9 @@ class TankstellenAustriaCard extends HTMLElement {
       if (e.touches[0]) show(e.touches[0].clientX);
     }, { passive: true });
     svg.addEventListener("touchend", hide);
+    } catch (e) {
+      console.warn("Tankstellen Austria: sparkline hover setup failed", e);
+    }
   }
 
   _formatPrice(price) {
@@ -828,6 +832,7 @@ class TankstellenAustriaCard extends HTMLElement {
 
   // --- Main render ---
   _render() {
+    try {
     if (!this._hass) return;
 
     const entities = this._resolveEntities();
@@ -1064,6 +1069,9 @@ class TankstellenAustriaCard extends HTMLElement {
 
     this.innerHTML = html + this._getStyles();
     this._attachListeners();
+    } catch (e) {
+      console.warn("Tankstellen Austria: card render failed", e);
+    }
   }
 
   _renderHours(hours) {
@@ -1131,6 +1139,7 @@ class TankstellenAustriaCard extends HTMLElement {
   }
 
   _attachListeners() {
+    try {
     this.querySelectorAll(".tab").forEach((btn) => {
       btn.addEventListener("click", (e) => {
         this._activeTab = parseInt(e.target.dataset.tab, 10);
@@ -1180,6 +1189,9 @@ class TankstellenAustriaCard extends HTMLElement {
         }));
       });
       this._attachSparklineHover(sparklineContainer);
+    }
+    } catch (e) {
+      console.warn("Tankstellen Austria: listener attachment failed", e);
     }
   }
 
@@ -1709,6 +1721,7 @@ class TankstellenAustriaCardEditor extends HTMLElement {
   }
 
   _render() {
+    try {
     if (!this._hass) return;
 
     // Find available tankstellen entities
@@ -2435,6 +2448,9 @@ class TankstellenAustriaCardEditor extends HTMLElement {
         this._fireChanged();
         this._render();
       });
+    }
+    } catch (e) {
+      console.warn("Tankstellen Austria: editor render failed", e);
     }
   }
 }
