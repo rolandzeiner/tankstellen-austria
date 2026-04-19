@@ -198,8 +198,70 @@ class TankstellenAustriaCard extends HTMLElement {
   _versionMismatch = null;
 
   setConfig(config) {
-    this._config = config;
+    this._config = this._normaliseConfig(config);
     this._render();
+  }
+
+  // Coerce/clamp user-supplied config so bad YAML doesn't crash the render
+  // or silently behave weirdly. We normalise instead of throwing so the card
+  // stays usable even with partially-broken configs.
+  _normaliseConfig(config) {
+    const cfg = { ...(config || {}) };
+
+    // entities: accept a string as a one-item array; drop non-string items.
+    if (typeof cfg.entities === "string") {
+      cfg.entities = [cfg.entities];
+    }
+    if (Array.isArray(cfg.entities)) {
+      cfg.entities = cfg.entities.filter((e) => typeof e === "string" && e.includes("."));
+    } else if (cfg.entities != null) {
+      console.warn("[Tankstellen Austria] config.entities must be an array of entity IDs — ignoring", cfg.entities);
+      delete cfg.entities;
+    }
+
+    // max_stations: clamp to [1, 5], fall back to 5 on garbage.
+    if (cfg.max_stations != null) {
+      const n = parseInt(cfg.max_stations, 10);
+      cfg.max_stations = Number.isFinite(n) ? Math.max(1, Math.min(5, n)) : 5;
+    }
+
+    // payment_filter: must be array of non-empty strings.
+    if (Array.isArray(cfg.payment_filter)) {
+      cfg.payment_filter = cfg.payment_filter.filter((p) => typeof p === "string" && p.length > 0);
+    } else if (cfg.payment_filter != null) {
+      delete cfg.payment_filter;
+    }
+
+    // cars: validate per-item; drop items that can't be rescued.
+    if (Array.isArray(cfg.cars)) {
+      const ALLOWED_FUEL = ["DIE", "SUP", "GAS"];
+      cfg.cars = cfg.cars
+        .filter((car) => car && typeof car === "object")
+        .map((car) => {
+          const out = { ...car };
+          if (typeof out.name !== "string") out.name = "";
+          out.name = out.name.slice(0, 50);
+          if (!ALLOWED_FUEL.includes(out.fuel_type)) out.fuel_type = "DIE";
+          const ts = parseInt(out.tank_size, 10);
+          out.tank_size = Number.isFinite(ts) && ts >= 1 ? Math.min(200, ts) : 50;
+          if (out.consumption != null) {
+            const c = parseFloat(out.consumption);
+            if (Number.isFinite(c) && c >= 0) {
+              out.consumption = Math.min(30, c);
+            } else {
+              delete out.consumption;
+            }
+          }
+          if (typeof out.icon !== "string" || !out.icon.startsWith("mdi:")) {
+            out.icon = "mdi:car";
+          }
+          return out;
+        });
+    } else if (cfg.cars != null) {
+      delete cfg.cars;
+    }
+
+    return cfg;
   }
 
   set hass(hass) {
@@ -1079,8 +1141,8 @@ class TankstellenAustriaCard extends HTMLElement {
             <div class="station-main" data-expand="${this._activeTab}-${idx}">
               <div class="rank">${idx + 1}</div>
               <div class="info">
-                <div class="name">${s.name || "–"}${openLabel}${matchChips}</div>
-                <div class="address">${loc.postalCode || ""} ${loc.city || ""}, ${loc.address || ""}</div>
+                <div class="name">${_escHtml(s.name || "–")}${openLabel}${matchChips}</div>
+                <div class="address">${_escHtml(loc.postalCode || "")} ${_escHtml(loc.city || "")}, ${_escHtml(loc.address || "")}</div>
               </div>
               <div class="price">${this._formatPrice(s.price)}</div>
               ${showMapLinks
@@ -1130,10 +1192,10 @@ class TankstellenAustriaCard extends HTMLElement {
     const fe = hours.find((h) => h.day === "FE");
 
     let html = `<div class="hours-grid">`;
-    if (mo) html += `<span class="day">${this._t("mon_fri")}</span><span>${mo.from} – ${mo.to}</span>`;
-    if (sa) html += `<span class="day">${this._t("sat")}</span><span>${sa.from} – ${sa.to}</span>`;
-    if (so) html += `<span class="day">${this._t("sun")}</span><span>${so.from} – ${so.to}</span>`;
-    if (fe) html += `<span class="day">${this._t("holiday")}</span><span>${fe.from} – ${fe.to}</span>`;
+    if (mo) html += `<span class="day">${this._t("mon_fri")}</span><span>${_escHtml(mo.from)} – ${_escHtml(mo.to)}</span>`;
+    if (sa) html += `<span class="day">${this._t("sat")}</span><span>${_escHtml(sa.from)} – ${_escHtml(sa.to)}</span>`;
+    if (so) html += `<span class="day">${this._t("sun")}</span><span>${_escHtml(so.from)} – ${_escHtml(so.to)}</span>`;
+    if (fe) html += `<span class="day">${this._t("holiday")}</span><span>${_escHtml(fe.from)} – ${_escHtml(fe.to)}</span>`;
     html += `</div>`;
     return html;
   }
@@ -1177,7 +1239,7 @@ class TankstellenAustriaCard extends HTMLElement {
     if (pm.debit_card) badges.push(`<span class="pm-badge"><ha-icon icon="mdi:credit-card" class="pm-icon"></ha-icon> ${this._t("debit_card")}</span>`);
     if (pm.credit_card) badges.push(`<span class="pm-badge"><ha-icon icon="mdi:credit-card" class="pm-icon"></ha-icon> ${this._t("credit_card")}</span>`);
     for (const other of (pm.others || [])) {
-      badges.push(`<span class="pm-badge pm-other">${other}</span>`);
+      badges.push(`<span class="pm-badge pm-other">${_escHtml(other)}</span>`);
     }
     if (!badges.length) return "";
     return `<div class="pm-section">
