@@ -1,10 +1,10 @@
 /**
- * Tankstellen Austria Card v1.5.0
+ * Tankstellen Austria Card v1.5.1-beta-1
  * Custom Lovelace card for displaying Austrian fuel prices.
  * https://github.com/rolandzeiner/tankstellen-austria
  */
 
-const CARD_VERSION = "1.5.0";
+const CARD_VERSION = "1.5.1-beta-1";
 
 const TRANSLATIONS = {
   de: {
@@ -592,16 +592,20 @@ class TankstellenAustriaCard extends HTMLElement {
 
   // --- Sparkline ---
   _renderSparkline(entityId) {
+    try {
     const allData = this._historyData[entityId];
     if (!allData || allData.length < 2) return "";
 
     // Sparkline shows last 7 days. With significant_changes_only the most recent
     // change event may be older than 7 days (stable price) — prepend the last
     // known point before the cutoff so the sparkline always renders.
+    // Index access instead of Array.prototype.at(-1) — .at is ES2022 and throws
+    // on Safari < 15.4 / Firefox < 90, which silently killed the sparkline.
     const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
     let data = allData.filter((d) => d.time >= cutoff);
     if (data.length < 2) {
-      const lastKnown = allData.filter((d) => d.time < cutoff).at(-1);
+      const prior = allData.filter((d) => d.time < cutoff);
+      const lastKnown = prior.length ? prior[prior.length - 1] : null;
       if (lastKnown) data = [lastKnown, ...data];
     }
     if (data.length < 2) return "";
@@ -744,6 +748,10 @@ class TankstellenAustriaCard extends HTMLElement {
         <span>${this._formatPriceShort(max)}</span>
       </div>
       ${recommendationHtml}`;
+    } catch (e) {
+      console.warn("Tankstellen Austria: sparkline render failed", e);
+      return "";
+    }
   }
 
   _handleRefresh() {
@@ -1919,6 +1927,7 @@ class TankstellenAustriaCardEditor extends HTMLElement {
             display: flex;
             align-items: center;
             gap: 6px;
+            flex-wrap: wrap;
           }
           .car-input {
             background: var(--input-fill-color, rgba(0,0,0,0.06));
@@ -1935,7 +1944,8 @@ class TankstellenAustriaCardEditor extends HTMLElement {
             border-color: var(--primary-color);
           }
           .car-name-input {
-            flex: 1 1 60px;
+            flex: 1 1 140px;
+            min-width: 140px;
           }
           .car-tank-input {
             width: 58px;
@@ -1966,6 +1976,7 @@ class TankstellenAustriaCardEditor extends HTMLElement {
             display: flex;
             align-items: center;
             flex-shrink: 0;
+            margin-left: auto;
           }
           .car-delete-btn:hover {
             background: rgba(219,68,55,0.1);
