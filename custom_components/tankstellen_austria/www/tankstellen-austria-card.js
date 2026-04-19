@@ -219,10 +219,11 @@ class TankstellenAustriaCard extends HTMLElement {
       delete cfg.entities;
     }
 
-    // max_stations: clamp to [1, 5], fall back to 5 on garbage.
+    // max_stations: clamp to [0, 5], fall back to 5 on garbage. Zero is
+    // allowed so users can hide the station list and show only cars/history.
     if (cfg.max_stations != null) {
       const n = parseInt(cfg.max_stations, 10);
-      cfg.max_stations = Number.isFinite(n) ? Math.max(1, Math.min(5, n)) : 5;
+      cfg.max_stations = Number.isFinite(n) ? Math.max(0, Math.min(5, n)) : 5;
     }
 
     // payment_filter: must be array of non-empty strings.
@@ -950,7 +951,10 @@ class TankstellenAustriaCard extends HTMLElement {
     const showHours = this._config.show_opening_hours !== false;
     const showPayment = this._config.show_payment_methods !== false;
     const showHistory = this._config.show_history !== false;
-    const maxStations = Math.min(5, Math.max(1, parseInt(this._config.max_stations, 10) || 5));
+    const parsedMaxStations = parseInt(this._config.max_stations, 10);
+    const maxStations = Number.isFinite(parsedMaxStations)
+      ? Math.max(0, Math.min(5, parsedMaxStations))
+      : 5;
     const paymentFilter = this._config.payment_filter || [];
 
     let html = `<ha-card>`;
@@ -1002,8 +1006,11 @@ class TankstellenAustriaCard extends HTMLElement {
       return new Date(active.last_updated).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
     })();
 
+    // Keep the full station list available for header price, sparkline anchor,
+    // cars fill-up, etc. The max_stations config only constrains what's shown
+    // in the station list (sliced at render time below).
     const allStations = active?.attributes?.stations || [];
-    const stations = allStations.slice(0, maxStations);
+    const stations = allStations;
     const fuelType = active?.attributes?.fuel_type || "";
     const fuelTypeName = active?.attributes?.fuel_type_name || this._fuelName(fuelType);
     const avgPrice = active?.attributes?.average_price;
@@ -1112,13 +1119,17 @@ class TankstellenAustriaCard extends HTMLElement {
       }
     }
 
-    if (!filteredStations.length && paymentFilter.length && stations.length) {
+    const displayStations = filteredStations.slice(0, maxStations);
+
+    if (maxStations === 0) {
+      // User explicitly hid the station list — don't show a "no data" message.
+    } else if (!filteredStations.length && paymentFilter.length && stations.length) {
       html += `<div class="empty">${this._t("payment_filter_active")} — ${this._t("no_data")}</div>`;
     } else if (!filteredStations.length) {
       html += `<div class="empty">${this._t("no_data")}</div>`;
     } else {
       html += `<div class="stations">`;
-      filteredStations.forEach((s, idx) => {
+      displayStations.forEach((s, idx) => {
         const loc = s.location || {};
         const isExpanded = this._expandedStations.has(`${this._activeTab}-${idx}`);
         const expandClass = isExpanded ? "expanded" : "";
@@ -2067,7 +2078,7 @@ class TankstellenAustriaCardEditor extends HTMLElement {
           .car-editor-row {
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 4px;
             flex-wrap: wrap;
           }
           .car-input {
@@ -2085,27 +2096,28 @@ class TankstellenAustriaCardEditor extends HTMLElement {
             border-color: var(--primary-color);
           }
           .car-name-input {
-            flex: 1 1 140px;
-            min-width: 140px;
+            flex: 1 1 50px;
+            min-width: 50px;
           }
           .car-tank-input {
-            width: 58px;
+            width: 54px;
             flex-shrink: 0;
           }
           .car-consumption-input {
-            width: 68px;
+            width: 60px;
             flex-shrink: 0;
           }
           .car-select {
             background: var(--input-fill-color, rgba(0,0,0,0.06));
             border: 1px solid var(--divider-color);
             border-radius: 8px;
-            padding: 6px 4px;
+            padding: 6px 2px;
             font-size: 13px;
             color: var(--primary-text-color);
             cursor: pointer;
             font-family: inherit;
             flex-shrink: 0;
+            max-width: 90px;
           }
           .car-delete-btn {
             background: none;
@@ -2263,7 +2275,7 @@ class TankstellenAustriaCardEditor extends HTMLElement {
             <label for="slider-stations">${this._et("max_stations")}</label>
           </div>
           <div class="slider-row">
-            <input id="slider-stations" type="range" min="1" max="5" step="1" value="${maxStations}" data-field="max_stations" />
+            <input id="slider-stations" type="range" min="0" max="5" step="1" value="${maxStations}" data-field="max_stations" />
             <span class="slider-value">${maxStations}</span>
           </div>
         </div>
@@ -2370,17 +2382,23 @@ class TankstellenAustriaCardEditor extends HTMLElement {
       });
     });
 
-    // Range slider
+    // Range slider — firing config-changed on every `input` event caused the
+    // editor to re-render mid-drag, replacing the slider thumb and making the
+    // drag feel sticky. Update only the visible label during drag and commit
+    // on `change` (pointer release / keyboard commit).
     this.querySelectorAll('input[type="range"]').forEach((input) => {
       ["keydown", "keyup", "keypress"].forEach((evt) => {
         input.addEventListener(evt, (e) => e.stopPropagation());
       });
       input.addEventListener("input", (e) => {
+        if (e.target.nextElementSibling) {
+          e.target.nextElementSibling.textContent = e.target.value;
+        }
+      });
+      input.addEventListener("change", (e) => {
         const field = e.target.dataset.field;
         this._config = { ...this._config, [field]: parseInt(e.target.value, 10) };
         this._fireChanged();
-        // Update the displayed value
-        e.target.nextElementSibling.textContent = e.target.value;
       });
     });
 
