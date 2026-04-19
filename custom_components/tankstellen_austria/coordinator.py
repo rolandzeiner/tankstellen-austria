@@ -1,9 +1,12 @@
 """DataUpdateCoordinator for Tankstellen Austria."""
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import datetime, timedelta
 from typing import Callable
+
+import aiohttp
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import __version__ as HA_VERSION
@@ -62,6 +65,7 @@ class TankstellenCoordinator(DataUpdateCoordinator):
         self._last_fetch_lng: float | None = None
         self._last_fetch_time: datetime | None = None
         self._unsubscribe_tracker: Callable | None = None
+        self._logged_tracker_missing: bool = False
 
         # No-data retry state
         self._no_data_retry_cancel: Callable | None = None
@@ -142,8 +146,17 @@ class TankstellenCoordinator(DataUpdateCoordinator):
             lat = state.attributes.get("latitude")
             lng = state.attributes.get("longitude")
             if lat is not None and lng is not None:
+                self._logged_tracker_missing = False
                 return float(lat), float(lng)
-        # Fallback: HA instance location
+        # Fallback: HA instance location. Log once per degradation so the user
+        # notices their tracker-based setup has silently fallen back to fixed.
+        if self._dynamic_entity and not self._logged_tracker_missing:
+            self._logged_tracker_missing = True
+            _LOGGER.warning(
+                "device_tracker %s unavailable or missing coordinates — "
+                "falling back to HA home location for this update",
+                self._dynamic_entity,
+            )
         return self.hass.config.latitude, self.hass.config.longitude
 
     def _should_update(self, lat: float, lng: float) -> bool:
@@ -204,15 +217,35 @@ class TankstellenCoordinator(DataUpdateCoordinator):
 
         was_available = self.last_update_success
         results: dict[str, list[dict]] = {}
+        errors: dict[str, Exception] = {}
         for fuel_type in self._fuel_types:
             try:
                 results[fuel_type] = await self._fetch(fuel_type, lat, lng)
-            except Exception as err:
-                if was_available:
-                    _LOGGER.warning("E-Control API unavailable: %s", err)
-                raise UpdateFailed(
-                    f"Error fetching {fuel_type} stations: {err}"
-                ) from err
+            except Exception as err:  # noqa: BLE001 - capture per-type, decide below
+                errors[fuel_type] = err
+                _LOGGER.warning(
+                    "Fetch failed for fuel type %s: %s", fuel_type, err
+                )
+
+        if errors and not results:
+            # All fuel types failed — coordinator goes unavailable.
+            # Report the first error for the UI; per-type errors were logged above.
+            first_ft, first_err = next(iter(errors.items()))
+            if was_available:
+                _LOGGER.warning("E-Control API unavailable: %s", first_err)
+            raise UpdateFailed(
+                f"All fuel types failed ({len(errors)}/{len(self._fuel_types)}); "
+                f"first error on {first_ft}: {first_err}"
+            ) from first_err
+
+        if errors:
+            # Partial failure — keep previous data for failed types so entities
+            # stay available with the last known values.
+            if self.data:
+                for fuel_type in errors:
+                    if self.data.get(fuel_type):
+                        results[fuel_type] = self.data[fuel_type]
+
         if not was_available:
             _LOGGER.info("E-Control API is back online")
 
@@ -248,7 +281,11 @@ class TankstellenCoordinator(DataUpdateCoordinator):
         self.hass.async_create_task(self.async_refresh())
 
     async def _fetch(self, fuel_type: str, lat: float, lng: float) -> list[dict]:
-        """Call the E-Control API for one fuel type."""
+        """Call the E-Control API for one fuel type.
+
+        Raises UpdateFailed with a specific message for each failure class so
+        HA logs can distinguish timeouts, HTTP errors and malformed responses.
+        """
         url = f"{API_BASE_URL}{API_ENDPOINT}"
         params = {
             "latitude": lat,
@@ -259,9 +296,34 @@ class TankstellenCoordinator(DataUpdateCoordinator):
         headers = {
             "User-Agent": f"HomeAssistant/{HA_VERSION} tankstellen_austria/{CARD_VERSION}",
         }
-        resp = await self._session.get(url, params=params, headers=headers, timeout=30)
-        resp.raise_for_status()
-        data = await resp.json()
+        try:
+            resp = await self._session.get(url, params=params, headers=headers, timeout=30)
+            resp.raise_for_status()
+        except asyncio.TimeoutError as err:
+            raise UpdateFailed(
+                f"E-Control API timed out for {fuel_type} after 30s"
+            ) from err
+        except aiohttp.ClientResponseError as err:
+            raise UpdateFailed(
+                f"E-Control API returned HTTP {err.status} for {fuel_type}: {err.message}"
+            ) from err
+        except aiohttp.ClientError as err:
+            raise UpdateFailed(
+                f"E-Control API connection error for {fuel_type}: {type(err).__name__}: {err}"
+            ) from err
+
+        try:
+            data = await resp.json()
+        except aiohttp.ContentTypeError as err:
+            raise UpdateFailed(
+                f"E-Control API returned unexpected content-type for {fuel_type} "
+                f"(status {resp.status}): {err.message}"
+            ) from err
+        except ValueError as err:  # json.JSONDecodeError is a ValueError subclass
+            raise UpdateFailed(
+                f"E-Control API returned invalid JSON for {fuel_type} "
+                f"(status {resp.status}): {err}"
+            ) from err
 
         # API returns array of stations; first 5 have prices, rest don't
         stations: list[dict] = []

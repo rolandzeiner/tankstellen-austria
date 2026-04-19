@@ -353,3 +353,84 @@ async def test_async_teardown_cancels_pending_no_data_retry(hass: HomeAssistant)
 
     mock_cancel.assert_called_once()
     assert coordinator._no_data_retry_cancel is None
+
+
+# ---------------------------------------------------------------------------
+# Partial-update handling
+# ---------------------------------------------------------------------------
+
+
+async def test_partial_failure_keeps_previous_for_failed_type(
+    hass: HomeAssistant,
+) -> None:
+    """When one fuel type fails but another succeeds, previous data is kept
+    for the failed one and no UpdateFailed is raised."""
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+
+    coordinator = TankstellenCoordinator(hass, entry)
+    prior_sup = [{**MOCK_STATION, "name": "Previous SUP"}]
+    coordinator.data = {"DIE": [MOCK_STATION], "SUP": prior_sup}
+
+    new_die = [{**MOCK_STATION, "name": "Fresh DIE"}]
+
+    async def fake_fetch(self, fuel_type, lat, lng):
+        if fuel_type == "SUP":
+            raise UpdateFailed("SUP upstream 500")
+        return new_die
+
+    with patch(
+        "custom_components.tankstellen_austria.coordinator.TankstellenCoordinator._fetch",
+        new=fake_fetch,
+    ):
+        result = await coordinator._async_update_data()
+
+    assert result["DIE"] == new_die
+    assert result["SUP"] == prior_sup  # kept from previous data
+
+
+async def test_all_fuel_types_failing_raises_update_failed(
+    hass: HomeAssistant,
+) -> None:
+    """When every fuel type fails, coordinator raises UpdateFailed."""
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+
+    coordinator = TankstellenCoordinator(hass, entry)
+
+    async def always_fail(self, fuel_type, lat, lng):
+        raise UpdateFailed(f"{fuel_type} failed")
+
+    with (
+        patch(
+            "custom_components.tankstellen_austria.coordinator.TankstellenCoordinator._fetch",
+            new=always_fail,
+        ),
+        pytest.raises(UpdateFailed),
+    ):
+        await coordinator._async_update_data()
+
+
+async def test_partial_failure_without_previous_data_drops_failed_type(
+    hass: HomeAssistant,
+) -> None:
+    """If there is no previous data and one fuel type fails, the coordinator
+    returns only the fuel types that succeeded (no stale keys)."""
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+
+    coordinator = TankstellenCoordinator(hass, entry)
+    # no coordinator.data yet — fresh start
+
+    async def one_fails(self, fuel_type, lat, lng):
+        if fuel_type == "SUP":
+            raise UpdateFailed("SUP down")
+        return [MOCK_STATION]
+
+    with patch(
+        "custom_components.tankstellen_austria.coordinator.TankstellenCoordinator._fetch",
+        new=one_fails,
+    ):
+        result = await coordinator._async_update_data()
+
+    assert result == {"DIE": [MOCK_STATION]}

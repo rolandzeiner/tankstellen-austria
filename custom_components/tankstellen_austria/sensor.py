@@ -1,6 +1,8 @@
 """Sensor platform for Tankstellen Austria."""
 from __future__ import annotations
 
+import logging
+
 from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorEntity,
@@ -12,6 +14,8 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import CONF_FUEL_TYPES, FUEL_TYPES
 from .coordinator import TankstellenCoordinator
+
+_LOGGER = logging.getLogger(__name__)
 
 
 def _parse_payment_methods(raw: dict | None) -> dict:
@@ -82,7 +86,13 @@ class TankstellenSensor(CoordinatorEntity, SensorEntity):
             return None
         try:
             return stations[0]["prices"][0]["amount"]
-        except (KeyError, IndexError):
+        except (KeyError, IndexError) as err:
+            _LOGGER.debug(
+                "No price for %s: API payload missing expected field (%s: %s)",
+                self.entity_id or self._fuel_type,
+                type(err).__name__,
+                err,
+            )
             return None
 
     @property

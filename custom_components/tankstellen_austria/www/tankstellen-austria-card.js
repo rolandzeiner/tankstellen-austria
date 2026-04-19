@@ -234,6 +234,13 @@ class TankstellenAustriaCard extends HTMLElement {
     // Auto-detect if no entities configured
     if (!entityIds || !entityIds.length) {
       entityIds = _findTankstellenEntities(this._hass);
+      if (!entityIds.length && !this._loggedEmptyAutodetect) {
+        this._loggedEmptyAutodetect = true;
+        console.warn(
+          "[Tankstellen Austria] No tankstellen_* sensors found and no entities configured. "
+          + "Ensure the integration is set up, or pass entities: in the card config."
+        );
+      }
     }
 
     return entityIds
@@ -343,7 +350,11 @@ class TankstellenAustriaCard extends HTMLElement {
     }, { passive: true });
     svg.addEventListener("touchend", hide);
     } catch (e) {
-      console.warn("Tankstellen Austria: sparkline hover setup failed", e);
+      console.warn(
+        "[Tankstellen Austria] sparkline hover setup failed for",
+        container?.dataset?.entity || "(unknown entity)",
+        e,
+      );
     }
   }
 
@@ -403,7 +414,12 @@ class TankstellenAustriaCard extends HTMLElement {
         this._render();
       }
     } catch (e) {
-      console.debug("Tankstellen Austria: Could not fetch history for", entityId, e);
+      console.warn(
+        "[Tankstellen Austria] history fetch failed for",
+        entityId,
+        "— sparkline and best-refuel will be empty:",
+        e,
+      );
     } finally {
       this._historyLoading[entityId] = false;
     }
@@ -414,8 +430,12 @@ class TankstellenAustriaCard extends HTMLElement {
     entities.forEach((e) => this._fetchHistory(e.entity_id));
     clearInterval(this._historyInterval);
     this._historyInterval = setInterval(() => {
-      const ents = this._resolveEntities();
-      ents.forEach((e) => this._fetchHistory(e.entity_id));
+      try {
+        const ents = this._resolveEntities();
+        ents.forEach((e) => this._fetchHistory(e.entity_id));
+      } catch (err) {
+        console.warn("[Tankstellen Austria] scheduled history refresh failed", err);
+      }
     }, 30 * 60 * 1000);
   }
 
@@ -753,7 +773,11 @@ class TankstellenAustriaCard extends HTMLElement {
       </div>
       ${recommendationHtml}`;
     } catch (e) {
-      console.warn("Tankstellen Austria: sparkline render failed", e);
+      console.warn(
+        "[Tankstellen Austria] sparkline render failed for",
+        entityId,
+        e,
+      );
       return "";
     }
   }
@@ -767,27 +791,44 @@ class TankstellenAustriaCard extends HTMLElement {
     const active = entities[this._activeTab] || entities[0];
     const preRefreshTimestamp = active?.last_updated;
     entities.forEach((e) => {
-      this._hass.callService("homeassistant", "update_entity", {
+      const p = this._hass.callService("homeassistant", "update_entity", {
         entity_id: e.entity_id,
       });
+      if (p && typeof p.catch === "function") {
+        p.catch((err) => {
+          console.warn(
+            "[Tankstellen Austria] update_entity failed for",
+            e.entity_id,
+            err,
+          );
+        });
+      }
     });
     // After HA has had time to fetch, check if data actually changed
     setTimeout(() => {
-      const updated = this._resolveEntities();
-      const updatedActive = updated[this._activeTab] || updated[0];
-      if (updatedActive?.last_updated === preRefreshTimestamp) {
-        this._noNewData = true;
-        this._render();
+      try {
+        const updated = this._resolveEntities();
+        const updatedActive = updated[this._activeTab] || updated[0];
+        if (updatedActive?.last_updated === preRefreshTimestamp) {
+          this._noNewData = true;
+          this._render();
+        }
+      } catch (err) {
+        console.warn("[Tankstellen Austria] post-refresh check failed", err);
       }
     }, 3000);
     // Start per-second re-render so the countdown stays live
     clearInterval(this._cooldownInterval);
     this._cooldownInterval = setInterval(() => {
-      if (Date.now() - this._lastManualRefresh >= DYNAMIC_MANUAL_COOLDOWN_MS) {
-        clearInterval(this._cooldownInterval);
-        this._cooldownInterval = null;
+      try {
+        if (Date.now() - this._lastManualRefresh >= DYNAMIC_MANUAL_COOLDOWN_MS) {
+          clearInterval(this._cooldownInterval);
+          this._cooldownInterval = null;
+        }
+        this._render();
+      } catch (err) {
+        console.warn("[Tankstellen Austria] cooldown interval failed", err);
       }
-      this._render();
     }, 1000);
     this._render();
   }
@@ -1070,7 +1111,14 @@ class TankstellenAustriaCard extends HTMLElement {
     this.innerHTML = html + this._getStyles();
     this._attachListeners();
     } catch (e) {
-      console.warn("Tankstellen Austria: card render failed", e);
+      const ids = (this._resolveEntities() || []).map((en) => en.entity_id);
+      console.warn(
+        "[Tankstellen Austria] card render failed — entities:",
+        ids,
+        "activeTab:",
+        this._activeTab,
+        e,
+      );
     }
   }
 
@@ -1138,19 +1186,34 @@ class TankstellenAustriaCard extends HTMLElement {
     </div>`;
   }
 
+  // Wrap a handler so a throw surfaces as a console.warn instead of being
+  // silently swallowed by the browser's event dispatch loop.
+  _safeHandler(label, fn) {
+    return (e) => {
+      try {
+        return fn(e);
+      } catch (err) {
+        console.warn(`[Tankstellen Austria] handler "${label}" failed`, err);
+      }
+    };
+  }
+
   _attachListeners() {
     try {
     this.querySelectorAll(".tab").forEach((btn) => {
-      btn.addEventListener("click", (e) => {
+      btn.addEventListener("click", this._safeHandler("tab-click", (e) => {
         this._activeTab = parseInt(e.target.dataset.tab, 10);
         this._expandedStations.clear();
         this._render();
-      });
+      }));
     });
 
     const refreshBtn = this.querySelector("[data-refresh]");
     if (refreshBtn) {
-      refreshBtn.addEventListener("click", () => this._handleRefresh());
+      refreshBtn.addEventListener("click", this._safeHandler(
+        "manual-refresh",
+        () => this._handleRefresh(),
+      ));
     }
 
     const versionReloadBtn = this.querySelector("[data-version-reload]");
@@ -1167,7 +1230,7 @@ class TankstellenAustriaCard extends HTMLElement {
     }
 
     this.querySelectorAll(".station-main").forEach((el) => {
-      el.addEventListener("click", (e) => {
+      el.addEventListener("click", this._safeHandler("station-expand", (e) => {
         if (e.target.closest(".map-link")) return;
         const key = el.dataset.expand;
         if (this._expandedStations.has(key)) {
@@ -1176,22 +1239,25 @@ class TankstellenAustriaCard extends HTMLElement {
           this._expandedStations.add(key);
         }
         this._render();
-      });
+      }));
     });
 
     const sparklineContainer = this.querySelector(".sparkline-container[data-entity]");
     if (sparklineContainer) {
-      sparklineContainer.addEventListener("click", () => {
-        sparklineContainer.dispatchEvent(new CustomEvent("hass-more-info", {
-          detail: { entityId: sparklineContainer.dataset.entity },
-          bubbles: true,
-          composed: true,
-        }));
-      });
+      sparklineContainer.addEventListener("click", this._safeHandler(
+        "sparkline-more-info",
+        () => {
+          sparklineContainer.dispatchEvent(new CustomEvent("hass-more-info", {
+            detail: { entityId: sparklineContainer.dataset.entity },
+            bubbles: true,
+            composed: true,
+          }));
+        },
+      ));
       this._attachSparklineHover(sparklineContainer);
     }
     } catch (e) {
-      console.warn("Tankstellen Austria: listener attachment failed", e);
+      console.warn("[Tankstellen Austria] listener attachment failed", e);
     }
   }
 
@@ -2450,13 +2516,25 @@ class TankstellenAustriaCardEditor extends HTMLElement {
       });
     }
     } catch (e) {
-      console.warn("Tankstellen Austria: editor render failed", e);
+      console.warn(
+        "[Tankstellen Austria] editor render failed — config keys:",
+        Object.keys(this._config || {}),
+        e,
+      );
     }
   }
 }
 
-customElements.define("tankstellen-austria-card", TankstellenAustriaCard);
-customElements.define("tankstellen-austria-card-editor", TankstellenAustriaCardEditor);
+try {
+  if (!customElements.get("tankstellen-austria-card")) {
+    customElements.define("tankstellen-austria-card", TankstellenAustriaCard);
+  }
+  if (!customElements.get("tankstellen-austria-card-editor")) {
+    customElements.define("tankstellen-austria-card-editor", TankstellenAustriaCardEditor);
+  }
+} catch (e) {
+  console.error("[Tankstellen Austria] custom element registration failed", e);
+}
 
 window.customCards = window.customCards || [];
 window.customCards.push({
