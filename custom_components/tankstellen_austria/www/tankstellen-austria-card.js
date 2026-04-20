@@ -4,7 +4,7 @@
  * https://github.com/rolandzeiner/tankstellen-austria
  */
 
-const CARD_VERSION = "1.5.1";
+const CARD_VERSION = "1.6.0";
 
 const TRANSLATIONS = {
   de: {
