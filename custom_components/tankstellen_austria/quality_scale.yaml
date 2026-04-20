@@ -70,3 +70,79 @@ rules:
   test-coverage:
     status: done
     comment: Config flow, coordinator (fetch, failure, partial-failure resilience, dynamic mode guards, no-data retry), and sensor (state, attributes, dynamic mode) tests are all covered.
+
+  # Gold
+  devices:
+    status: done
+    comment: One device is registered per config entry with manufacturer, model, and configuration URL; each sensor is attached via DeviceInfo.
+  diagnostics:
+    status: done
+    comment: diagnostics.py exposes entry + coordinator state with latitude/longitude redaction.
+  discovery:
+    status: exempt
+    comment: E-Control is a fixed cloud API with no discoverable component on the local network.
+  discovery-update-info:
+    status: exempt
+    comment: No discovery (see discovery rule).
+  docs-data-update:
+    status: done
+    comment: README "Data Updates" section documents polling cadence, the ~12:05 refresh window, and partial-failure handling.
+  docs-examples:
+    status: done
+    comment: README "Automation Examples" shows notify + template sensor patterns.
+  docs-known-limitations:
+    status: done
+    comment: README "Known Limitations" section enumerates scope, retention, and rate-limit caveats.
+  docs-supported-devices:
+    status: exempt
+    comment: This integration talks to a cloud API and does not support physical devices.
+  docs-supported-functions:
+    status: done
+    comment: README "Supported Functions" section enumerates what the integration does and does not do.
+  docs-troubleshooting:
+    status: done
+    comment: README "Troubleshooting" section covers common issues, diagnostics download, and debug logging.
+  docs-use-cases:
+    status: done
+    comment: README "Use Cases" section.
+  dynamic-devices:
+    status: exempt
+    comment: This integration creates a single device per config entry at setup time. There are no external devices that can appear or disappear at runtime.
+  entity-category:
+    status: exempt
+    comment: All entities are primary price sensors; there are no diagnostic or configuration entities.
+  entity-device-class:
+    status: done
+    comment: Sensors set SensorDeviceClass.MONETARY.
+  entity-disabled-by-default:
+    status: exempt
+    comment: Every configured fuel-type sensor is primary data; disabling any by default would hide what the user explicitly opted in to.
+  entity-translations:
+    status: done
+    comment: Entities use translation_key fuel_die/fuel_sup/fuel_gas; names are provided in strings.json and all translation files.
+  exception-translations:
+    status: done
+    comment: UpdateFailed raises in coordinator.py all use translation_domain/translation_key/translation_placeholders.
+  icon-translations:
+    status: done
+    comment: icons.json maps each fuel-type translation_key to its default MDI icon.
+  reconfiguration-flow:
+    status: done
+    comment: config_flow.async_step_reconfigure lets users change location, fuel types, include_closed, scan_interval, and dynamic_entity while preserving the entry's existing entities.
+  repair-issues:
+    status: done
+    comment: When a configured device_tracker goes missing, the coordinator raises an issue_registry issue (tracker_missing_{entry_id}) and clears it when the tracker returns.
+  stale-devices:
+    status: exempt
+    comment: See dynamic-devices — the single device per entry is owned by the config entry and removed via entry delete.
+
+  # Platinum
+  async-dependency:
+    status: done
+    comment: Integration depends only on aiohttp (async); no blocking HTTP client is used.
+  inject-websession:
+    status: done
+    comment: Coordinator and config flow both use homeassistant.helpers.aiohttp_client.async_get_clientsession.
+  strict-typing:
+    status: done
+    comment: py.typed marker present; full type hints across all modules; CI runs mypy --strict.

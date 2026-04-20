@@ -8,8 +8,13 @@ from typing import Any
 import aiohttp
 import voluptuous as vol
 
-from homeassistant.config_entries import ConfigFlow, ConfigFlowResult, OptionsFlow
-from homeassistant.core import callback
+from homeassistant.config_entries import (
+    ConfigEntry,
+    ConfigFlow,
+    ConfigFlowResult,
+    OptionsFlow,
+)
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
     BooleanSelector,
@@ -20,6 +25,7 @@ from homeassistant.helpers.selector import (
     NumberSelector,
     NumberSelectorConfig,
     NumberSelectorMode,
+    SelectOptionDict,
     SelectSelector,
     SelectSelectorConfig,
     SelectSelectorMode,
@@ -45,16 +51,24 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 
 
-async def _test_api_connection(hass, lat: float, lng: float, fuel_type: str) -> bool:
+async def _test_api_connection(
+    hass: HomeAssistant, lat: float, lng: float, fuel_type: str
+) -> bool:
     """Return True if the E-Control API is reachable with the given coordinates."""
     session = async_get_clientsession(hass)
     url = f"{API_BASE_URL}{API_ENDPOINT}"
+    params: dict[str, str] = {
+        "latitude": str(lat),
+        "longitude": str(lng),
+        "fuelType": fuel_type,
+        "includeClosed": "true",
+    }
     try:
         resp = await session.get(
             url,
-            params={"latitude": lat, "longitude": lng, "fuelType": fuel_type, "includeClosed": "true"},
+            params=params,
             headers={"User-Agent": f"HomeAssistant tankstellen_austria/{CARD_VERSION}"},
-            timeout=10,
+            timeout=aiohttp.ClientTimeout(total=10),
         )
         resp.raise_for_status()
     except asyncio.TimeoutError:
@@ -84,7 +98,7 @@ def _build_schema(
     include_dynamic: bool = False,
 ) -> vol.Schema:
     """Build the shared config/options form schema."""
-    fields: dict = {}
+    fields: dict[Any, Any] = {}
     if include_name:
         fields[vol.Required("name", default=defaults.get("name", "Tankstellen"))] = (
             TextSelector()
@@ -99,11 +113,14 @@ def _build_schema(
             },
         )
     ] = LocationSelector(LocationSelectorConfig(radius=True))
+    fuel_options: list[SelectOptionDict] = [
+        SelectOptionDict(value=k, label=v) for k, v in FUEL_TYPES.items()
+    ]
     fields[
         vol.Required(CONF_FUEL_TYPES, default=defaults.get(CONF_FUEL_TYPES, ["DIE", "SUP"]))
     ] = SelectSelector(
         SelectSelectorConfig(
-            options=[{"value": k, "label": v} for k, v in FUEL_TYPES.items()],
+            options=fuel_options,
             multiple=True,
             mode=SelectSelectorMode.LIST,
         )
@@ -133,6 +150,55 @@ def _build_schema(
     return vol.Schema(fields)
 
 
+def _validate_user_input(
+    user_input: dict[str, Any],
+) -> tuple[float | None, float | None, list[str], dict[str, str]]:
+    """Extract + validate location + fuel types from form input.
+
+    Returns (lat, lng, fuel_types, errors). If errors is non-empty the caller
+    should show the form again.
+    """
+    errors: dict[str, str] = {}
+    location = user_input.get("location", {})
+    lat = location.get("latitude")
+    lng = location.get("longitude")
+    fuel_types: list[str] = user_input.get(CONF_FUEL_TYPES, [])
+
+    if lat is None or lng is None:
+        errors["location"] = "invalid_location"
+    elif not fuel_types:
+        errors[CONF_FUEL_TYPES] = "no_fuel_type"
+    return lat, lng, fuel_types, errors
+
+
+def _build_entry_data(
+    user_input: dict[str, Any],
+    lat: float,
+    lng: float,
+    fuel_types: list[str],
+) -> dict[str, Any]:
+    """Pack validated input into the ConfigEntry data dict shape."""
+    return {
+        CONF_LATITUDE: lat,
+        CONF_LONGITUDE: lng,
+        CONF_FUEL_TYPES: fuel_types,
+        CONF_INCLUDE_CLOSED: user_input.get(
+            CONF_INCLUDE_CLOSED, DEFAULT_INCLUDE_CLOSED
+        ),
+        CONF_SCAN_INTERVAL: user_input.get(
+            CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL
+        ),
+        CONF_DYNAMIC_ENTITY: user_input.get(CONF_DYNAMIC_ENTITY) or None,
+    }
+
+
+def _compute_unique_id(dynamic_entity: str | None, lat: float, lng: float) -> str:
+    """Same formula used since v1.0 — must not change or existing entries break."""
+    if dynamic_entity:
+        return f"dynamic_{dynamic_entity}"
+    return f"{round(lat, 3)}_{round(lng, 3)}"
+
+
 class TankstellenConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Tankstellen Austria."""
 
@@ -140,7 +206,7 @@ class TankstellenConfigFlow(ConfigFlow, domain=DOMAIN):
 
     @staticmethod
     @callback
-    def async_get_options_flow(config_entry: Any) -> TankstellenOptionsFlow:
+    def async_get_options_flow(config_entry: ConfigEntry) -> TankstellenOptionsFlow:
         """Return the options flow handler."""
         return TankstellenOptionsFlow()
 
@@ -151,45 +217,25 @@ class TankstellenConfigFlow(ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            location = user_input.get("location", {})
-            lat = location.get("latitude")
-            lng = location.get("longitude")
-            fuel_types = user_input.get(CONF_FUEL_TYPES, [])
-
-            if lat is None or lng is None:
-                errors["location"] = "invalid_location"
-            elif not fuel_types:
-                errors[CONF_FUEL_TYPES] = "no_fuel_type"
-            else:
+            lat, lng, fuel_types, errors = _validate_user_input(user_input)
+            if not errors:
+                assert lat is not None and lng is not None
                 if not await _test_api_connection(self.hass, lat, lng, fuel_types[0]):
                     errors["base"] = "cannot_connect"
                 else:
                     dynamic_entity = user_input.get(CONF_DYNAMIC_ENTITY) or None
-                    if dynamic_entity:
-                        unique_id = f"dynamic_{dynamic_entity}"
-                    else:
-                        unique_id = f"{round(lat, 3)}_{round(lng, 3)}"
-                    await self.async_set_unique_id(unique_id)
+                    await self.async_set_unique_id(
+                        _compute_unique_id(dynamic_entity, lat, lng)
+                    )
                     self._abort_if_unique_id_configured()
 
                     title = user_input.get("name", "Tankstellen")
                     return self.async_create_entry(
                         title=title,
-                        data={
-                            CONF_LATITUDE: lat,
-                            CONF_LONGITUDE: lng,
-                            CONF_FUEL_TYPES: fuel_types,
-                            CONF_INCLUDE_CLOSED: user_input.get(
-                                CONF_INCLUDE_CLOSED, DEFAULT_INCLUDE_CLOSED
-                            ),
-                            CONF_SCAN_INTERVAL: user_input.get(
-                                CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL
-                            ),
-                            CONF_DYNAMIC_ENTITY: dynamic_entity,
-                        },
+                        data=_build_entry_data(user_input, lat, lng, fuel_types),
                     )
 
-        defaults = {
+        defaults: dict[str, Any] = {
             "name": "Tankstellen",
             CONF_LATITUDE: self.hass.config.latitude,
             CONF_LONGITUDE: self.hass.config.longitude,
@@ -197,6 +243,43 @@ class TankstellenConfigFlow(ConfigFlow, domain=DOMAIN):
         return self.async_show_form(
             step_id="user",
             data_schema=_build_schema(defaults, include_name=True, include_dynamic=True),
+            errors=errors,
+        )
+
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Handle reconfiguration of an existing entry.
+
+        Lets the user change location/fuel types/dynamic tracker without
+        deleting the entry. Entity unique_ids stay the same; only the entry's
+        data and unique_id are rewritten.
+        """
+        entry = self._get_reconfigure_entry()
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            lat, lng, fuel_types, errors = _validate_user_input(user_input)
+            if not errors:
+                assert lat is not None and lng is not None
+                if not await _test_api_connection(self.hass, lat, lng, fuel_types[0]):
+                    errors["base"] = "cannot_connect"
+                else:
+                    dynamic_entity = user_input.get(CONF_DYNAMIC_ENTITY) or None
+                    new_unique_id = _compute_unique_id(dynamic_entity, lat, lng)
+                    # Allow no-op reconfigure (same unique_id). Abort only if
+                    # the new unique_id matches a *different* existing entry.
+                    await self.async_set_unique_id(new_unique_id)
+                    self._abort_if_unique_id_mismatch()
+                    return self.async_update_reload_and_abort(
+                        entry,
+                        data=_build_entry_data(user_input, lat, lng, fuel_types),
+                    )
+
+        current = {**entry.data, **entry.options}
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=_build_schema(current, include_dynamic=True),
             errors=errors,
         )
 
@@ -212,35 +295,15 @@ class TankstellenOptionsFlow(OptionsFlow):
         config = {**self.config_entry.data, **self.config_entry.options}
 
         if user_input is not None:
-            location = user_input.get("location", {})
-            lat = location.get("latitude")
-            lng = location.get("longitude")
-            fuel_types = user_input.get(CONF_FUEL_TYPES, [])
-
-            if lat is None or lng is None:
-                errors["location"] = "invalid_location"
-            elif not fuel_types:
-                errors[CONF_FUEL_TYPES] = "no_fuel_type"
-            elif not await _test_api_connection(
-                self.hass, lat, lng, fuel_types[0]
-            ):
-                errors["base"] = "cannot_connect"
-            else:
-                dynamic_entity = user_input.get(CONF_DYNAMIC_ENTITY) or None
-                return self.async_create_entry(
-                    data={
-                        CONF_LATITUDE: lat,
-                        CONF_LONGITUDE: lng,
-                        CONF_FUEL_TYPES: fuel_types,
-                        CONF_INCLUDE_CLOSED: user_input.get(
-                            CONF_INCLUDE_CLOSED, DEFAULT_INCLUDE_CLOSED
-                        ),
-                        CONF_SCAN_INTERVAL: user_input.get(
-                            CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL
-                        ),
-                        CONF_DYNAMIC_ENTITY: dynamic_entity,
-                    }
-                )
+            lat, lng, fuel_types, errors = _validate_user_input(user_input)
+            if not errors:
+                assert lat is not None and lng is not None
+                if not await _test_api_connection(self.hass, lat, lng, fuel_types[0]):
+                    errors["base"] = "cannot_connect"
+                else:
+                    return self.async_create_entry(
+                        data=_build_entry_data(user_input, lat, lng, fuel_types)
+                    )
 
         return self.async_show_form(
             step_id="init",

@@ -15,6 +15,20 @@
         "data_description": {
           "dynamic_entity": "Optional: Wähle eine device_tracker-Entität, um Preise basierend auf deinem aktuellen GPS-Standort zu aktualisieren. Leer lassen für fixen Standortmodus. Hinweis: Im dynamischen Modus wird das Aktualisierungsintervall oben ignoriert – stattdessen gilt ein 6-Stunden-Sicherheitsintervall."
         }
+      },
+      "reconfigure": {
+        "title": "Tankstellen Austria neu konfigurieren",
+        "description": "Aktualisiere Standort und Einstellungen dieses Eintrags. Bestehende Entitäten bleiben erhalten.",
+        "data": {
+          "location": "Standort",
+          "fuel_types": "Kraftstoffarten",
+          "include_closed": "Geschlossene Tankstellen anzeigen",
+          "scan_interval": "Aktualisierungsintervall (Minuten)",
+          "dynamic_entity": "Dynamischer Standort-Tracker"
+        },
+        "data_description": {
+          "dynamic_entity": "Optional: Wähle eine device_tracker-Entität, um Preise basierend auf deinem aktuellen GPS-Standort zu aktualisieren. Leer lassen für fixen Standortmodus. Hinweis: Im dynamischen Modus wird das Aktualisierungsintervall oben ignoriert – stattdessen gilt ein 6-Stunden-Sicherheitsintervall."
+        }
       }
     },
     "error": {
@@ -23,7 +37,8 @@
       "no_fuel_type": "Bitte wähle mindestens eine Kraftstoffart."
     },
     "abort": {
-      "already_configured": "Für diesen Standort existiert bereits ein Tankstellen Austria Eintrag."
+      "already_configured": "Für diesen Standort existiert bereits ein Tankstellen Austria Eintrag.",
+      "reconfigure_successful": "Neukonfiguration erfolgreich abgeschlossen."
     }
   },
   "options": {
@@ -47,6 +62,39 @@
       "cannot_connect": "Verbindung zur E-Control API fehlgeschlagen. Überprüfe deine Internetverbindung und versuche es erneut.",
       "invalid_location": "Bitte wähle einen gültigen Standort auf der Karte.",
       "no_fuel_type": "Bitte wähle mindestens eine Kraftstoffart."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "fuel_die": { "name": "Diesel" },
+      "fuel_sup": { "name": "Super 95" },
+      "fuel_gas": { "name": "CNG Erdgas" }
+    }
+  },
+  "exceptions": {
+    "api_timeout": {
+      "message": "E-Control API: Zeitüberschreitung für {fuel_type} nach 30 s"
+    },
+    "api_http_error": {
+      "message": "E-Control API lieferte HTTP {status} für {fuel_type}: {reason}"
+    },
+    "api_connection_error": {
+      "message": "E-Control API: Verbindungsfehler für {fuel_type}: {error_type}: {error}"
+    },
+    "api_invalid_content_type": {
+      "message": "E-Control API lieferte unerwarteten Content-Type für {fuel_type} (Status {status}): {reason}"
+    },
+    "api_invalid_json": {
+      "message": "E-Control API lieferte ungültiges JSON für {fuel_type} (Status {status}): {error}"
+    },
+    "api_all_failed": {
+      "message": "Alle Kraftstoffarten fehlgeschlagen ({failed_count}/{total_count}); erster Fehler bei {fuel_type}: {error}"
+    }
+  },
+  "issues": {
+    "tracker_missing": {
+      "title": "Standort-Tracker nicht verfügbar",
+      "description": "Die für den dynamischen Modus auf **{entry_title}** konfigurierte device_tracker-Entität **{entity_id}** ist nicht verfügbar oder liefert keine Koordinaten. Aktualisierungen fallen auf den Home-Assistant-Heimstandort zurück. Stelle den Tracker wieder her oder konfiguriere diesen Eintrag neu, um in den festen Standortmodus zu wechseln."
     }
   }
 }
