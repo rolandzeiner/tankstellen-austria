@@ -2,8 +2,10 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from typing import Any
 
+import aiohttp
 import voluptuous as vol
 
 from homeassistant.config_entries import ConfigFlow, ConfigFlowResult, OptionsFlow
@@ -40,19 +42,38 @@ from .const import (
     FUEL_TYPES,
 )
 
+_LOGGER = logging.getLogger(__name__)
+
 
 async def _test_api_connection(hass, lat: float, lng: float, fuel_type: str) -> bool:
     """Return True if the E-Control API is reachable with the given coordinates."""
     session = async_get_clientsession(hass)
+    url = f"{API_BASE_URL}{API_ENDPOINT}"
     try:
         resp = await session.get(
-            f"{API_BASE_URL}{API_ENDPOINT}",
+            url,
             params={"latitude": lat, "longitude": lng, "fuelType": fuel_type, "includeClosed": "true"},
             headers={"User-Agent": f"HomeAssistant tankstellen_austria/{CARD_VERSION}"},
             timeout=10,
         )
         resp.raise_for_status()
-    except (asyncio.TimeoutError, Exception):  # noqa: BLE001
+    except asyncio.TimeoutError:
+        _LOGGER.warning("API connection test timed out after 10s (%s)", url)
+        return False
+    except aiohttp.ClientResponseError as err:
+        _LOGGER.warning(
+            "API connection test failed with HTTP %s: %s (%s)",
+            err.status, err.message, url,
+        )
+        return False
+    except aiohttp.ClientError as err:
+        _LOGGER.warning(
+            "API connection test failed: %s: %s (%s)",
+            type(err).__name__, err, url,
+        )
+        return False
+    except Exception:  # noqa: BLE001 - final safety net so UI still gets cannot_connect
+        _LOGGER.exception("Unexpected error in API connection test (%s)", url)
         return False
     return True
 
@@ -200,6 +221,10 @@ class TankstellenOptionsFlow(OptionsFlow):
                 errors["location"] = "invalid_location"
             elif not fuel_types:
                 errors[CONF_FUEL_TYPES] = "no_fuel_type"
+            elif not await _test_api_connection(
+                self.hass, lat, lng, fuel_types[0]
+            ):
+                errors["base"] = "cannot_connect"
             else:
                 dynamic_entity = user_input.get(CONF_DYNAMIC_ENTITY) or None
                 return self.async_create_entry(

@@ -1,10 +1,10 @@
 /**
- * Tankstellen Austria Card v1.5.0
+ * Tankstellen Austria Card v1.5.1
  * Custom Lovelace card for displaying Austrian fuel prices.
  * https://github.com/rolandzeiner/tankstellen-austria
  */
 
-const CARD_VERSION = "1.5.0";
+const CARD_VERSION = "1.5.1";
 
 const TRANSLATIONS = {
   de: {
@@ -198,8 +198,71 @@ class TankstellenAustriaCard extends HTMLElement {
   _versionMismatch = null;
 
   setConfig(config) {
-    this._config = config;
+    this._config = this._normaliseConfig(config);
     this._render();
+  }
+
+  // Coerce/clamp user-supplied config so bad YAML doesn't crash the render
+  // or silently behave weirdly. We normalise instead of throwing so the card
+  // stays usable even with partially-broken configs.
+  _normaliseConfig(config) {
+    const cfg = { ...(config || {}) };
+
+    // entities: accept a string as a one-item array; drop non-string items.
+    if (typeof cfg.entities === "string") {
+      cfg.entities = [cfg.entities];
+    }
+    if (Array.isArray(cfg.entities)) {
+      cfg.entities = cfg.entities.filter((e) => typeof e === "string" && e.includes("."));
+    } else if (cfg.entities != null) {
+      console.warn("[Tankstellen Austria] config.entities must be an array of entity IDs — ignoring", cfg.entities);
+      delete cfg.entities;
+    }
+
+    // max_stations: clamp to [0, 5], fall back to 5 on garbage. Zero is
+    // allowed so users can hide the station list and show only cars/history.
+    if (cfg.max_stations != null) {
+      const n = parseInt(cfg.max_stations, 10);
+      cfg.max_stations = Number.isFinite(n) ? Math.max(0, Math.min(5, n)) : 5;
+    }
+
+    // payment_filter: must be array of non-empty strings.
+    if (Array.isArray(cfg.payment_filter)) {
+      cfg.payment_filter = cfg.payment_filter.filter((p) => typeof p === "string" && p.length > 0);
+    } else if (cfg.payment_filter != null) {
+      delete cfg.payment_filter;
+    }
+
+    // cars: validate per-item; drop items that can't be rescued.
+    if (Array.isArray(cfg.cars)) {
+      const ALLOWED_FUEL = ["DIE", "SUP", "GAS"];
+      cfg.cars = cfg.cars
+        .filter((car) => car && typeof car === "object")
+        .map((car) => {
+          const out = { ...car };
+          if (typeof out.name !== "string") out.name = "";
+          out.name = out.name.slice(0, 50);
+          if (!ALLOWED_FUEL.includes(out.fuel_type)) out.fuel_type = "DIE";
+          const ts = parseInt(out.tank_size, 10);
+          out.tank_size = Number.isFinite(ts) && ts >= 1 ? Math.min(200, ts) : 50;
+          if (out.consumption != null) {
+            const c = parseFloat(out.consumption);
+            if (Number.isFinite(c) && c >= 0) {
+              out.consumption = Math.min(30, c);
+            } else {
+              delete out.consumption;
+            }
+          }
+          if (typeof out.icon !== "string" || !out.icon.startsWith("mdi:")) {
+            out.icon = "mdi:car";
+          }
+          return out;
+        });
+    } else if (cfg.cars != null) {
+      delete cfg.cars;
+    }
+
+    return cfg;
   }
 
   set hass(hass) {
@@ -234,6 +297,13 @@ class TankstellenAustriaCard extends HTMLElement {
     // Auto-detect if no entities configured
     if (!entityIds || !entityIds.length) {
       entityIds = _findTankstellenEntities(this._hass);
+      if (!entityIds.length && !this._loggedEmptyAutodetect) {
+        this._loggedEmptyAutodetect = true;
+        console.warn(
+          "[Tankstellen Austria] No tankstellen_* sensors found and no entities configured. "
+          + "Ensure the integration is set up, or pass entities: in the card config."
+        );
+      }
     }
 
     return entityIds
@@ -263,6 +333,7 @@ class TankstellenAustriaCard extends HTMLElement {
   }
 
   _attachSparklineHover(container) {
+    try {
     const svg = container.querySelector("svg.sparkline");
     const tooltip = container.querySelector(".sparkline-tooltip");
     if (!svg || !tooltip) return;
@@ -341,6 +412,13 @@ class TankstellenAustriaCard extends HTMLElement {
       if (e.touches[0]) show(e.touches[0].clientX);
     }, { passive: true });
     svg.addEventListener("touchend", hide);
+    } catch (e) {
+      console.warn(
+        "[Tankstellen Austria] sparkline hover setup failed for",
+        container?.dataset?.entity || "(unknown entity)",
+        e,
+      );
+    }
   }
 
   _formatPrice(price) {
@@ -399,7 +477,12 @@ class TankstellenAustriaCard extends HTMLElement {
         this._render();
       }
     } catch (e) {
-      console.debug("Tankstellen Austria: Could not fetch history for", entityId, e);
+      console.warn(
+        "[Tankstellen Austria] history fetch failed for",
+        entityId,
+        "— sparkline and best-refuel will be empty:",
+        e,
+      );
     } finally {
       this._historyLoading[entityId] = false;
     }
@@ -410,8 +493,12 @@ class TankstellenAustriaCard extends HTMLElement {
     entities.forEach((e) => this._fetchHistory(e.entity_id));
     clearInterval(this._historyInterval);
     this._historyInterval = setInterval(() => {
-      const ents = this._resolveEntities();
-      ents.forEach((e) => this._fetchHistory(e.entity_id));
+      try {
+        const ents = this._resolveEntities();
+        ents.forEach((e) => this._fetchHistory(e.entity_id));
+      } catch (err) {
+        console.warn("[Tankstellen Austria] scheduled history refresh failed", err);
+      }
     }, 30 * 60 * 1000);
   }
 
@@ -592,16 +679,20 @@ class TankstellenAustriaCard extends HTMLElement {
 
   // --- Sparkline ---
   _renderSparkline(entityId) {
+    try {
     const allData = this._historyData[entityId];
     if (!allData || allData.length < 2) return "";
 
     // Sparkline shows last 7 days. With significant_changes_only the most recent
     // change event may be older than 7 days (stable price) — prepend the last
     // known point before the cutoff so the sparkline always renders.
+    // Index access instead of Array.prototype.at(-1) — .at is ES2022 and throws
+    // on Safari < 15.4 / Firefox < 90, which silently killed the sparkline.
     const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
     let data = allData.filter((d) => d.time >= cutoff);
     if (data.length < 2) {
-      const lastKnown = allData.filter((d) => d.time < cutoff).at(-1);
+      const prior = allData.filter((d) => d.time < cutoff);
+      const lastKnown = prior.length ? prior[prior.length - 1] : null;
       if (lastKnown) data = [lastKnown, ...data];
     }
     if (data.length < 2) return "";
@@ -744,6 +835,14 @@ class TankstellenAustriaCard extends HTMLElement {
         <span>${this._formatPriceShort(max)}</span>
       </div>
       ${recommendationHtml}`;
+    } catch (e) {
+      console.warn(
+        "[Tankstellen Austria] sparkline render failed for",
+        entityId,
+        e,
+      );
+      return "";
+    }
   }
 
   _handleRefresh() {
@@ -755,27 +854,44 @@ class TankstellenAustriaCard extends HTMLElement {
     const active = entities[this._activeTab] || entities[0];
     const preRefreshTimestamp = active?.last_updated;
     entities.forEach((e) => {
-      this._hass.callService("homeassistant", "update_entity", {
+      const p = this._hass.callService("homeassistant", "update_entity", {
         entity_id: e.entity_id,
       });
+      if (p && typeof p.catch === "function") {
+        p.catch((err) => {
+          console.warn(
+            "[Tankstellen Austria] update_entity failed for",
+            e.entity_id,
+            err,
+          );
+        });
+      }
     });
     // After HA has had time to fetch, check if data actually changed
     setTimeout(() => {
-      const updated = this._resolveEntities();
-      const updatedActive = updated[this._activeTab] || updated[0];
-      if (updatedActive?.last_updated === preRefreshTimestamp) {
-        this._noNewData = true;
-        this._render();
+      try {
+        const updated = this._resolveEntities();
+        const updatedActive = updated[this._activeTab] || updated[0];
+        if (updatedActive?.last_updated === preRefreshTimestamp) {
+          this._noNewData = true;
+          this._render();
+        }
+      } catch (err) {
+        console.warn("[Tankstellen Austria] post-refresh check failed", err);
       }
     }, 3000);
     // Start per-second re-render so the countdown stays live
     clearInterval(this._cooldownInterval);
     this._cooldownInterval = setInterval(() => {
-      if (Date.now() - this._lastManualRefresh >= DYNAMIC_MANUAL_COOLDOWN_MS) {
-        clearInterval(this._cooldownInterval);
-        this._cooldownInterval = null;
+      try {
+        if (Date.now() - this._lastManualRefresh >= DYNAMIC_MANUAL_COOLDOWN_MS) {
+          clearInterval(this._cooldownInterval);
+          this._cooldownInterval = null;
+        }
+        this._render();
+      } catch (err) {
+        console.warn("[Tankstellen Austria] cooldown interval failed", err);
       }
-      this._render();
     }, 1000);
     this._render();
   }
@@ -820,6 +936,7 @@ class TankstellenAustriaCard extends HTMLElement {
 
   // --- Main render ---
   _render() {
+    try {
     if (!this._hass) return;
 
     const entities = this._resolveEntities();
@@ -834,7 +951,10 @@ class TankstellenAustriaCard extends HTMLElement {
     const showHours = this._config.show_opening_hours !== false;
     const showPayment = this._config.show_payment_methods !== false;
     const showHistory = this._config.show_history !== false;
-    const maxStations = Math.min(5, Math.max(1, parseInt(this._config.max_stations, 10) || 5));
+    const parsedMaxStations = parseInt(this._config.max_stations, 10);
+    const maxStations = Number.isFinite(parsedMaxStations)
+      ? Math.max(0, Math.min(5, parsedMaxStations))
+      : 5;
     const paymentFilter = this._config.payment_filter || [];
 
     let html = `<ha-card>`;
@@ -886,8 +1006,11 @@ class TankstellenAustriaCard extends HTMLElement {
       return new Date(active.last_updated).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
     })();
 
+    // Keep the full station list available for header price, sparkline anchor,
+    // cars fill-up, etc. The max_stations config only constrains what's shown
+    // in the station list (sliced at render time below).
     const allStations = active?.attributes?.stations || [];
-    const stations = allStations.slice(0, maxStations);
+    const stations = allStations;
     const fuelType = active?.attributes?.fuel_type || "";
     const fuelTypeName = active?.attributes?.fuel_type_name || this._fuelName(fuelType);
     const avgPrice = active?.attributes?.average_price;
@@ -996,13 +1119,17 @@ class TankstellenAustriaCard extends HTMLElement {
       }
     }
 
-    if (!filteredStations.length && paymentFilter.length && stations.length) {
+    const displayStations = filteredStations.slice(0, maxStations);
+
+    if (maxStations === 0) {
+      // User explicitly hid the station list — don't show a "no data" message.
+    } else if (!filteredStations.length && paymentFilter.length && stations.length) {
       html += `<div class="empty">${this._t("payment_filter_active")} — ${this._t("no_data")}</div>`;
     } else if (!filteredStations.length) {
       html += `<div class="empty">${this._t("no_data")}</div>`;
     } else {
       html += `<div class="stations">`;
-      filteredStations.forEach((s, idx) => {
+      displayStations.forEach((s, idx) => {
         const loc = s.location || {};
         const isExpanded = this._expandedStations.has(`${this._activeTab}-${idx}`);
         const expandClass = isExpanded ? "expanded" : "";
@@ -1025,8 +1152,8 @@ class TankstellenAustriaCard extends HTMLElement {
             <div class="station-main" data-expand="${this._activeTab}-${idx}">
               <div class="rank">${idx + 1}</div>
               <div class="info">
-                <div class="name">${s.name || "–"}${openLabel}${matchChips}</div>
-                <div class="address">${loc.postalCode || ""} ${loc.city || ""}, ${loc.address || ""}</div>
+                <div class="name">${_escHtml(s.name || "–")}${openLabel}${matchChips}</div>
+                <div class="address">${_escHtml(loc.postalCode || "")} ${_escHtml(loc.city || "")}, ${_escHtml(loc.address || "")}</div>
               </div>
               <div class="price">${this._formatPrice(s.price)}</div>
               ${showMapLinks
@@ -1056,6 +1183,16 @@ class TankstellenAustriaCard extends HTMLElement {
 
     this.innerHTML = html + this._getStyles();
     this._attachListeners();
+    } catch (e) {
+      const ids = (this._resolveEntities() || []).map((en) => en.entity_id);
+      console.warn(
+        "[Tankstellen Austria] card render failed — entities:",
+        ids,
+        "activeTab:",
+        this._activeTab,
+        e,
+      );
+    }
   }
 
   _renderHours(hours) {
@@ -1066,10 +1203,10 @@ class TankstellenAustriaCard extends HTMLElement {
     const fe = hours.find((h) => h.day === "FE");
 
     let html = `<div class="hours-grid">`;
-    if (mo) html += `<span class="day">${this._t("mon_fri")}</span><span>${mo.from} – ${mo.to}</span>`;
-    if (sa) html += `<span class="day">${this._t("sat")}</span><span>${sa.from} – ${sa.to}</span>`;
-    if (so) html += `<span class="day">${this._t("sun")}</span><span>${so.from} – ${so.to}</span>`;
-    if (fe) html += `<span class="day">${this._t("holiday")}</span><span>${fe.from} – ${fe.to}</span>`;
+    if (mo) html += `<span class="day">${this._t("mon_fri")}</span><span>${_escHtml(mo.from)} – ${_escHtml(mo.to)}</span>`;
+    if (sa) html += `<span class="day">${this._t("sat")}</span><span>${_escHtml(sa.from)} – ${_escHtml(sa.to)}</span>`;
+    if (so) html += `<span class="day">${this._t("sun")}</span><span>${_escHtml(so.from)} – ${_escHtml(so.to)}</span>`;
+    if (fe) html += `<span class="day">${this._t("holiday")}</span><span>${_escHtml(fe.from)} – ${_escHtml(fe.to)}</span>`;
     html += `</div>`;
     return html;
   }
@@ -1113,7 +1250,7 @@ class TankstellenAustriaCard extends HTMLElement {
     if (pm.debit_card) badges.push(`<span class="pm-badge"><ha-icon icon="mdi:credit-card" class="pm-icon"></ha-icon> ${this._t("debit_card")}</span>`);
     if (pm.credit_card) badges.push(`<span class="pm-badge"><ha-icon icon="mdi:credit-card" class="pm-icon"></ha-icon> ${this._t("credit_card")}</span>`);
     for (const other of (pm.others || [])) {
-      badges.push(`<span class="pm-badge pm-other">${other}</span>`);
+      badges.push(`<span class="pm-badge pm-other">${_escHtml(other)}</span>`);
     }
     if (!badges.length) return "";
     return `<div class="pm-section">
@@ -1122,18 +1259,34 @@ class TankstellenAustriaCard extends HTMLElement {
     </div>`;
   }
 
+  // Wrap a handler so a throw surfaces as a console.warn instead of being
+  // silently swallowed by the browser's event dispatch loop.
+  _safeHandler(label, fn) {
+    return (e) => {
+      try {
+        return fn(e);
+      } catch (err) {
+        console.warn(`[Tankstellen Austria] handler "${label}" failed`, err);
+      }
+    };
+  }
+
   _attachListeners() {
+    try {
     this.querySelectorAll(".tab").forEach((btn) => {
-      btn.addEventListener("click", (e) => {
+      btn.addEventListener("click", this._safeHandler("tab-click", (e) => {
         this._activeTab = parseInt(e.target.dataset.tab, 10);
         this._expandedStations.clear();
         this._render();
-      });
+      }));
     });
 
     const refreshBtn = this.querySelector("[data-refresh]");
     if (refreshBtn) {
-      refreshBtn.addEventListener("click", () => this._handleRefresh());
+      refreshBtn.addEventListener("click", this._safeHandler(
+        "manual-refresh",
+        () => this._handleRefresh(),
+      ));
     }
 
     const versionReloadBtn = this.querySelector("[data-version-reload]");
@@ -1150,7 +1303,7 @@ class TankstellenAustriaCard extends HTMLElement {
     }
 
     this.querySelectorAll(".station-main").forEach((el) => {
-      el.addEventListener("click", (e) => {
+      el.addEventListener("click", this._safeHandler("station-expand", (e) => {
         if (e.target.closest(".map-link")) return;
         const key = el.dataset.expand;
         if (this._expandedStations.has(key)) {
@@ -1159,19 +1312,25 @@ class TankstellenAustriaCard extends HTMLElement {
           this._expandedStations.add(key);
         }
         this._render();
-      });
+      }));
     });
 
     const sparklineContainer = this.querySelector(".sparkline-container[data-entity]");
     if (sparklineContainer) {
-      sparklineContainer.addEventListener("click", () => {
-        sparklineContainer.dispatchEvent(new CustomEvent("hass-more-info", {
-          detail: { entityId: sparklineContainer.dataset.entity },
-          bubbles: true,
-          composed: true,
-        }));
-      });
+      sparklineContainer.addEventListener("click", this._safeHandler(
+        "sparkline-more-info",
+        () => {
+          sparklineContainer.dispatchEvent(new CustomEvent("hass-more-info", {
+            detail: { entityId: sparklineContainer.dataset.entity },
+            bubbles: true,
+            composed: true,
+          }));
+        },
+      ));
       this._attachSparklineHover(sparklineContainer);
+    }
+    } catch (e) {
+      console.warn("[Tankstellen Austria] listener attachment failed", e);
     }
   }
 
@@ -1701,6 +1860,7 @@ class TankstellenAustriaCardEditor extends HTMLElement {
   }
 
   _render() {
+    try {
     if (!this._hass) return;
 
     // Find available tankstellen entities
@@ -1918,7 +2078,8 @@ class TankstellenAustriaCardEditor extends HTMLElement {
           .car-editor-row {
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 4px;
+            flex-wrap: wrap;
           }
           .car-input {
             background: var(--input-fill-color, rgba(0,0,0,0.06));
@@ -1935,26 +2096,28 @@ class TankstellenAustriaCardEditor extends HTMLElement {
             border-color: var(--primary-color);
           }
           .car-name-input {
-            flex: 1 1 60px;
+            flex: 1 1 50px;
+            min-width: 50px;
           }
           .car-tank-input {
-            width: 58px;
+            width: 54px;
             flex-shrink: 0;
           }
           .car-consumption-input {
-            width: 68px;
+            width: 60px;
             flex-shrink: 0;
           }
           .car-select {
             background: var(--input-fill-color, rgba(0,0,0,0.06));
             border: 1px solid var(--divider-color);
             border-radius: 8px;
-            padding: 6px 4px;
+            padding: 6px 2px;
             font-size: 13px;
             color: var(--primary-text-color);
             cursor: pointer;
             font-family: inherit;
             flex-shrink: 0;
+            max-width: 90px;
           }
           .car-delete-btn {
             background: none;
@@ -1966,6 +2129,7 @@ class TankstellenAustriaCardEditor extends HTMLElement {
             display: flex;
             align-items: center;
             flex-shrink: 0;
+            margin-left: auto;
           }
           .car-delete-btn:hover {
             background: rgba(219,68,55,0.1);
@@ -2111,7 +2275,7 @@ class TankstellenAustriaCardEditor extends HTMLElement {
             <label for="slider-stations">${this._et("max_stations")}</label>
           </div>
           <div class="slider-row">
-            <input id="slider-stations" type="range" min="1" max="5" step="1" value="${maxStations}" data-field="max_stations" />
+            <input id="slider-stations" type="range" min="0" max="5" step="1" value="${maxStations}" data-field="max_stations" />
             <span class="slider-value">${maxStations}</span>
           </div>
         </div>
@@ -2218,17 +2382,23 @@ class TankstellenAustriaCardEditor extends HTMLElement {
       });
     });
 
-    // Range slider
+    // Range slider — firing config-changed on every `input` event caused the
+    // editor to re-render mid-drag, replacing the slider thumb and making the
+    // drag feel sticky. Update only the visible label during drag and commit
+    // on `change` (pointer release / keyboard commit).
     this.querySelectorAll('input[type="range"]').forEach((input) => {
       ["keydown", "keyup", "keypress"].forEach((evt) => {
         input.addEventListener(evt, (e) => e.stopPropagation());
       });
       input.addEventListener("input", (e) => {
+        if (e.target.nextElementSibling) {
+          e.target.nextElementSibling.textContent = e.target.value;
+        }
+      });
+      input.addEventListener("change", (e) => {
         const field = e.target.dataset.field;
         this._config = { ...this._config, [field]: parseInt(e.target.value, 10) };
         this._fireChanged();
-        // Update the displayed value
-        e.target.nextElementSibling.textContent = e.target.value;
       });
     });
 
@@ -2425,11 +2595,26 @@ class TankstellenAustriaCardEditor extends HTMLElement {
         this._render();
       });
     }
+    } catch (e) {
+      console.warn(
+        "[Tankstellen Austria] editor render failed — config keys:",
+        Object.keys(this._config || {}),
+        e,
+      );
+    }
   }
 }
 
-customElements.define("tankstellen-austria-card", TankstellenAustriaCard);
-customElements.define("tankstellen-austria-card-editor", TankstellenAustriaCardEditor);
+try {
+  if (!customElements.get("tankstellen-austria-card")) {
+    customElements.define("tankstellen-austria-card", TankstellenAustriaCard);
+  }
+  if (!customElements.get("tankstellen-austria-card-editor")) {
+    customElements.define("tankstellen-austria-card-editor", TankstellenAustriaCardEditor);
+  }
+} catch (e) {
+  console.error("[Tankstellen Austria] custom element registration failed", e);
+}
 
 window.customCards = window.customCards || [];
 window.customCards.push({
