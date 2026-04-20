@@ -50,6 +50,9 @@ const TRANSLATIONS = {
     confidence_cents: "Cent",
     confidence_short_history_hint: "Hinweis: Home Assistant speichert standardmäßig nur 10 Tage Verlauf. Für bessere Empfehlungen recorder.purge_keep_days auf 30 erhöhen.",
     weekdays: ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"],
+    median_delta_below: "{c}¢ unter Median",
+    median_delta_above: "{c}¢ über Median",
+    median_delta_equal: "auf Median",
     editor: {
       entities: "Sensoren",
       entities_hint: "Leer lassen für automatische Erkennung",
@@ -59,6 +62,9 @@ const TRANSLATIONS = {
       show_payment_methods: "Zahlungsarten anzeigen",
       show_history: "Preisverlauf anzeigen",
       show_best_refuel: "Tank-Tipp anzeigen",
+      show_median_line: "7-Tage-Median einblenden",
+      show_hour_envelope: "Typischer Stundenverlauf (4 Wo)",
+      show_noon_markers: "12:00-Markierung (Preisreset)",
       recorder_hint_intro: "Home Assistant speichert standardmäßig nur 10 Tage Verlauf. Für bessere Empfehlungen diesen Block in configuration.yaml ergänzen und neu starten:",
       copy: "Kopieren",
       copied: "Kopiert",
@@ -123,6 +129,9 @@ const TRANSLATIONS = {
     confidence_cents: "¢",
     confidence_short_history_hint: "Note: Home Assistant keeps only 10 days of history by default. For better recommendations raise recorder.purge_keep_days to 30.",
     weekdays: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
+    median_delta_below: "{c}¢ below median",
+    median_delta_above: "{c}¢ above median",
+    median_delta_equal: "at median",
     editor: {
       entities: "Sensors",
       entities_hint: "Leave empty for auto-detection",
@@ -132,6 +141,9 @@ const TRANSLATIONS = {
       show_payment_methods: "Show payment methods",
       show_history: "Show price history",
       show_best_refuel: "Show refuel tip",
+      show_median_line: "Show 7-day median",
+      show_hour_envelope: "Typical hourly range (4 wk)",
+      show_noon_markers: "Noon reset markers",
       recorder_hint_intro: "Home Assistant keeps only 10 days of history by default. For better recommendations, add this block to configuration.yaml and restart:",
       copy: "Copy",
       copied: "Copied",
@@ -166,6 +178,92 @@ const CAR_ICONS = [
 const _escHtml = (s) => String(s)
   .replace(/&/g, "&amp;").replace(/</g, "&lt;")
   .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+// Monotone cubic Hermite interpolation (Fritsch-Carlson 1980).
+// Produces a smooth SVG path that passes through every input point exactly
+// and never overshoots between them — so it cannot introduce artificial
+// local extrema not present in the data. Safe for price visualisation.
+//
+// Takes [{x, y}, ...] (assumed sorted by x, strictly increasing x).
+// Returns a string usable as an SVG <path d="..."> value.
+function _monotoneCubicPath(pts) {
+  const n = pts.length;
+  if (n === 0) return "";
+  if (n === 1) return `M ${pts[0].x.toFixed(2)} ${pts[0].y.toFixed(2)}`;
+  if (n === 2) {
+    return `M ${pts[0].x.toFixed(2)} ${pts[0].y.toFixed(2)} ` +
+           `L ${pts[1].x.toFixed(2)} ${pts[1].y.toFixed(2)}`;
+  }
+
+  // Secant slopes m[k] = (y[k+1] - y[k]) / (x[k+1] - x[k]) for each segment.
+  const m = new Array(n - 1);
+  for (let k = 0; k < n - 1; k++) {
+    const dx = pts[k + 1].x - pts[k].x;
+    m[k] = dx === 0 ? 0 : (pts[k + 1].y - pts[k].y) / dx;
+  }
+
+  // Tangent d[k] at each point: average of adjacent secants at interior
+  // points, single secant at endpoints.
+  const d = new Array(n);
+  d[0] = m[0];
+  d[n - 1] = m[n - 2];
+  for (let k = 1; k < n - 1; k++) {
+    d[k] = (m[k - 1] + m[k]) / 2;
+  }
+
+  // Fritsch-Carlson correction: flatten where data itself is flat and
+  // clip tangents where monotonicity would be violated.
+  for (let k = 0; k < n - 1; k++) {
+    if (m[k] === 0) {
+      d[k] = 0;
+      d[k + 1] = 0;
+      continue;
+    }
+    const a = d[k] / m[k];
+    const b = d[k + 1] / m[k];
+    const h = a * a + b * b;
+    if (h > 9) {
+      const t = 3 / Math.sqrt(h);
+      d[k] = t * a * m[k];
+      d[k + 1] = t * b * m[k];
+    }
+  }
+
+  // Emit cubic Bézier per segment.
+  let out = `M ${pts[0].x.toFixed(2)} ${pts[0].y.toFixed(2)}`;
+  for (let k = 0; k < n - 1; k++) {
+    const dx = pts[k + 1].x - pts[k].x;
+    const cp1x = pts[k].x + dx / 3;
+    const cp1y = pts[k].y + (d[k] * dx) / 3;
+    const cp2x = pts[k + 1].x - dx / 3;
+    const cp2y = pts[k + 1].y - (d[k + 1] * dx) / 3;
+    out += ` C ${cp1x.toFixed(2)} ${cp1y.toFixed(2)}, ` +
+           `${cp2x.toFixed(2)} ${cp2y.toFixed(2)}, ` +
+           `${pts[k + 1].x.toFixed(2)} ${pts[k + 1].y.toFixed(2)}`;
+  }
+  return out;
+}
+
+// Builds a closed smooth-ribbon SVG path between two aligned point arrays
+// (same x-coordinates, upper and lower y). Uses monotone cubic for both
+// edges so the band never overshoots its own observed extrema.
+function _monotoneRibbonPath(upper, lower) {
+  if (!upper || !lower || upper.length < 2 || upper.length !== lower.length) {
+    return "";
+  }
+  const upperPath = _monotoneCubicPath(upper);
+  // Traverse lower right-to-left; the monotone algorithm tolerates decreasing
+  // x because dx carries its own sign through all derivatives.
+  const reversedLower = [...lower].reverse();
+  const lowerPath = _monotoneCubicPath(reversedLower);
+  // Stitch: replace the lower path's initial "M x y" with "L x y" so it
+  // continues from the end of the upper edge into the lower edge.
+  const lowerCont = lowerPath.replace(
+    /^M\s+([-\d.]+)\s+([-\d.]+)/,
+    (_, x, y) => `L ${x} ${y}`,
+  );
+  return `${upperPath} ${lowerCont} Z`;
+}
 
 // Helper: find all tankstellen_austria sensors in hass states
 function _findTankstellenEntities(hass) {
@@ -677,6 +775,82 @@ class TankstellenAustriaCard extends HTMLElement {
     };
   }
 
+  // Builds a per-hour price envelope across the analysable window
+  // (same step-function expansion + per-week p5/p95 winsorising used by the
+  // best-refuel analysis). Returns absolute-price p10/p90 bounds per
+  // hour-of-day, which can be plotted directly behind the 7-day sparkline.
+  _buildHourlyEnvelope(allData) {
+    if (!allData || allData.length < 2) return null;
+
+    const HOUR_MS = 3600000;
+    const DAY_MS = 86400000;
+    const now = Date.now();
+    if (now - allData[0].time < 7 * DAY_MS) return null;
+
+    const hourly = [];
+    const addSamples = (price, start, end) => {
+      const first = Math.ceil(start / HOUR_MS) * HOUR_MS;
+      for (let t = first; t < end; t += HOUR_MS) hourly.push({ t, price });
+    };
+    for (let i = 0; i < allData.length - 1; i++) {
+      addSamples(allData[i].value, allData[i].time, allData[i + 1].time);
+    }
+    addSamples(
+      allData[allData.length - 1].value,
+      allData[allData.length - 1].time,
+      now,
+    );
+    if (hourly.length === 0) return null;
+
+    const getMondayKey = (t) => {
+      const d = new Date(t);
+      d.setHours(0, 0, 0, 0);
+      const day = d.getDay();
+      d.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
+      return d.getTime();
+    };
+    const percentile = (sorted, p) => {
+      if (sorted.length === 0) return NaN;
+      const idx = (sorted.length - 1) * p;
+      const lo = Math.floor(idx), hi = Math.ceil(idx);
+      return sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo);
+    };
+
+    const weeks = {};
+    hourly.forEach(({ t, price }) => {
+      const wk = getMondayKey(t);
+      (weeks[wk] = weeks[wk] || []).push({ t, price });
+    });
+
+    const byHour = Array.from({ length: 24 }, () => []);
+    Object.values(weeks).forEach((samples) => {
+      if (samples.length < 24) return; // skip partial-week slivers
+      const sorted = samples.map((s) => s.price).sort((a, b) => a - b);
+      const p05 = percentile(sorted, 0.05);
+      const p95 = percentile(sorted, 0.95);
+      samples.forEach((s) => {
+        const price = Math.max(p05, Math.min(p95, s.price));
+        byHour[new Date(s.t).getHours()].push(price);
+      });
+    });
+
+    const minByHour = new Array(24).fill(null);
+    const maxByHour = new Array(24).fill(null);
+    let filled = 0;
+    for (let h = 0; h < 24; h++) {
+      const bucket = byHour[h];
+      if (bucket.length < 3) continue;
+      const sorted = [...bucket].sort((a, b) => a - b);
+      // p10/p90 of already-clipped samples → middle 80% of typical values
+      // at this hour. Honest and robust against sparse weeks.
+      minByHour[h] = percentile(sorted, 0.1);
+      maxByHour[h] = percentile(sorted, 0.9);
+      filled++;
+    }
+    if (filled < 6) return null; // too sparse to plot a meaningful band
+    return { minByHour, maxByHour };
+  }
+
   // --- Sparkline ---
   _renderSparkline(entityId) {
     try {
@@ -702,19 +876,138 @@ class TankstellenAustriaCard extends HTMLElement {
     const padY = 4;
 
     const values = data.map((d) => d.value);
-    const min = Math.min(...values);
-    const max = Math.max(...values);
+    let min = Math.min(...values);
+    let max = Math.max(...values);
+
+    // Optional overlays (all default-off so existing users keep their view).
+    const showMedianLine = this._config.show_median_line === true;
+    const showHourEnvelope = this._config.show_hour_envelope === true;
+    const showNoonMarkers = this._config.show_noon_markers === true;
+
+    // 4-week hourly envelope (p10/p90 band per hour-of-day, reusing the
+    // winsorised pipeline from the best-refuel analysis).
+    const envelope = showHourEnvelope ? this._buildHourlyEnvelope(allData) : null;
+    if (envelope) {
+      for (let h = 0; h < 24; h++) {
+        if (envelope.minByHour[h] !== null) {
+          min = Math.min(min, envelope.minByHour[h]);
+          max = Math.max(max, envelope.maxByHour[h]);
+        }
+      }
+    }
+
     const range = max - min || 0.01;
+    const priceToY = (p) =>
+      height - padY - ((p - min) / range) * (height - 2 * padY);
 
     const points = data.map((d, i) => {
       const x = (i / (data.length - 1)) * width;
-      const y = height - padY - ((d.value - min) / range) * (height - 2 * padY);
+      const y = priceToY(d.value);
       return { x, y, str: `${x.toFixed(1)},${y.toFixed(1)}` };
     });
 
-    const polyline = points.map((p) => p.str).join(" ");
-    const areaPoints = `${polyline} ${width},${height} 0,${height}`;
+    // Smooth monotone-cubic path — passes through every point exactly and
+    // cannot overshoot, so the visual smoothing preserves data fidelity.
+    const linePath = _monotoneCubicPath(points);
+    const areaPath = linePath
+      ? `${linePath} L ${width.toFixed(2)} ${height.toFixed(2)} L 0 ${height.toFixed(2)} Z`
+      : "";
     const gradId = `spark-grad-${entityId.replace(/\./g, "_")}`;
+
+    // --- Overlay 1: hourly envelope band ---
+    // For each sparkline data point, look up its hour-of-day and emit upper
+    // (high-price) and lower (low-price) band edges. Rendered as a closed
+    // ribbon behind the main line.
+    let envelopeSvg = "";
+    if (envelope) {
+      const upper = []; // higher-price edge (smaller Y, toward top)
+      const lower = []; // lower-price edge (larger Y, toward bottom)
+      for (let i = 0; i < data.length; i++) {
+        const h = new Date(data[i].time).getHours();
+        const hi = envelope.maxByHour[h];
+        const lo = envelope.minByHour[h];
+        if (hi == null || lo == null) continue;
+        upper.push({ x: points[i].x, y: priceToY(hi) });
+        lower.push({ x: points[i].x, y: priceToY(lo) });
+      }
+      if (upper.length >= 2) {
+        const ribbon = _monotoneRibbonPath(upper, lower);
+        if (ribbon) {
+          envelopeSvg = `<path d="${ribbon}" fill="var(--primary-color)" fill-opacity="0.08" stroke="none"/>`;
+        }
+      }
+    }
+
+    // --- Overlay 2: noon markers ---
+    // One thin dashed vertical line at each 12:00 local time falling inside
+    // the 7-day window. Structural cue for Austria's daily legal price reset.
+    //
+    // Important: the sparkline places data points by index (uniform spacing),
+    // not by time. HA's recorder only writes on sensor changes, so a 24-hour
+    // stretch with no price change spans fewer indices than a busy one.
+    // To put each noon at the right visual x we find its two surrounding
+    // data points by time and interpolate the x between them.
+    let noonSvg = "";
+    if (showNoonMarkers && data.length >= 2) {
+      const tStart = data[0].time;
+      const tEnd = data[data.length - 1].time;
+      const first = new Date(tStart);
+      first.setHours(12, 0, 0, 0);
+      if (first.getTime() < tStart) first.setDate(first.getDate() + 1);
+
+      const xForTime = (t) => {
+        if (t <= tStart || t >= tEnd) return null;
+        // Binary search for i such that data[i].time <= t < data[i+1].time.
+        let lo = 0, hi = data.length - 1;
+        while (lo < hi - 1) {
+          const mid = (lo + hi) >> 1;
+          if (data[mid].time <= t) lo = mid; else hi = mid;
+        }
+        const dt = data[lo + 1].time - data[lo].time;
+        const frac = dt > 0 ? (t - data[lo].time) / dt : 0;
+        return points[lo].x + frac * (points[lo + 1].x - points[lo].x);
+      };
+
+      const lines = [];
+      for (let t = first.getTime(); t <= tEnd; t += 24 * 3600 * 1000) {
+        const x = xForTime(t);
+        if (x == null) continue;
+        lines.push(
+          `<line x1="${x.toFixed(1)}" y1="0" x2="${x.toFixed(1)}" y2="${height}" ` +
+          `stroke="var(--secondary-text-color)" stroke-width="0.9" ` +
+          `stroke-dasharray="2,3" opacity="0.55"/>`,
+        );
+      }
+      noonSvg = lines.join("");
+    }
+
+    // --- Overlay 3: 7-day median line + delta-vs-median ---
+    let medianSvg = "";
+    let deltaText = "";
+    if (showMedianLine && values.length >= 2) {
+      const sortedVals = [...values].sort((a, b) => a - b);
+      const mid = (sortedVals.length - 1) / 2;
+      const median = (sortedVals[Math.floor(mid)] + sortedVals[Math.ceil(mid)]) / 2;
+      const medianY = priceToY(median);
+      medianSvg = `<line x1="0" y1="${medianY.toFixed(1)}" x2="${width}" y2="${medianY.toFixed(1)}" ` +
+        `stroke="var(--secondary-text-color)" stroke-width="0.8" ` +
+        `stroke-dasharray="4,3" opacity="0.55"/>`;
+
+      const current = values[values.length - 1];
+      const deltaCents = (current - median) * 100;
+      const absCents = Math.abs(deltaCents).toFixed(1);
+      const deltaKey =
+        deltaCents <= -0.05 ? "median_delta_below"
+        : deltaCents >= 0.05 ? "median_delta_above"
+        : "median_delta_equal";
+      const deltaCls =
+        deltaCents <= -0.05 ? "median-delta-good"
+        : deltaCents >= 0.05 ? "median-delta-bad"
+        : "median-delta-neutral";
+      deltaText = `<span class="median-delta ${deltaCls}">${
+        this._t(deltaKey).replace("{c}", absCents)
+      }</span>`;
+    }
 
     // Analyse full history (up to 4 weeks) for a statistically meaningful recommendation.
     // Marker anchors on the most recent occurrence of the recommended hour (and
@@ -816,9 +1109,12 @@ class TankstellenAustriaCard extends HTMLElement {
             <stop offset="100%" stop-color="var(--primary-color)" stop-opacity="0.02"/>
           </linearGradient>
         </defs>
-        <polygon points="${areaPoints}" fill="url(#${gradId})" />
+        ${noonSvg}
+        ${envelopeSvg}
+        <path d="${areaPath}" fill="url(#${gradId})" />
         ${markerSvg}
-        <polyline points="${polyline}" fill="none" stroke="var(--primary-color)" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" />
+        ${medianSvg}
+        <path d="${linePath}" fill="none" stroke="var(--primary-color)" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" />
         <line class="sparkline-hover-line" x1="0" y1="0" x2="0" y2="${height}"
               stroke="var(--primary-text-color)" stroke-width="0.6" stroke-dasharray="2,2" opacity="0" pointer-events="none"/>
         <circle class="sparkline-hover-dot" cx="0" cy="0" r="3"
@@ -831,7 +1127,7 @@ class TankstellenAustriaCard extends HTMLElement {
       </div>
       <div class="sparkline-labels">
         <span>${this._formatPriceShort(min)}</span>
-        <span class="sparkline-period">${this._t("last_7_days")}</span>
+        <span class="sparkline-period">${this._t("last_7_days")}${deltaText ? ` · ${deltaText}` : ""}</span>
         <span>${this._formatPriceShort(max)}</span>
       </div>
       ${recommendationHtml}`;
@@ -1533,6 +1829,13 @@ class TankstellenAustriaCard extends HTMLElement {
         font-size: 10px;
         opacity: 0.6;
       }
+      .median-delta {
+        font-weight: 500;
+        opacity: 0.9;
+      }
+      .median-delta-good { color: var(--success-color, #4CAF50); }
+      .median-delta-bad  { color: var(--warning-color, #FF9800); }
+      .median-delta-neutral { color: var(--secondary-text-color); }
       .refuel-recommendation {
         display: flex;
         align-items: center;
@@ -1872,6 +2175,9 @@ class TankstellenAustriaCardEditor extends HTMLElement {
     const showPayment = this._config.show_payment_methods !== false;
     const showHistory = this._config.show_history !== false;
     const showBestRefuel = this._config.show_best_refuel !== false;
+    const showMedianLine = this._config.show_median_line === true;
+    const showHourEnvelope = this._config.show_hour_envelope === true;
+    const showNoonMarkers = this._config.show_noon_markers === true;
     const paymentFilter = this._config.payment_filter || [];
     const highlightMode = this._config.payment_highlight_mode === true;
     const showCars = this._config.show_cars === true;
@@ -2255,6 +2561,18 @@ class TankstellenAustriaCardEditor extends HTMLElement {
             <label for="toggle-best-refuel">${this._et("show_best_refuel")}</label>
             <ha-switch id="toggle-best-refuel" ${showBestRefuel ? "checked" : ""} data-field="show_best_refuel"></ha-switch>
           </div>
+          <div class="toggle-row toggle-row-sub">
+            <label for="toggle-median-line">${this._et("show_median_line")}</label>
+            <ha-switch id="toggle-median-line" ${showMedianLine ? "checked" : ""} data-field="show_median_line"></ha-switch>
+          </div>
+          <div class="toggle-row toggle-row-sub">
+            <label for="toggle-hour-envelope">${this._et("show_hour_envelope")}</label>
+            <ha-switch id="toggle-hour-envelope" ${showHourEnvelope ? "checked" : ""} data-field="show_hour_envelope"></ha-switch>
+          </div>
+          <div class="toggle-row toggle-row-sub">
+            <label for="toggle-noon-markers">${this._et("show_noon_markers")}</label>
+            <ha-switch id="toggle-noon-markers" ${showNoonMarkers ? "checked" : ""} data-field="show_noon_markers"></ha-switch>
+          </div>
           ${showBestRefuel ? `
           <div class="recorder-hint">
             <div class="recorder-hint-text">${this._et("recorder_hint_intro")}</div>
@@ -2621,6 +2939,6 @@ window.customCards.push({
   type: "tankstellen-austria-card",
   name: "Tankstellen Austria",
   description: "Display Austrian fuel prices from E-Control Spritpreisrechner.",
-  preview: false,
+  preview: true,
   documentationURL: "https://github.com/rolandzeiner/tankstellen-austria",
 });
