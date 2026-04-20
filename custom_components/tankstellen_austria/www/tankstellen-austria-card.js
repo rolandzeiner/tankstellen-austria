@@ -2110,8 +2110,12 @@ class TankstellenAustriaCard extends HTMLElement {
 
   static getStubConfig(hass) {
     const entities = _findTankstellenEntities(hass);
+    // Pick one sensor for the picker thumbnail so multi-fuel installs don't
+    // render a tab bar in the preview tile. Once the user actually adds the
+    // card, leaving `entities: []` in their config keeps auto-detection on
+    // — but here we want a single clean tile. First sensor wins.
     return {
-      entities: entities.length ? entities : [],
+      entities: entities.length ? [entities[0]] : [],
       max_stations: 5,
       show_map_links: true,
       show_opening_hours: true,
