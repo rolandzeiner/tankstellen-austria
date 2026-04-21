@@ -75,6 +75,8 @@ const TRANSLATIONS = {
       section_sensors: "Sensoren",
       section_display: "Anzeige",
       section_payment_filter: "Zahlungsfilter",
+      section_tab_labels: "Tab-Bezeichnungen",
+      tab_labels_hint: "Leer lassen, um die Standard-Bezeichnung zu verwenden",
       section_cars: "Fahrzeuge",
       show_cars: "Tankkosten anzeigen",
       show_car_fillup: "Tankkosten anzeigen",
@@ -154,6 +156,8 @@ const TRANSLATIONS = {
       section_sensors: "Sensors",
       section_display: "Display",
       section_payment_filter: "Payment filter",
+      section_tab_labels: "Tab labels",
+      tab_labels_hint: "Leave empty to use the default label",
       section_cars: "Cars",
       show_cars: "Show fill-up costs",
       show_car_fillup: "Show fill-up cost",
@@ -1266,19 +1270,27 @@ class TankstellenAustriaCard extends HTMLElement {
 
     // Tabs
     if (entities.length > 1) {
+      const customLabels = this._config.tab_labels || {};
       html += `<div class="tabs">`;
       entities.forEach((e, i) => {
-        const ft = e.attributes.fuel_type || "";
         const activeClass = i === this._activeTab ? "active" : "";
-        let label = this._fuelName(ft);
-        if (e.attributes.dynamic_mode === true) {
-          const trackerId = e.attributes.dynamic_entity;
-          const trackerName = trackerId
-            ? (this._hass.states[trackerId]?.attributes?.friendly_name || trackerId.split(".")[1])
-            : null;
-          if (trackerName) label += ` · ${trackerName}`;
+        const custom = customLabels[e.entity_id];
+        let label;
+        if (typeof custom === "string" && custom.trim().length > 0) {
+          // User-supplied override — overrides fuel name and dynamic tracker suffix.
+          label = custom;
+        } else {
+          const ft = e.attributes.fuel_type || "";
+          label = this._fuelName(ft);
+          if (e.attributes.dynamic_mode === true) {
+            const trackerId = e.attributes.dynamic_entity;
+            const trackerName = trackerId
+              ? (this._hass.states[trackerId]?.attributes?.friendly_name || trackerId.split(".")[1])
+              : null;
+            if (trackerName) label += ` · ${trackerName}`;
+          }
         }
-        html += `<button class="tab ${activeClass}" data-tab="${i}">${label}</button>`;
+        html += `<button class="tab ${activeClass}" data-tab="${i}">${_escHtml(label)}</button>`;
       });
       html += `</div>`;
     }
@@ -2345,6 +2357,34 @@ class TankstellenAustriaCardEditor extends HTMLElement {
             font-size: 14px;
             color: var(--primary-color);
           }
+          .tab-label-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+          }
+          .tab-label-default {
+            flex: 0 0 40%;
+            font-size: 13px;
+            color: var(--secondary-text-color);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+          }
+          .tab-label-input {
+            flex: 1;
+            min-width: 0;
+            padding: 6px 10px;
+            border-radius: 6px;
+            border: 1px solid var(--divider-color);
+            background: var(--card-background-color, #fff);
+            color: var(--primary-text-color);
+            font-size: 13px;
+            font-family: inherit;
+          }
+          .tab-label-input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+          }
           .pm-filter-chips {
             display: flex;
             flex-wrap: wrap;
@@ -2537,6 +2577,43 @@ class TankstellenAustriaCardEditor extends HTMLElement {
           </div>
           <div class="editor-hint">${this._et("entities_hint")}</div>
         </div>
+
+        <!-- Tab labels (only when 2+ resolvable entities — tabs only appear then) -->
+        ${(() => {
+      const resolvable = (selected.length ? selected : available)
+        .map((eid) => ({ eid, state: this._hass.states[eid] }))
+        .filter((x) => !!x.state);
+      if (resolvable.length < 2) return "";
+      const labels = this._config.tab_labels || {};
+      const _tl = TRANSLATIONS[this._lang()] || TRANSLATIONS.de;
+      const rows = resolvable.map(({ eid, state }) => {
+        const ft = state.attributes?.fuel_type || "";
+        let defaultLabel = _tl.fuel_types[ft] || ft;
+        if (state.attributes?.dynamic_mode === true) {
+          const trackerId = state.attributes.dynamic_entity;
+          const trackerName = trackerId
+            ? (this._hass.states[trackerId]?.attributes?.friendly_name || trackerId.split(".")[1])
+            : null;
+          if (trackerName) defaultLabel += ` · ${trackerName}`;
+        }
+        const current = typeof labels[eid] === "string" ? labels[eid] : "";
+        return `
+            <div class="tab-label-row">
+              <span class="tab-label-default" title="${escHtml(defaultLabel)}">${escHtml(defaultLabel)}</span>
+              <input class="tab-label-input" type="text"
+                maxlength="50"
+                placeholder="${escHtml(defaultLabel)}"
+                value="${escHtml(current)}"
+                data-tab-label-entity="${escHtml(eid)}" />
+            </div>`;
+      }).join("");
+      return `
+        <div class="editor-section">
+          <div class="section-header">${this._et("section_tab_labels")}</div>
+          ${rows}
+          <div class="editor-hint">${this._et("tab_labels_hint")}</div>
+        </div>`;
+    })()}
 
         <!-- Display options -->
         <div class="editor-section">
@@ -2815,6 +2892,36 @@ class TankstellenAustriaCardEditor extends HTMLElement {
       });
       customAddBtn.addEventListener("click", addCustom);
     }
+
+    // Tab label inputs — sanitize on commit; empty string clears override.
+    // Uses `change` (not `input`) to avoid re-rendering mid-typing.
+    this.querySelectorAll(".tab-label-input").forEach((input) => {
+      ["keydown", "keyup", "keypress"].forEach((evt) => {
+        input.addEventListener(evt, (e) => e.stopPropagation());
+      });
+      input.addEventListener("click", (e) => e.stopPropagation());
+      input.addEventListener("pointerdown", (e) => e.stopPropagation());
+      input.addEventListener("change", (e) => {
+        e.stopPropagation();
+        const eid = e.target.dataset.tabLabelEntity;
+        if (!eid) return;
+        const val = e.target.value.replace(/[<>"'&]/g, "").slice(0, 50).trim();
+        const labels = { ...(this._config.tab_labels || {}) };
+        if (val) {
+          labels[eid] = val;
+        } else {
+          delete labels[eid];
+        }
+        const next = { ...this._config };
+        if (Object.keys(labels).length) {
+          next.tab_labels = labels;
+        } else {
+          delete next.tab_labels;
+        }
+        this._config = next;
+        this._fireChanged();
+      });
+    });
 
     // Car icon button — toggle picker
     this.querySelectorAll(".car-icon-btn").forEach((btn) => {
