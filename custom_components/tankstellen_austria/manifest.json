@@ -9,6 +9,7 @@
   "integration_type": "service",
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/rolandzeiner/tankstellen-austria/issues",
+  "loggers": ["custom_components.tankstellen_austria"],
   "requirements": [],
   "version": "1.6.0"
 }
