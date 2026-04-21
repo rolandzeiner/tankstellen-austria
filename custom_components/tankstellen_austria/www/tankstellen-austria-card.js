@@ -1,10 +1,10 @@
 /**
- * Tankstellen Austria Card v1.6.0-beta-1
+ * Tankstellen Austria Card v1.6.0-beta-2
  * Custom Lovelace card for displaying Austrian fuel prices.
  * https://github.com/rolandzeiner/tankstellen-austria
  */
 
-const CARD_VERSION = "1.6.0-beta-1";
+const CARD_VERSION = "1.6.0-beta-2";
 
 const TRANSLATIONS = {
   de: {
@@ -29,6 +29,8 @@ const TRANSLATIONS = {
     map: "Karte",
     per_liter: "/l",
     last_7_days: "Letzte 7 Tage",
+    min_label: "Min",
+    max_label: "Max",
     refresh: "Aktualisieren",
     last_updated: "Aktualisiert:",
     no_new_data: "Keine neuen Daten",
@@ -110,6 +112,8 @@ const TRANSLATIONS = {
     map: "Map",
     per_liter: "/l",
     last_7_days: "Last 7 days",
+    min_label: "Min",
+    max_label: "Max",
     refresh: "Refresh",
     last_updated: "Updated:",
     no_new_data: "No new data",
@@ -1130,9 +1134,9 @@ class TankstellenAustriaCard extends HTMLElement {
         <span class="sparkline-tooltip-price"></span>
       </div>
       <div class="sparkline-labels">
-        <span>${this._formatPriceShort(min)}</span>
+        <span><span class="sparkline-minmax-label">${this._t("min_label")}</span> ${this._formatPriceShort(min)}</span>
         <span class="sparkline-period">${this._t("last_7_days")}${deltaText ? ` · ${deltaText}` : ""}</span>
-        <span>${this._formatPriceShort(max)}</span>
+        <span><span class="sparkline-minmax-label">${this._t("max_label")}</span> ${this._formatPriceShort(max)}</span>
       </div>
       ${recommendationHtml}`;
     } catch (e) {
@@ -1840,6 +1844,11 @@ class TankstellenAustriaCard extends HTMLElement {
       .sparkline-period {
         font-size: 10px;
         opacity: 0.6;
+      }
+      .sparkline-minmax-label {
+        opacity: 0.6;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
       }
       .median-delta {
         font-weight: 500;
