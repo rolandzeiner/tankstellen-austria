@@ -45,5 +45,7 @@ jobs:
         run: |
           pip install ruff
           ruff check .
+      - name: Run mypy (strict)
+        run: mypy --strict --ignore-missing-imports custom_components/tankstellen_austria
       - name: Run tests
         run: pytest tests/ -v

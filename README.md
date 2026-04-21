@@ -1,8 +1,8 @@
 # Tankstellen Austria
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
-[![HA min version](https://img.shields.io/badge/Home%20Assistant-%3E%3D2024.11-blue.svg)](https://www.home-assistant.io/)
-[![Version](https://img.shields.io/badge/version-1.5.1-blue.svg)](https://github.com/rolandzeiner/tankstellen-austria/releases)
+[![HA min version](https://img.shields.io/badge/Home%20Assistant-%3E%3D2025.1-blue.svg)](https://www.home-assistant.io/)
+[![Version](https://img.shields.io/badge/version-1.6.0-blue.svg)](https://github.com/rolandzeiner/tankstellen-austria/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![vibe-coded](https://img.shields.io/badge/vibe-coded-ff69b4?logo=musicbrainz&logoColor=white)](https://en.wikipedia.org/wiki/Vibe_coding)
 
@@ -22,6 +22,7 @@ and/or CNG.
 - **Custom payment method values** *(1.4.3)* – add fleet cards or other values not listed by nearby stations (e.g. Routex, DKV) directly in the card editor
 - **Car fill-up cost widget** *(1.5.0)* – define your cars (name, fuel type, tank size, optional ⌀ consumption in l/100 km) in the card editor and see the total fill-up cost at the cheapest nearby station, shown below the price header; when consumption is set, the cost per 100 km is shown as a second line; each car gets its own MDI icon picked from a built-in icon grid; per-row toggles ("Tankkosten anzeigen" / "Verbrauch anzeigen") let you show only the fill-up cost, only the per-100 km cost (cars without consumption are hidden in that mode), or both
 - **Best refuel time recommendation** *(1.5.0)* – analyses up to 4 weeks of price history to identify the weekday and hour that is consistently cheapest *relative to that week's prices*; uses time-weighted hourly sampling and per-week normalisation so a slot that is always the weekly low point wins regardless of whether prices were generally high or low that week; shown below the sparkline with a green marker on the graph; requires data spanning at least 2 weeks before a recommendation is shown (a "not enough data" hint is displayed until then)
+- **Custom tab labels** *(1.6.0)* – rename the fuel-type tabs in the card editor (e.g. "Werkstatt" instead of "Diesel"); defaults to the fuel-type name, leave empty to restore
 - **Auto-detection** – the card automatically finds all Tankstellen Austria sensors, no manual entity configuration needed
 - **Visual card editor** – configure everything through the HA UI
 - **Average price tracking** – average of all 5 stations as sensor attribute, tracked in HA history for long-term analysis
@@ -48,7 +49,7 @@ and/or CNG.
 
 ## Requirements
 
-- Home Assistant **2024.11** or newer
+- Home Assistant **2025.1** or newer
 
 ## Installation
 
@@ -286,6 +287,108 @@ This can be used directly in automations and templates, e.g. to alert when the c
 * **Price vs. Distance**: The API returns the five cheapest stations in the area, not necessarily the ones closest to your coordinates.
 * **Average Price Calculation**: The `average_price` attribute is calculated based only on the five cheapest stations retrieved. It is not a representative average for all stations in the region.
 * **Geographic Scope**: Only stations located within Austria are included. Stations in neighbouring countries are not covered by the E-Control API.
+
+## Supported Functions
+
+- Fetch the 5 cheapest nearby fuel stations per fuel type from the E-Control API (read-only).
+- One `sensor` entity per configured fuel type, with full station list in attributes.
+- Location-based filtering (fixed coordinates or dynamic `device_tracker` follow-me).
+- Multiple simultaneous config entries (e.g. home + work + moving phone).
+- Diagnostics download with lat/lng redaction.
+- Reconfigure flow for changing location/fuel types without deleting entities.
+- Repairs issue when a configured dynamic tracker goes missing.
+
+## Data Updates
+
+The integration polls the E-Control API on a per-entry schedule:
+
+| Mode | Default interval | Configurable |
+|------|-----------------|--------------|
+| Fixed | 30 minutes | 10–720 min via Options or Reconfigure |
+| Dynamic | Triggered by `device_tracker` movement; 6-hour safety-net poll | Guards not configurable (see **Dynamic Mode** above) |
+
+**E-Control's own refresh window.** The upstream API typically reloads its price data once a day around **12:05–12:07 Europe/Vienna**. If a poll happens to land inside that window the API returns empty results; the integration detects this, keeps the previous values in place, and schedules a one-shot retry after 10 minutes — so you never see a brief "unavailable" blip around noon.
+
+**Partial failures.** If one fuel type fails but another succeeds (rare — the API treats fuel types as separate queries), the failing fuel type keeps its previous value and the sensor stays available. Only if **every** fuel type fails does the coordinator go unavailable, at which point HA marks the sensors as such.
+
+## Use Cases
+
+- **Price-threshold notifications** — alert when the cheapest Diesel drops below a target price.
+- **Follow-me prices while driving** — a dynamic-mode entry bound to your phone's `device_tracker` updates the card with prices near your current location, ideal for long road trips.
+- **Home + work monitoring** — run two fixed entries at different locations and compare.
+- **Payment-method aware automations** — template on the `payment_methods` per-station attribute to skip stations that don't accept your card.
+- **Long-term analysis** — the `average_price` attribute is a stable number HA's recorder can chart for months; useful for tracking regional price trends.
+
+## Automation Examples
+
+Notify when the cheapest Diesel drops below 1.50 €/l:
+
+```yaml
+alias: "Notify on cheap Diesel"
+trigger:
+  - platform: numeric_state
+    entity_id: sensor.tankstellen_home_diesel
+    below: 1.50
+action:
+  - service: notify.mobile_app_phone
+    data:
+      title: "Cheap Diesel nearby"
+      message: >
+        {{ state_attr('sensor.tankstellen_home_diesel', 'stations')[0].name }}
+        — {{ states('sensor.tankstellen_home_diesel') }} €/l
+```
+
+Template sensor for the cheapest open station that accepts Austrocard:
+
+```yaml
+template:
+  - sensor:
+      - name: "Cheapest Austrocard station"
+        state: >
+          {% set stations = state_attr('sensor.tankstellen_home_diesel', 'stations') or [] %}
+          {% set open_acc = stations | selectattr('open') |
+             selectattr('payment_methods.others', 'contains', 'Austrocard') | list %}
+          {{ open_acc[0].name if open_acc else 'none' }}
+        attributes:
+          price: >
+            {% set stations = state_attr('sensor.tankstellen_home_diesel', 'stations') or [] %}
+            {% set open_acc = stations | selectattr('open') |
+               selectattr('payment_methods.others', 'contains', 'Austrocard') | list %}
+            {{ open_acc[0].price if open_acc else none }}
+```
+
+## Troubleshooting
+
+**"Cannot connect to the E-Control API" during setup.** Usually a transient network issue. Retry. If it persists, check you can reach `https://api.e-control.at/sprit/1.0/search/gas-stations/by-address?latitude=48.2&longitude=16.4&fuelType=DIE&includeClosed=true` from the HA host.
+
+**Sensors unavailable around 12:00–12:15.** Expected — this is E-Control's daily data-refresh window. The integration keeps previous values and retries automatically after 10 minutes. No action required.
+
+**A Repairs issue "Location tracker unavailable" appeared.** Your dynamic-mode entry is configured to follow a `device_tracker` that no longer exists or is reporting no coordinates. Either restore that tracker, or **Reconfigure** the entry and either pick a different tracker or leave the field empty to switch to fixed mode.
+
+**The card doesn't appear in the Lovelace resource picker.** The integration auto-registers the card on HA startup (storage-mode dashboards only). For YAML-mode dashboards, add it manually under **Settings → Dashboards → Resources** (URL: `/tankstellen-austria/tankstellen-austria-card.js`, type: JavaScript Module).
+
+**I want to reset an entry's location without losing history.** Use the new **Reconfigure** entry point (Settings → Devices & Services → ⋯ → Reconfigure). Entity `unique_id`s are preserved; only the entry's lat/lng/options are rewritten.
+
+**Collecting diagnostics for a bug report.** Settings → Devices & Services → Tankstellen Austria → ⋯ → Download diagnostics. The downloaded JSON redacts your home coordinates but keeps station IDs and coordinator state — paste it into the GitHub issue.
+
+**Where to look for logs.** Turn on debug logging:
+
+```yaml
+# configuration.yaml
+logger:
+  default: info
+  logs:
+    custom_components.tankstellen_austria: debug
+```
+
+## Known Limitations
+
+- The API covers **Austria only** — stations in neighbouring countries are not returned.
+- Each query returns at most the **5 cheapest** stations that have prices for the requested fuel type; other nearby stations in the payload are omitted.
+- The API's daily refresh window (~12:05–12:07 Vienna time) can briefly return empty results; the integration papers over this with a retry.
+- Best-refuel recommendation needs at least **7 days** of recorded history and improves up to **28 days** (see **How the best refuel time is calculated**).
+- Austrian public holidays are not modelled separately in the recommendation.
+- Rate limit (informal): don't poll more frequently than every 10 minutes.
 
 ## Removal
 

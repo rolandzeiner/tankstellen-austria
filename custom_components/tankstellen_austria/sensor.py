@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -9,16 +10,17 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import CONF_FUEL_TYPES, FUEL_TYPES
+from .const import CONF_FUEL_TYPES, DOMAIN, FUEL_TYPES
 from .coordinator import TankstellenCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
 
-def _parse_payment_methods(raw: dict | None) -> dict:
+def _parse_payment_methods(raw: dict[str, Any] | None) -> dict[str, Any]:
     """Normalise the paymentMethods API dict into a consistent structure."""
     if not raw:
         return {"cash": False, "debit_card": False, "credit_card": False, "others": []}
@@ -30,6 +32,7 @@ def _parse_payment_methods(raw: dict | None) -> dict:
         "credit_card": bool(raw.get("creditCard")),
         "others": others,
     }
+
 
 PARALLEL_UPDATES = 0
 
@@ -51,12 +54,11 @@ async def async_setup_entry(
     async_add_entities(entities)
 
 
-class TankstellenSensor(CoordinatorEntity, SensorEntity):
+class TankstellenSensor(CoordinatorEntity[TankstellenCoordinator], SensorEntity):
     """Sensor for one fuel type – state is cheapest price, attrs hold all stations."""
 
     _attr_device_class = SensorDeviceClass.MONETARY
     _attr_native_unit_of_measurement = "€/l"
-    _attr_icon = "mdi:gas-station"
     _attr_has_entity_name = True
 
     def __init__(
@@ -71,12 +73,13 @@ class TankstellenSensor(CoordinatorEntity, SensorEntity):
         self._entry = entry
         self._attr_unique_id = f"{entry.entry_id}_{fuel_type}"
         self._attr_translation_key = f"fuel_{fuel_type.lower()}"
-
-    @property
-    def name(self) -> str:
-        """Return the sensor name."""
-        label = FUEL_TYPES.get(self._fuel_type, self._fuel_type)
-        return f"{self._entry.title} {label}"
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, entry.entry_id)},
+            name=entry.title,
+            manufacturer="E-Control",
+            model="Spritpreisrechner",
+            configuration_url="https://www.spritpreisrechner.at/",
+        )
 
     @property
     def native_value(self) -> float | None:
@@ -85,7 +88,7 @@ class TankstellenSensor(CoordinatorEntity, SensorEntity):
         if not stations:
             return None
         try:
-            return stations[0]["prices"][0]["amount"]
+            amount = stations[0]["prices"][0]["amount"]
         except (KeyError, IndexError) as err:
             _LOGGER.debug(
                 "No price for %s: API payload missing expected field (%s: %s)",
@@ -94,12 +97,13 @@ class TankstellenSensor(CoordinatorEntity, SensorEntity):
                 err,
             )
             return None
+        return float(amount) if amount is not None else None
 
     @property
-    def extra_state_attributes(self) -> dict:
+    def extra_state_attributes(self) -> dict[str, Any]:
         """Return all station data as attributes."""
         stations = self._stations
-        attr_stations = []
+        attr_stations: list[dict[str, Any]] = []
         for s in stations:
             price = None
             if s.get("prices"):
@@ -126,7 +130,7 @@ class TankstellenSensor(CoordinatorEntity, SensorEntity):
         }
 
     @property
-    def _stations(self) -> list[dict]:
+    def _stations(self) -> list[dict[str, Any]]:
         """Get current station list from coordinator."""
         if not self.coordinator.data:
             return []

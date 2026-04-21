@@ -168,3 +168,91 @@ async def test_options_flow_no_fuel_type(hass: HomeAssistant, mock_fetch) -> Non
     )
     assert result["type"] == FlowResultType.FORM
     assert result["errors"].get(CONF_FUEL_TYPES) == "no_fuel_type"
+
+
+# ---------------------------------------------------------------------------
+# Reconfigure flow
+# ---------------------------------------------------------------------------
+
+
+async def test_reconfigure_form_shows(hass: HomeAssistant, mock_fetch) -> None:
+    """Reconfigure flow presents the form for an existing entry."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    await hass.config_entries.flow.async_configure(result["flow_id"], VALID_USER_INPUT)
+    entry = hass.config_entries.async_entries(DOMAIN)[0]
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_RECONFIGURE, "entry_id": entry.entry_id},
+    )
+    assert result["type"] == FlowResultType.FORM
+    assert result["step_id"] == "reconfigure"
+
+
+async def test_reconfigure_updates_entry_data_and_keeps_unique_id(
+    hass: HomeAssistant, mock_fetch
+) -> None:
+    """Reconfigure with a same-location change preserves unique_id and rewrites data."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    await hass.config_entries.flow.async_configure(result["flow_id"], VALID_USER_INPUT)
+    entry = hass.config_entries.async_entries(DOMAIN)[0]
+    original_unique_id = entry.unique_id
+    original_entry_id = entry.entry_id
+
+    # Reconfigure with the same location but a different scan_interval + fuel types
+    flow = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_RECONFIGURE, "entry_id": entry.entry_id},
+    )
+    result = await hass.config_entries.flow.async_configure(
+        flow["flow_id"],
+        {
+            "location": {"latitude": 48.1478, "longitude": 16.5147},
+            CONF_FUEL_TYPES: ["DIE"],
+            CONF_INCLUDE_CLOSED: False,
+            CONF_SCAN_INTERVAL: 60,
+        },
+    )
+    assert result["type"] == FlowResultType.ABORT
+    assert result["reason"] == "reconfigure_successful"
+
+    refreshed = hass.config_entries.async_get_entry(original_entry_id)
+    assert refreshed is not None
+    assert refreshed.unique_id == original_unique_id  # preserved
+    assert refreshed.data[CONF_FUEL_TYPES] == ["DIE"]
+    assert refreshed.data[CONF_SCAN_INTERVAL] == 60
+    assert refreshed.data[CONF_INCLUDE_CLOSED] is False
+
+
+async def test_reconfigure_cannot_connect(hass: HomeAssistant, mock_fetch) -> None:
+    """API failure during reconfigure shows cannot_connect and does not mutate the entry."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    await hass.config_entries.flow.async_configure(result["flow_id"], VALID_USER_INPUT)
+    entry = hass.config_entries.async_entries(DOMAIN)[0]
+
+    flow = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_RECONFIGURE, "entry_id": entry.entry_id},
+    )
+    with patch(
+        "custom_components.tankstellen_austria.config_flow._test_api_connection",
+        new_callable=AsyncMock,
+        return_value=False,
+    ):
+        result = await hass.config_entries.flow.async_configure(
+            flow["flow_id"],
+            {
+                "location": {"latitude": 48.1478, "longitude": 16.5147},
+                CONF_FUEL_TYPES: ["DIE"],
+                CONF_INCLUDE_CLOSED: True,
+                CONF_SCAN_INTERVAL: 30,
+            },
+        )
+    assert result["type"] == FlowResultType.FORM
+    assert result["errors"].get("base") == "cannot_connect"

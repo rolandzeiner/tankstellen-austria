@@ -15,6 +15,20 @@
         "data_description": {
           "dynamic_entity": "Optional: select a device_tracker entity to update prices based on your current GPS position. Leave empty for fixed location mode. Note: in dynamic mode the update interval above is ignored — a 6-hour safety-net timer is used instead."
         }
+      },
+      "reconfigure": {
+        "title": "Reconfigure Tankstellen Austria",
+        "description": "Update the location and other settings for this entry. Existing entities are preserved.",
+        "data": {
+          "location": "Location",
+          "fuel_types": "Fuel types",
+          "include_closed": "Include closed stations",
+          "scan_interval": "Update interval (minutes)",
+          "dynamic_entity": "Dynamic location tracker"
+        },
+        "data_description": {
+          "dynamic_entity": "Optional: select a device_tracker entity to update prices based on your current GPS position. Leave empty for fixed location mode. Note: in dynamic mode the update interval above is ignored — a 6-hour safety-net timer is used instead."
+        }
       }
     },
     "error": {
@@ -23,7 +37,8 @@
       "no_fuel_type": "Please select at least one fuel type."
     },
     "abort": {
-      "already_configured": "A Tankstellen Austria entry for this location already exists."
+      "already_configured": "A Tankstellen Austria entry for this location already exists.",
+      "reconfigure_successful": "Reconfigure completed successfully."
     }
   },
   "options": {
@@ -47,6 +62,39 @@
       "cannot_connect": "Cannot connect to the E-Control API. Check your internet connection and try again.",
       "invalid_location": "Please select a valid location on the map.",
       "no_fuel_type": "Please select at least one fuel type."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "fuel_die": { "name": "Diesel" },
+      "fuel_sup": { "name": "Super 95" },
+      "fuel_gas": { "name": "CNG Erdgas" }
+    }
+  },
+  "exceptions": {
+    "api_timeout": {
+      "message": "E-Control API timed out for {fuel_type} after 30s"
+    },
+    "api_http_error": {
+      "message": "E-Control API returned HTTP {status} for {fuel_type}: {reason}"
+    },
+    "api_connection_error": {
+      "message": "E-Control API connection error for {fuel_type}: {error_type}: {error}"
+    },
+    "api_invalid_content_type": {
+      "message": "E-Control API returned unexpected content-type for {fuel_type} (status {status}): {reason}"
+    },
+    "api_invalid_json": {
+      "message": "E-Control API returned invalid JSON for {fuel_type} (status {status}): {error}"
+    },
+    "api_all_failed": {
+      "message": "All fuel types failed ({failed_count}/{total_count}); first error on {fuel_type}: {error}"
+    }
+  },
+  "issues": {
+    "tracker_missing": {
+      "title": "Location tracker unavailable",
+      "description": "The device_tracker entity **{entity_id}** configured for dynamic mode on **{entry_title}** is unavailable or reports no coordinates. Updates are falling back to Home Assistant's home location. Either restore the tracker, or reconfigure this entry to switch to fixed-location mode."
     }
   }
 }

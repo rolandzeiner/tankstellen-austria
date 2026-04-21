@@ -3,43 +3,48 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from typing import Any
 
 import voluptuous as vol
 from homeassistant.components import websocket_api
 from homeassistant.components.http import StaticPathConfig
+from homeassistant.components.websocket_api import ActiveConnection  # type: ignore[attr-defined]
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED, Platform
-from homeassistant.core import CoreState, HomeAssistant
+from homeassistant.core import CoreState, Event, HomeAssistant
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import device_registry as dr
 
-from .const import CARD_VERSION, DOMAIN as DOMAIN
+from .const import CARD_VERSION, DOMAIN
 from .coordinator import TankstellenCoordinator
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 _LOGGER = logging.getLogger(__name__)
-PLATFORMS = [Platform.SENSOR]
+PLATFORMS: list[Platform] = [Platform.SENSOR]
 
 CARD_URL = "/tankstellen-austria/tankstellen-austria-card.js"
 
 
-@websocket_api.websocket_command({vol.Required("type"): "tankstellen_austria/card_version"})
-@websocket_api.async_response
+@websocket_api.websocket_command(  # type: ignore[attr-defined]
+    {vol.Required("type"): "tankstellen_austria/card_version"}
+)
+@websocket_api.async_response  # type: ignore[attr-defined]
 async def _websocket_card_version(
     hass: HomeAssistant,
-    connection: websocket_api.ActiveConnection,
-    msg: dict,
+    connection: ActiveConnection,
+    msg: dict[str, Any],
 ) -> None:
     """Return the current card version so the frontend can detect mismatches."""
     connection.send_result(msg["id"], {"version": CARD_VERSION})
 
 
-async def async_setup(hass: HomeAssistant, config: dict) -> bool:
+async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
     """Register the card JS and WebSocket command once when the domain is loaded."""
     hass.data.setdefault(DOMAIN, {})
     websocket_api.async_register_command(hass, _websocket_card_version)
 
-    async def _register_frontend(_event=None) -> None:
+    async def _register_frontend(_event: Event | None = None) -> None:
         await _async_register_card(hass)
 
     if hass.state == CoreState.running:
@@ -136,6 +141,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await coordinator.async_config_entry_first_refresh()
 
     entry.runtime_data = coordinator
+
+    # Ensure a device exists up-front so the Devices panel shows the entry
+    # even before any entity state is available.
+    dr.async_get(hass).async_get_or_create(
+        config_entry_id=entry.entry_id,
+        identifiers={(DOMAIN, entry.entry_id)},
+        name=entry.title,
+        manufacturer="E-Control",
+        model="Spritpreisrechner",
+        configuration_url="https://www.spritpreisrechner.at/",
+    )
+
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(_async_reload_entry))
 

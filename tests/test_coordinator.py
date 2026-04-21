@@ -434,3 +434,68 @@ async def test_partial_failure_without_previous_data_drops_failed_type(
         result = await coordinator._async_update_data()
 
     assert result == {"DIE": [MOCK_STATION]}
+
+
+# ---------------------------------------------------------------------------
+# Repairs issue — dynamic tracker missing
+# ---------------------------------------------------------------------------
+
+
+async def test_tracker_missing_raises_repair_issue(hass: HomeAssistant) -> None:
+    """When the dynamic device_tracker has no coords, a Repairs issue is raised."""
+    from homeassistant.helpers import issue_registry as ir
+
+    entry = _make_entry({CONF_DYNAMIC_ENTITY: "device_tracker.phone"})
+    entry.add_to_hass(hass)
+    coordinator = TankstellenCoordinator(hass, entry)
+
+    # Simulate state with no latitude/longitude attributes
+    coordinator._get_entity_coords(None)
+
+    registry = ir.async_get(hass)
+    issue = registry.async_get_issue(DOMAIN, f"tracker_missing_{entry.entry_id}")
+    assert issue is not None
+    assert issue.translation_key == "tracker_missing"
+    assert coordinator._tracker_issue_raised is True
+
+
+async def test_tracker_restored_clears_repair_issue(hass: HomeAssistant) -> None:
+    """When the tracker returns with coordinates, the Repairs issue is cleared."""
+    from homeassistant.helpers import issue_registry as ir
+
+    entry = _make_entry({CONF_DYNAMIC_ENTITY: "device_tracker.phone"})
+    entry.add_to_hass(hass)
+    coordinator = TankstellenCoordinator(hass, entry)
+
+    # Raise the issue
+    coordinator._get_entity_coords(None)
+    registry = ir.async_get(hass)
+    assert registry.async_get_issue(DOMAIN, f"tracker_missing_{entry.entry_id}") is not None
+
+    # Now simulate the tracker returning with fresh coordinates
+    state = MagicMock()
+    state.attributes = {"latitude": 48.2, "longitude": 16.4}
+    coordinator._get_entity_coords(state)
+
+    assert registry.async_get_issue(DOMAIN, f"tracker_missing_{entry.entry_id}") is None
+    assert coordinator._tracker_issue_raised is False
+
+
+async def test_tracker_issue_raised_only_once(hass: HomeAssistant) -> None:
+    """Repeated calls with missing tracker do not duplicate the issue."""
+    from homeassistant.helpers import issue_registry as ir
+
+    entry = _make_entry({CONF_DYNAMIC_ENTITY: "device_tracker.phone"})
+    entry.add_to_hass(hass)
+    coordinator = TankstellenCoordinator(hass, entry)
+
+    coordinator._get_entity_coords(None)
+    coordinator._get_entity_coords(None)
+    coordinator._get_entity_coords(None)
+
+    registry = ir.async_get(hass)
+    issues = [
+        i for i in registry.issues.values()
+        if i.domain == DOMAIN and i.issue_id.startswith("tracker_missing_")
+    ]
+    assert len(issues) == 1

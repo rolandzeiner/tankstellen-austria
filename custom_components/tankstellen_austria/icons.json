@@ -1,0 +1,9 @@
+{
+  "entity": {
+    "sensor": {
+      "fuel_die": { "default": "mdi:gas-station" },
+      "fuel_sup": { "default": "mdi:gas-station" },
+      "fuel_gas": { "default": "mdi:gas-cylinder" }
+    }
+  }
+}
