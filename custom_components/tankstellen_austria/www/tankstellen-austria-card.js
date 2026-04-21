@@ -1,10 +1,10 @@
 /**
- * Tankstellen Austria Card v1.6.0-beta-2
+ * Tankstellen Austria Card v1.6.0-beta-3
  * Custom Lovelace card for displaying Austrian fuel prices.
  * https://github.com/rolandzeiner/tankstellen-austria
  */
 
-const CARD_VERSION = "1.6.0-beta-2";
+const CARD_VERSION = "1.6.0-beta-3";
 
 const TRANSLATIONS = {
   de: {
@@ -302,6 +302,14 @@ class TankstellenAustriaCard extends HTMLElement {
   _cooldownInterval = null;
   _noNewData = false;
   _versionMismatch = null;
+
+  constructor() {
+    super();
+    // Shadow DOM scopes our CSS — without it, every class name (.station,
+    // .editor, .section-header, etc.) leaks into the global page scope and
+    // collides with sibling custom cards rendered into light DOM.
+    this.attachShadow({ mode: "open" });
+  }
 
   setConfig(config) {
     this._config = this._normaliseConfig(config);
@@ -1246,7 +1254,7 @@ class TankstellenAustriaCard extends HTMLElement {
     const entities = this._resolveEntities();
     if (this._activeTab >= entities.length) this._activeTab = 0;
     if (!entities.length) {
-      this.innerHTML = `<ha-card><div class="empty">${TRANSLATIONS[(this._config.language || "de")].no_data
+      this.shadowRoot.innerHTML =`<ha-card><div class="empty">${TRANSLATIONS[(this._config.language || "de")].no_data
         }</div></ha-card>${this._getStyles()}`;
       return;
     }
@@ -1493,7 +1501,7 @@ class TankstellenAustriaCard extends HTMLElement {
 
     html += `</ha-card>`;
 
-    this.innerHTML = html + this._getStyles();
+    this.shadowRoot.innerHTML =html + this._getStyles();
     this._attachListeners();
     } catch (e) {
       const ids = (this._resolveEntities() || []).map((en) => en.entity_id);
@@ -1585,7 +1593,7 @@ class TankstellenAustriaCard extends HTMLElement {
 
   _attachListeners() {
     try {
-    this.querySelectorAll(".tab").forEach((btn) => {
+    this.shadowRoot.querySelectorAll(".tab").forEach((btn) => {
       btn.addEventListener("click", this._safeHandler("tab-click", (e) => {
         this._activeTab = parseInt(e.target.dataset.tab, 10);
         this._expandedStations.clear();
@@ -1593,7 +1601,7 @@ class TankstellenAustriaCard extends HTMLElement {
       }));
     });
 
-    const refreshBtn = this.querySelector("[data-refresh]");
+    const refreshBtn = this.shadowRoot.querySelector("[data-refresh]");
     if (refreshBtn) {
       refreshBtn.addEventListener("click", this._safeHandler(
         "manual-refresh",
@@ -1601,7 +1609,7 @@ class TankstellenAustriaCard extends HTMLElement {
       ));
     }
 
-    const versionReloadBtn = this.querySelector("[data-version-reload]");
+    const versionReloadBtn = this.shadowRoot.querySelector("[data-version-reload]");
     if (versionReloadBtn) {
       versionReloadBtn.addEventListener("click", async () => {
         try {
@@ -1614,7 +1622,7 @@ class TankstellenAustriaCard extends HTMLElement {
       });
     }
 
-    this.querySelectorAll(".station-main").forEach((el) => {
+    this.shadowRoot.querySelectorAll(".station-main").forEach((el) => {
       el.addEventListener("click", this._safeHandler("station-expand", (e) => {
         if (e.target.closest(".map-link")) return;
         const key = el.dataset.expand;
@@ -1627,7 +1635,7 @@ class TankstellenAustriaCard extends HTMLElement {
       }));
     });
 
-    const sparklineContainer = this.querySelector(".sparkline-container[data-entity]");
+    const sparklineContainer = this.shadowRoot.querySelector(".sparkline-container[data-entity]");
     if (sparklineContainer) {
       sparklineContainer.addEventListener("click", this._safeHandler(
         "sparkline-more-info",
@@ -2160,6 +2168,11 @@ class TankstellenAustriaCardEditor extends HTMLElement {
   _pendingRemove = null;
   _expandedCarIcon = null;
 
+  constructor() {
+    super();
+    this.attachShadow({ mode: "open" });
+  }
+
   setConfig(config) {
     this._config = { ...config };
     this._render();
@@ -2182,8 +2195,14 @@ class TankstellenAustriaCardEditor extends HTMLElement {
   }
 
   _fireChanged() {
+    // bubbles + composed required so the event crosses our shadow boundary
+    // and reaches the dashboard's card editor listener.
     this.dispatchEvent(
-      new CustomEvent("config-changed", { detail: { config: { ...this._config } } })
+      new CustomEvent("config-changed", {
+        detail: { config: { ...this._config } },
+        bubbles: true,
+        composed: true,
+      })
     );
   }
 
@@ -2224,7 +2243,7 @@ class TankstellenAustriaCardEditor extends HTMLElement {
     const allPmKeys = new Set([...apiPmKeys]);
     paymentFilter.forEach((f) => allPmKeys.add(f));
 
-    this.innerHTML = `
+    this.shadowRoot.innerHTML =`
       <div class="editor">
         <style>
           .editor {
@@ -2775,7 +2794,7 @@ class TankstellenAustriaCardEditor extends HTMLElement {
     // --- Attach listeners ---
 
     // Entity chip toggles
-    this.querySelectorAll(".entity-chip").forEach((chip) => {
+    this.shadowRoot.querySelectorAll(".entity-chip").forEach((chip) => {
       chip.addEventListener("click", () => {
         const eid = chip.dataset.entity;
         let current = [...(this._config.entities || [])];
@@ -2794,7 +2813,7 @@ class TankstellenAustriaCardEditor extends HTMLElement {
     // editor to re-render mid-drag, replacing the slider thumb and making the
     // drag feel sticky. Update only the visible label during drag and commit
     // on `change` (pointer release / keyboard commit).
-    this.querySelectorAll('input[type="range"]').forEach((input) => {
+    this.shadowRoot.querySelectorAll('input[type="range"]').forEach((input) => {
       ["keydown", "keyup", "keypress"].forEach((evt) => {
         input.addEventListener(evt, (e) => e.stopPropagation());
       });
@@ -2811,7 +2830,7 @@ class TankstellenAustriaCardEditor extends HTMLElement {
     });
 
     // Toggle switches
-    this.querySelectorAll("ha-switch").forEach((sw) => {
+    this.shadowRoot.querySelectorAll("ha-switch").forEach((sw) => {
       sw.addEventListener("change", (e) => {
         const field = e.target.dataset.field;
         this._config = { ...this._config, [field]: e.target.checked };
@@ -2820,7 +2839,7 @@ class TankstellenAustriaCardEditor extends HTMLElement {
     });
 
     // Recorder snippet copy button — copies the YAML from the adjacent <pre>.
-    this.querySelectorAll(".recorder-copy-btn").forEach((btn) => {
+    this.shadowRoot.querySelectorAll(".recorder-copy-btn").forEach((btn) => {
       btn.addEventListener("click", async () => {
         const pre = btn.parentElement?.querySelector(".recorder-snippet code");
         const snippet = pre ? pre.textContent : "";
@@ -2838,7 +2857,7 @@ class TankstellenAustriaCardEditor extends HTMLElement {
     // Payment filter chips
     // A chip needs confirmation only if removing it would make it disappear
     // (i.e. it was user-typed and is not present in live API data)
-    this.querySelectorAll(".pm-filter-chip").forEach((chip) => {
+    this.shadowRoot.querySelectorAll(".pm-filter-chip").forEach((chip) => {
       chip.addEventListener("click", () => {
         const key = chip.dataset.pm;
         let current = [...(this._config.payment_filter || [])];
@@ -2872,8 +2891,8 @@ class TankstellenAustriaCardEditor extends HTMLElement {
     });
 
     // Custom payment method input
-    const customInput = this.querySelector("#pm-custom-input");
-    const customAddBtn = this.querySelector("#pm-custom-add");
+    const customInput = this.shadowRoot.querySelector("#pm-custom-input");
+    const customAddBtn = this.shadowRoot.querySelector("#pm-custom-add");
     if (customAddBtn && customInput) {
       const sanitize = (s) => s.replace(/[<>"'&]/g, "").slice(0, 50).trim();
       const addCustom = () => {
@@ -2904,7 +2923,7 @@ class TankstellenAustriaCardEditor extends HTMLElement {
 
     // Tab label inputs — sanitize on commit; empty string clears override.
     // Uses `change` (not `input`) to avoid re-rendering mid-typing.
-    this.querySelectorAll(".tab-label-input").forEach((input) => {
+    this.shadowRoot.querySelectorAll(".tab-label-input").forEach((input) => {
       ["keydown", "keyup", "keypress"].forEach((evt) => {
         input.addEventListener(evt, (e) => e.stopPropagation());
       });
@@ -2933,7 +2952,7 @@ class TankstellenAustriaCardEditor extends HTMLElement {
     });
 
     // Car icon button — toggle picker
-    this.querySelectorAll(".car-icon-btn").forEach((btn) => {
+    this.shadowRoot.querySelectorAll(".car-icon-btn").forEach((btn) => {
       btn.addEventListener("click", (e) => {
         e.stopPropagation();
         const idx = parseInt(btn.dataset.carIdx, 10);
@@ -2943,7 +2962,7 @@ class TankstellenAustriaCardEditor extends HTMLElement {
     });
 
     // Car icon option — select icon
-    this.querySelectorAll(".car-icon-option").forEach((btn) => {
+    this.shadowRoot.querySelectorAll(".car-icon-option").forEach((btn) => {
       btn.addEventListener("click", (e) => {
         e.stopPropagation();
         const idx = parseInt(btn.dataset.carIdx, 10);
@@ -2958,7 +2977,7 @@ class TankstellenAustriaCardEditor extends HTMLElement {
     });
 
     // Car name / tank-size / consumption inputs
-    this.querySelectorAll(".car-name-input, .car-tank-input, .car-consumption-input").forEach((input) => {
+    this.shadowRoot.querySelectorAll(".car-name-input, .car-tank-input, .car-consumption-input").forEach((input) => {
       ["keydown", "keyup", "keypress"].forEach((evt) => {
         input.addEventListener(evt, (e) => e.stopPropagation());
       });
@@ -2995,7 +3014,7 @@ class TankstellenAustriaCardEditor extends HTMLElement {
     });
 
     // Car fuel-type selects
-    this.querySelectorAll(".car-select").forEach((select) => {
+    this.shadowRoot.querySelectorAll(".car-select").forEach((select) => {
       select.addEventListener("click", (e) => e.stopPropagation());
       select.addEventListener("pointerdown", (e) => e.stopPropagation());
       select.addEventListener("change", (e) => {
@@ -3009,7 +3028,7 @@ class TankstellenAustriaCardEditor extends HTMLElement {
     });
 
     // Car delete buttons
-    this.querySelectorAll(".car-delete-btn").forEach((btn) => {
+    this.shadowRoot.querySelectorAll(".car-delete-btn").forEach((btn) => {
       btn.addEventListener("click", (e) => {
         e.stopPropagation();
         const idx = parseInt(btn.dataset.carIdx, 10);
@@ -3022,7 +3041,7 @@ class TankstellenAustriaCardEditor extends HTMLElement {
     });
 
     // Add car button
-    const addCarBtn = this.querySelector(".car-add-btn");
+    const addCarBtn = this.shadowRoot.querySelector(".car-add-btn");
     if (addCarBtn) {
       addCarBtn.addEventListener("click", (e) => {
         e.stopPropagation();
