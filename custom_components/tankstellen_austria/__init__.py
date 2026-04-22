@@ -9,14 +9,13 @@ import voluptuous as vol
 from homeassistant.components import websocket_api
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.components.websocket_api import ActiveConnection  # type: ignore[attr-defined]
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED, Platform
 from homeassistant.core import CoreState, Event, HomeAssistant
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import device_registry as dr
 
 from .const import CARD_VERSION, DOMAIN
-from .coordinator import TankstellenCoordinator
+from .coordinator import TankstellenConfigEntry, TankstellenCoordinator
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
@@ -133,7 +132,7 @@ async def _async_register_card(hass: HomeAssistant) -> None:
         )
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+async def async_setup_entry(hass: HomeAssistant, entry: TankstellenConfigEntry) -> bool:
     """Set up Tankstellen Austria from a config entry."""
     coordinator = TankstellenCoordinator(hass, entry)
     coordinator.async_setup()
@@ -159,11 +158,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return True
 
 
-async def _async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
+async def _async_reload_entry(hass: HomeAssistant, entry: TankstellenConfigEntry) -> None:
     """Reload the config entry when options are updated."""
     await hass.config_entries.async_reload(entry.entry_id)
 
 
-async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+async def async_unload_entry(hass: HomeAssistant, entry: TankstellenConfigEntry) -> bool:
     """Unload a config entry."""
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)

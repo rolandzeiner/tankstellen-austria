@@ -10,7 +10,6 @@ from typing import Any
 import aiohttp
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import __version__ as HA_VERSION
 from homeassistant.core import Event, HomeAssistant, State, callback
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
@@ -26,7 +25,6 @@ from homeassistant.util.location import distance
 from .const import (
     API_BASE_URL,
     API_ENDPOINT,
-    CARD_VERSION,
     CONF_DYNAMIC_ENTITY,
     CONF_FUEL_TYPES,
     CONF_INCLUDE_CLOSED,
@@ -41,6 +39,7 @@ from .const import (
     DYNAMIC_DOMAIN_COOLDOWN_MINUTES,
     DYNAMIC_SAFETY_INTERVAL_HOURS,
     NO_DATA_RETRY_MINUTES,
+    USER_AGENT,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -87,6 +86,7 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]
             hass,
             _LOGGER,
             name=DOMAIN,
+            config_entry=entry,
             update_interval=interval,
         )
 
@@ -339,9 +339,7 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]
             "fuelType": fuel_type,
             "includeClosed": str(self._include_closed).lower(),
         }
-        headers = {
-            "User-Agent": f"HomeAssistant/{HA_VERSION} tankstellen_austria/{CARD_VERSION}",
-        }
+        headers = {"User-Agent": USER_AGENT}
         timeout = aiohttp.ClientTimeout(total=30)
         try:
             resp = await self._session.get(url, params=params, headers=headers, timeout=timeout)
@@ -405,3 +403,11 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]
             if len(stations) >= 5:
                 break
         return stations
+
+
+# Typed ConfigEntry alias — parameterises the generic ConfigEntry with the
+# runtime_data payload so `entry.runtime_data` is `TankstellenCoordinator`
+# without an explicit annotation at every call site. Defined after the class
+# so the forward reference resolves naturally. PEP 695 `type` statement
+# uses lazy evaluation, so Python 3.12+ only.
+type TankstellenConfigEntry = ConfigEntry[TankstellenCoordinator]
