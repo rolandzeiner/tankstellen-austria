@@ -87,6 +87,9 @@
     "api_invalid_json": {
       "message": "E-Control API returned invalid JSON for {fuel_type} (status {status}): {error}"
     },
+    "api_invalid_response": {
+      "message": "E-Control API returned unexpected payload for {fuel_type} (status {status}): expected list, got {got}"
+    },
     "api_all_failed": {
       "message": "All fuel types failed ({failed_count}/{total_count}); first error on {fuel_type}: {error}"
     }

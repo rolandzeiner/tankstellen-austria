@@ -97,6 +97,29 @@ async def test_api_failure_raises_update_failed(hass: HomeAssistant) -> None:
         await coordinator._async_update_data()
 
 
+async def test_fetch_rejects_non_list_payload(hass: HomeAssistant) -> None:
+    """Non-list JSON (e.g. a dict error envelope) must raise UpdateFailed.
+
+    Guards against silently returning [] when E-Control ever changes its
+    response shape — a dict would otherwise iterate over its keys and
+    produce an empty station list.
+    """
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+    coordinator = TankstellenCoordinator(hass, entry)
+
+    resp = MagicMock()
+    resp.raise_for_status = MagicMock()
+    resp.json = AsyncMock(return_value={"error": "upstream_format_change"})
+    resp.status = 200
+    coordinator._session = MagicMock()
+    coordinator._session.get = AsyncMock(return_value=resp)
+
+    with pytest.raises(UpdateFailed) as exc:
+        await coordinator._fetch("DIE", 48.0, 16.0)
+    assert exc.value.translation_key == "api_invalid_response"
+
+
 async def test_coordinator_fetch_sends_canonical_user_agent(hass: HomeAssistant) -> None:
     """coordinator._fetch sends RFC-9110 UA: HomeAssistant/<ver> tankstellen_austria/<int_ver>.
 

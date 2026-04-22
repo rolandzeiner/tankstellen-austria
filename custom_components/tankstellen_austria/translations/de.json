@@ -87,6 +87,9 @@
     "api_invalid_json": {
       "message": "E-Control API lieferte ungültiges JSON für {fuel_type} (Status {status}): {error}"
     },
+    "api_invalid_response": {
+      "message": "E-Control API lieferte unerwartete Daten für {fuel_type} (Status {status}): erwartet Liste, erhalten {got}"
+    },
     "api_all_failed": {
       "message": "Alle Kraftstoffarten fehlgeschlagen ({failed_count}/{total_count}); erster Fehler bei {fuel_type}: {error}"
     }

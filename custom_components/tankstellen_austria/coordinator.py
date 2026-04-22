@@ -394,6 +394,17 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]
                 },
             ) from err
 
+        if not isinstance(data, list):
+            raise UpdateFailed(
+                translation_domain=DOMAIN,
+                translation_key="api_invalid_response",
+                translation_placeholders={
+                    "fuel_type": fuel_type,
+                    "status": str(resp.status),
+                    "got": type(data).__name__,
+                },
+            )
+
         # API returns array of stations; first 5 have prices, rest don't
         stations: list[dict[str, Any]] = []
         for station in data:
