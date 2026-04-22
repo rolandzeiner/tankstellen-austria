@@ -87,6 +87,7 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]
             hass,
             _LOGGER,
             name=DOMAIN,
+            config_entry=entry,
             update_interval=interval,
         )
 
