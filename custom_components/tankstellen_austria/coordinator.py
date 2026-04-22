@@ -405,3 +405,11 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]
             if len(stations) >= 5:
                 break
         return stations
+
+
+# Typed ConfigEntry alias — parameterises the generic ConfigEntry with the
+# runtime_data payload so `entry.runtime_data` is `TankstellenCoordinator`
+# without an explicit annotation at every call site. Defined after the class
+# so the forward reference resolves naturally. PEP 695 `type` statement
+# uses lazy evaluation, so Python 3.12+ only.
+type TankstellenConfigEntry = ConfigEntry[TankstellenCoordinator]
