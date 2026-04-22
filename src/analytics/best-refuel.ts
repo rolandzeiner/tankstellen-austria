@@ -249,37 +249,3 @@ export function buildHourlyEnvelope(
   if (filled < 6) return null;
   return { minByHour, maxByHour };
 }
-
-// Resolve the sparkline data-point index that best anchors the best-refuel
-// marker. Finds the most recent occurrence of (weekday, hour) — weekday
-// only when the analysis surfaced a high-confidence weekday — and picks
-// the nearest data point by time.
-export function resolveMarkerIdx(
-  data: HistoryPoint[],
-  analysis: BestRefuelResult | null,
-): number {
-  if (!analysis?.hasEnoughData || analysis.hour == null) return -1;
-
-  const now = new Date();
-  const target = new Date(now);
-  if (analysis.weekday != null) {
-    let daysBack = (now.getDay() - analysis.weekday + 7) % 7;
-    if (daysBack === 0 && now.getHours() < analysis.hour) daysBack = 7;
-    target.setDate(target.getDate() - daysBack);
-  } else if (now.getHours() < analysis.hour) {
-    target.setDate(target.getDate() - 1);
-  }
-  target.setHours(analysis.hour, 0, 0, 0);
-  const targetMs = target.getTime();
-
-  let bestDist = Infinity;
-  let bestIdx = -1;
-  for (let i = 0; i < data.length; i++) {
-    const dist = Math.abs(data[i].time - targetMs);
-    if (dist < bestDist) {
-      bestDist = dist;
-      bestIdx = i;
-    }
-  }
-  return bestIdx;
-}
