@@ -69,7 +69,7 @@ rules:
     comment: The E-Control API requires no authentication.
   test-coverage:
     status: done
-    comment: Config flow, coordinator (fetch, failure, partial-failure resilience, dynamic mode guards, no-data retry), and sensor (state, attributes, dynamic mode) tests are all covered.
+    comment: Config flow (incl. user/options/reconfigure cannot_connect paths and canonical User-Agent header), coordinator (fetch, failure, partial-failure resilience, dynamic mode guards, no-data retry, canonical User-Agent header), and sensor (state, attributes, dynamic mode) tests are all covered.
 
   # Gold
   devices:

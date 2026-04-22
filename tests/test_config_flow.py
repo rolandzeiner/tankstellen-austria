@@ -1,5 +1,5 @@
 """Tests for the Tankstellen Austria config flow."""
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant
@@ -12,6 +12,7 @@ from custom_components.tankstellen_austria.const import (
     CONF_LONGITUDE,
     CONF_SCAN_INTERVAL,
     DOMAIN,
+    USER_AGENT,
 )
 
 VALID_USER_INPUT = {
@@ -146,6 +147,65 @@ async def test_form_cannot_connect(hass: HomeAssistant) -> None:
         )
     assert result["type"] == FlowResultType.FORM
     assert result["errors"].get("base") == "cannot_connect"
+
+
+async def test_options_flow_cannot_connect(hass: HomeAssistant, mock_fetch) -> None:
+    """Options-flow submission with an API failure redisplays the form with cannot_connect.
+
+    Parallel to test_form_cannot_connect (user flow) and
+    test_reconfigure_cannot_connect (reconfigure flow) — the options flow
+    took the same code path but had no regression guard.
+    """
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    await hass.config_entries.flow.async_configure(result["flow_id"], VALID_USER_INPUT)
+    entry = hass.config_entries.async_entries(DOMAIN)[0]
+
+    options = await hass.config_entries.options.async_init(entry.entry_id)
+    with patch(
+        "custom_components.tankstellen_austria.config_flow._test_api_connection",
+        new_callable=AsyncMock,
+        return_value=False,
+    ):
+        result = await hass.config_entries.options.async_configure(
+            options["flow_id"],
+            {
+                "location": {"latitude": 48.1478, "longitude": 16.5147},
+                CONF_FUEL_TYPES: ["DIE"],
+                CONF_INCLUDE_CLOSED: True,
+                CONF_SCAN_INTERVAL: 30,
+            },
+        )
+    assert result["type"] == FlowResultType.FORM
+    assert result["errors"].get("base") == "cannot_connect"
+
+
+async def test_connection_test_sends_canonical_user_agent(hass: HomeAssistant) -> None:
+    """_test_api_connection sends the USER_AGENT constant (RFC-9110).
+
+    Regression guard. Before v1.7.0 this call site sent
+    'HomeAssistant tankstellen_austria/...' — missing the slash after
+    HomeAssistant, making it RFC-9110-nonconformant. Parsers treat such a
+    token as one opaque identifier, not a versioned product string. Any
+    future inline-string regression here fails this test.
+    """
+    from custom_components.tankstellen_austria.config_flow import _test_api_connection
+
+    resp = MagicMock()
+    resp.raise_for_status = MagicMock()
+    session = MagicMock()
+    session.get = AsyncMock(return_value=resp)
+
+    with patch(
+        "custom_components.tankstellen_austria.config_flow.async_get_clientsession",
+        return_value=session,
+    ):
+        assert await _test_api_connection(hass, 48.0, 16.0, "DIE") is True
+
+    assert session.get.called
+    headers = session.get.call_args.kwargs["headers"]
+    assert headers == {"User-Agent": USER_AGENT}
 
 
 async def test_options_flow_no_fuel_type(hass: HomeAssistant, mock_fetch) -> None:
