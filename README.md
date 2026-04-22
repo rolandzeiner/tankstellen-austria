@@ -396,6 +396,25 @@ logger:
 2. Restart Home Assistant
 3. Remove the `custom_components/tankstellen_austria/` directory from your HA config (manual installs only — HACS removes it automatically)
 
+## Development
+
+### Lovelace card
+
+The custom card is written in TypeScript with Lit 3 and bundled by Rollup into
+a single `custom_components/tankstellen_austria/www/tankstellen-austria-card.js`.
+End users install via HACS and never run `npm`; contributors do:
+
+```bash
+npm install
+npm run build       # production bundle (terser-minified)
+npm run dev         # watch mode for iteration
+```
+
+`src/const.ts` and `custom_components/tankstellen_austria/const.py` both
+carry `CARD_VERSION` — they must stay byte-identical, or the frontend
+version check shows an infinite reload banner. Bump both together when
+releasing.
+
 ## License
 
 MIT – see [LICENSE](LICENSE)
