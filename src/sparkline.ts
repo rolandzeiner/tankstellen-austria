@@ -31,6 +31,10 @@ export interface SparklineOpts {
     min_label: string;
     max_label: string;
     last_7_days: string;
+    // Delta-vs-median label templates with `{c}` placeholder.
+    median_delta_below: string;
+    median_delta_above: string;
+    median_delta_equal: string;
   };
 }
 
@@ -226,6 +230,26 @@ export function buildSparkline(opts: SparklineOpts): SparklineResult {
 
     const gradId = `spark-grad-${Math.random().toString(36).slice(2, 8)}`;
 
+    // Median-delta chip lives in the sparkline's label row (appended after
+    // the "Last 7 days" text). Vanilla card concatenates raw HTML; Lit needs
+    // a template, so we render it inline via the translation strings passed
+    // in by the caller.
+    const deltaTmpl: TemplateResult | typeof nothing = opts.showMedianLine
+      ? (() => {
+          const d = computeMedianDelta(values);
+          if (!d) return nothing;
+          const keyMap = {
+            median_delta_below: opts.translations.median_delta_below,
+            median_delta_above: opts.translations.median_delta_above,
+            median_delta_equal: opts.translations.median_delta_equal,
+          } as const;
+          const text = keyMap[d.key].replace("{c}", d.cents);
+          return html`
+            <span class="median-delta ${d.cls}">${text}</span>
+          `;
+        })()
+      : nothing;
+
     const template = html`
       <svg
         class="sparkline"
@@ -277,7 +301,9 @@ export function buildSparkline(opts: SparklineOpts): SparklineResult {
           <span class="sparkline-minmax-label">${opts.translations.min_label}</span>
           ${formatPriceShort(min)}
         </span>
-        <span class="sparkline-period">${opts.translations.last_7_days}</span>
+        <span class="sparkline-period">
+          ${opts.translations.last_7_days}${deltaTmpl === nothing ? nothing : html` · ${deltaTmpl}`}
+        </span>
         <span>
           <span class="sparkline-minmax-label">${opts.translations.max_label}</span>
           ${formatPriceShort(max)}

@@ -25,7 +25,11 @@ import type {
   TankstellenAustriaCardConfig,
   TankstellenEntity,
 } from "./types";
-import { CARD_VERSION } from "./const";
+import {
+  CARD_VERSION,
+  DYNAMIC_MANUAL_COOLDOWN_MS,
+  HISTORY_REFRESH_MS,
+} from "./const";
 import { normaliseConfig } from "./utils/config";
 import { findTankstellenEntities } from "./utils/entities";
 import {
@@ -34,13 +38,28 @@ import {
   matchingPaymentMethods,
 } from "./utils/payment";
 import { isClosingSoon } from "./utils/station";
+import { escHtml } from "./utils/html";
 import { formatPrice, mapsUrl } from "./utils/price";
 import {
   getFuelName,
+  getWeekdays,
   localize,
+  resolveLang,
   translate,
   type TranslateContext,
 } from "./localize/localize";
+import { fetchHistory, type HistoryPoint } from "./history";
+import {
+  attachSparklineHover,
+  buildSparkline,
+  type HourlyEnvelope,
+} from "./sparkline";
+import {
+  analyzeBestRefuel,
+  buildHourlyEnvelope,
+  resolveMarkerIdx,
+  type BestRefuelResult,
+} from "./analytics/best-refuel";
 import { cardStyles } from "./styles";
 
 // Eager-register the editor element. With `inlineDynamicImports: true` the
@@ -107,6 +126,20 @@ export class TankstellenAustriaCard extends LitElement {
   @state() private _config!: TankstellenAustriaCardConfig;
   @state() private _activeTab = 0;
   @state() private _expandedStations: Set<string> = new Set();
+  @state() private _history: Record<string, HistoryPoint[]> = {};
+  @state() private _versionMismatch: string | null = null;
+  @state() private _lastManualRefresh = 0;
+  @state() private _noNewData = false;
+  // Incremented by the cooldown interval so the countdown re-renders each
+  // second while a refresh is on cooldown. Reactive, but never read —
+  // shouldUpdate gates on it via `changed.has("_cooldownTick")`.
+  @state() private _cooldownTick = 0;
+
+  // Non-reactive instance fields.
+  private _initDone = false;
+  private _historyInterval: number | undefined;
+  private _cooldownInterval: number | undefined;
+  private _sparklineCleanup: (() => void) | undefined;
 
   public setConfig(config: TankstellenAustriaCardConfig): void {
     this._config = normaliseConfig(config);
@@ -116,20 +149,24 @@ export class TankstellenAustriaCard extends LitElement {
     return 6;
   }
 
-  // Fingerprint-based gate. The default `hasConfigOrEntityChanged` only watches
-  // a single `config.entity`, which this multi-entity card doesn't have. We
-  // re-render when:
-  //   • the config object itself changes (editor save)
-  //   • the user switches tab or toggles a station detail
-  //   • any *tracked* entity's state-object reference changes
-  //     (HA state objects are immutable — a new object means new data)
-  // Without this gate the card re-renders on every entity state change
-  // anywhere in the HA install, which is a measurable CPU drag on busy
-  // installs.
+  // Fingerprint-based gate. The default `hasConfigOrEntityChanged` only
+  // watches a single `config.entity`, which this multi-entity card doesn't
+  // have. Re-render on: config change, UI state change, history arrival,
+  // version-mismatch discovery, cooldown tick, or a tracked-entity state
+  // object reference change. Without this gate the card re-renders on every
+  // entity state change anywhere in the HA install.
   protected shouldUpdate(changed: PropertyValues): boolean {
     if (!this._config) return false;
-    if (changed.has("_config")) return true;
-    if (changed.has("_activeTab") || changed.has("_expandedStations")) {
+    if (
+      changed.has("_config") ||
+      changed.has("_activeTab") ||
+      changed.has("_expandedStations") ||
+      changed.has("_history") ||
+      changed.has("_versionMismatch") ||
+      changed.has("_lastManualRefresh") ||
+      changed.has("_noNewData") ||
+      changed.has("_cooldownTick")
+    ) {
       return true;
     }
     const prev = changed.get("hass") as HomeAssistant | undefined;
@@ -171,6 +208,101 @@ export class TankstellenAustriaCard extends LitElement {
     return translate(`card.${key}`, this._ctx(), replacements);
   }
 
+  // --- Lifecycle ---
+
+  public disconnectedCallback(): void {
+    super.disconnectedCallback();
+    if (this._historyInterval !== undefined) {
+      clearInterval(this._historyInterval);
+      this._historyInterval = undefined;
+    }
+    if (this._cooldownInterval !== undefined) {
+      clearInterval(this._cooldownInterval);
+      this._cooldownInterval = undefined;
+    }
+    if (this._sparklineCleanup) {
+      this._sparklineCleanup();
+      this._sparklineCleanup = undefined;
+    }
+    // Let the next updated() re-start the history interval. Matters during
+    // dashboard edit mode which rapidly disconnects/reconnects the card.
+    this._initDone = false;
+  }
+
+  protected updated(_changed: PropertyValues): void {
+    // One-shot bootstrap on first hass arrival.
+    if (!this._initDone && this.hass && this._config) {
+      this._initDone = true;
+      void this._fetchAllHistory();
+      this._historyInterval = window.setInterval(() => {
+        void this._fetchAllHistory();
+      }, HISTORY_REFRESH_MS);
+      void this._checkCardVersion();
+    }
+    // Re-wire sparkline hover after every render (cheap; entity may have
+    // changed with a tab click).
+    this._reattachSparklineHover();
+  }
+
+  private async _fetchAllHistory(): Promise<void> {
+    try {
+      const entities = this._resolveEntities();
+      await Promise.all(
+        entities.map(async (e) => {
+          const points = await fetchHistory(this.hass, e.entity_id);
+          this._history = { ...this._history, [e.entity_id]: points };
+        }),
+      );
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn("[Tankstellen Austria] history refresh failed", err);
+    }
+  }
+
+  private async _checkCardVersion(): Promise<void> {
+    if (!this.hass?.callWS) return;
+    try {
+      const r = await this.hass.callWS<{ version?: string }>({
+        type: "tankstellen_austria/card_version",
+      });
+      if (r?.version && r.version !== CARD_VERSION) {
+        this._versionMismatch = r.version;
+      }
+    } catch {
+      // Backend may not support this WS command yet — silent.
+    }
+  }
+
+  private _reattachSparklineHover(): void {
+    if (this._sparklineCleanup) {
+      this._sparklineCleanup();
+      this._sparklineCleanup = undefined;
+    }
+    const container = this.shadowRoot?.querySelector<HTMLElement>(
+      ".sparkline-container[data-entity]",
+    );
+    if (!container) return;
+    const weekdays = getWeekdays(this._ctx());
+    const lang = resolveLang(this._ctx());
+    const formatTime = (ts: number): string => {
+      const d = new Date(ts);
+      const wd = weekdays[d.getDay()]?.slice(0, 2) ?? "";
+      const date =
+        lang === "de"
+          ? `${d.getDate()}.${d.getMonth() + 1}.`
+          : `${d.getMonth() + 1}/${d.getDate()}`;
+      const hh = String(d.getHours()).padStart(2, "0");
+      const mm = String(d.getMinutes()).padStart(2, "0");
+      return `${wd} ${date} ${hh}:${mm}`;
+    };
+    this._sparklineCleanup = attachSparklineHover(container, {
+      formatTime,
+      formatPrice,
+    });
+  }
+
+  // --- Render ---
+
   protected render(): TemplateResult {
     if (!this.hass || !this._config) {
       return html`<ha-card></ha-card>`;
@@ -183,6 +315,7 @@ export class TankstellenAustriaCard extends LitElement {
     if (!entities.length) {
       return html`
         <ha-card>
+          ${this._renderVersionBanner()}
           <div class="empty">${this._t("no_data")}</div>
         </ha-card>
       `;
@@ -192,11 +325,25 @@ export class TankstellenAustriaCard extends LitElement {
 
     return html`
       <ha-card>
+        ${this._renderVersionBanner()}
         ${this._renderTabs(entities, activeTab)}
         ${this._renderHeader(active)}
         ${this._renderCars(active)}
         ${this._renderStationList(active, activeTab)}
       </ha-card>
+    `;
+  }
+
+  private _renderVersionBanner(): TemplateResult | typeof nothing {
+    if (!this._versionMismatch) return nothing;
+    const msg = this._t("version_update", { v: this._versionMismatch });
+    return html`
+      <div class="version-notice">
+        <span>${msg}</span>
+        <button class="version-reload-btn" @click=${this._onVersionReload}>
+          ${this._t("version_reload")}
+        </button>
+      </div>
     `;
   }
 
@@ -250,6 +397,7 @@ export class TankstellenAustriaCard extends LitElement {
     const avgPrice = active.attributes.average_price;
     const cheapest = stations[0]?.price;
     const isDynamic = active.attributes.dynamic_mode === true;
+    const showHistory = this._config.show_history !== false;
 
     return html`
       <div class="card-header">
@@ -277,12 +425,11 @@ export class TankstellenAustriaCard extends LitElement {
                 </div>
               `}
         </div>
+        ${showHistory && !isDynamic ? this._renderSparkline(active) : nothing}
       </div>
     `;
   }
 
-  // Minimal dynamic-mode header — refresh button + last-updated.
-  // B5.3 adds the cooldown countdown and the _noNewData hint.
   private _renderDynamicHeader(active: TankstellenEntity): TemplateResult {
     const lastUpdated = active.last_updated
       ? new Date(active.last_updated).toLocaleTimeString([], {
@@ -290,18 +437,140 @@ export class TankstellenAustriaCard extends LitElement {
           minute: "2-digit",
         })
       : "";
+
+    const remainingMs =
+      DYNAMIC_MANUAL_COOLDOWN_MS - (Date.now() - this._lastManualRefresh);
+    const cooling = remainingMs > 0;
+    const countdownText = cooling
+      ? (() => {
+          const s = Math.ceil(remainingMs / 1000);
+          return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+        })()
+      : "";
+
     return html`
       <div class="dynamic-meta">
         <div class="dynamic-meta-inner">
           ${lastUpdated
             ? html`<span class="last-updated">${this._t("last_updated")} ${lastUpdated}</span>`
             : nothing}
+          ${this._noNewData
+            ? html`<span class="no-new-data">${this._t("no_new_data")}</span>`
+            : nothing}
         </div>
       </div>
-      <button class="refresh-btn" @click=${this._onRefresh}>
+      <button
+        class=${classMap({ "refresh-btn": true, cooling })}
+        @click=${this._onRefresh}
+      >
         <ha-icon icon="mdi:refresh" class="refresh-icon"></ha-icon>
-        ${this._t("refresh")}
+        ${cooling ? countdownText : this._t("refresh")}
       </button>
+    `;
+  }
+
+  private _renderSparkline(
+    active: TankstellenEntity,
+  ): TemplateResult | typeof nothing {
+    const entityId = active.entity_id;
+    const points = this._history[entityId] ?? [];
+    if (points.length < 2) return nothing;
+
+    const showMedianLine = this._config.show_median_line === true;
+    const showHourEnvelope = this._config.show_hour_envelope === true;
+    const showNoonMarkers = this._config.show_noon_markers === true;
+    const envelope: HourlyEnvelope | null = showHourEnvelope
+      ? buildHourlyEnvelope(points)
+      : null;
+
+    const showBestRefuel = this._config.show_best_refuel !== false;
+    const analysis = showBestRefuel ? analyzeBestRefuel(points) : null;
+    const markerIdx = resolveMarkerIdx(points, analysis);
+
+    const result = buildSparkline({
+      points,
+      showMedianLine,
+      showHourEnvelope,
+      showNoonMarkers,
+      hourEnvelope: envelope,
+      markerIdx,
+      translations: {
+        min_label: this._t("min_label"),
+        max_label: this._t("max_label"),
+        last_7_days: this._t("last_7_days"),
+        median_delta_below: this._t("median_delta_below"),
+        median_delta_above: this._t("median_delta_above"),
+        median_delta_equal: this._t("median_delta_equal"),
+      },
+    });
+    if (result.template === nothing) return nothing;
+
+    return html`
+      <div
+        class="sparkline-container"
+        data-entity=${entityId}
+        @click=${() => this._onSparklineClick(entityId)}
+      >
+        ${result.template}
+        ${this._renderRecommendation(analysis)}
+      </div>
+    `;
+  }
+
+  private _renderRecommendation(
+    analysis: BestRefuelResult | null,
+  ): TemplateResult | typeof nothing {
+    if (!analysis) return nothing;
+    if (!analysis.hasEnoughData) {
+      return html`
+        <div class="refuel-hint">
+          <ha-icon icon="mdi:information-outline" class="refuel-icon"></ha-icon>
+          ${this._t("not_enough_data_hint")}
+        </div>
+      `;
+    }
+    const hour = analysis.hour ?? 0;
+    const h1 = String(hour).padStart(2, "0");
+    const h2 = String((hour + 1) % 24).padStart(2, "0");
+
+    let text: string;
+    if (analysis.weekday != null) {
+      const weekdays = getWeekdays(this._ctx());
+      const day = weekdays[analysis.weekday] ?? "";
+      text = this._t("best_refuel_hour_weekday", { h1, h2, day });
+    } else {
+      text = this._t("best_refuel_hour", { h1, h2 });
+    }
+
+    const c = analysis.confidence;
+    if (!c) {
+      return html`
+        <div class="refuel-recommendation">
+          <ha-icon icon="mdi:lightbulb-outline" class="refuel-icon"></ha-icon>
+          <span class="refuel-text">${text}</span>
+        </div>
+      `;
+    }
+
+    const levelLabel = this._t(`confidence_${c.level}`);
+    const tooltipLines: string[] = [
+      `${this._t("confidence_title")}: ${levelLabel}`,
+      `• ${this._t("confidence_span")}: ${c.span_days} ${this._t("confidence_days")}`,
+      `• ${this._t("confidence_coverage")}: ${c.coverage_pct}%`,
+      `• ${this._t("confidence_gap")}: ${c.gap_cents.toFixed(1)} ${this._t("confidence_cents")}`,
+    ];
+    if (c.span_days < 14) {
+      tooltipLines.push("", this._t("confidence_short_history_hint"));
+    }
+    const tooltip = escHtml(tooltipLines.join("\n"));
+    const badgeClass = `refuel-confidence refuel-confidence-${c.level}`;
+
+    return html`
+      <div class="refuel-recommendation">
+        <ha-icon icon="mdi:lightbulb-outline" class="refuel-icon"></ha-icon>
+        <span class="refuel-text">${text}</span>
+        <span class=${badgeClass} title=${tooltip}>${levelLabel}</span>
+      </div>
     `;
   }
 
@@ -338,7 +607,9 @@ export class TankstellenAustriaCard extends LitElement {
 
     return html`
       <div class="cars-fillup">
-        ${cars.map((car) => this._renderCarRow(car, effectiveCheapest, showCarFillup, showCarConsumption))}
+        ${cars.map((car) =>
+          this._renderCarRow(car, effectiveCheapest, showCarFillup, showCarConsumption),
+        )}
       </div>
     `;
   }
@@ -384,7 +655,7 @@ export class TankstellenAustriaCard extends LitElement {
       `;
     }
 
-    // consumption-only mode: reuses .car-fillup-row styling
+    // consumption-only mode — reuses .car-fillup-row styling
     const per100Str =
       cheapest != null
         ? `€ ${(cheapest * consumption).toFixed(2).replace(".", ",")}`
@@ -618,16 +889,32 @@ export class TankstellenAustriaCard extends LitElement {
   }
 
   private _onMapLinkClick(e: Event): void {
-    // Don't expand the station row when the user clicks the map icon.
     e.stopPropagation();
   }
 
-  // B5.3 will layer cooldown + _noNewData tracking on top. For now fire
-  // update_entity for every resolved entity (what the vanilla card does at
-  // the top of _handleRefresh).
+  private _onSparklineClick(entityId: string): void {
+    // Same behaviour as clicking a sensor in HA — open the more-info dialog.
+    this.dispatchEvent(
+      new CustomEvent("hass-more-info", {
+        detail: { entityId },
+        bubbles: true,
+        composed: true,
+      }),
+    );
+  }
+
   private _onRefresh(): void {
     if (!this.hass) return;
-    for (const e of this._resolveEntities()) {
+    const now = Date.now();
+    if (now - this._lastManualRefresh < DYNAMIC_MANUAL_COOLDOWN_MS) return;
+    this._lastManualRefresh = now;
+    this._noNewData = false;
+
+    const entities = this._resolveEntities();
+    const active = entities[this._activeTab] ?? entities[0];
+    const preRefreshTimestamp = active?.last_updated;
+
+    for (const e of entities) {
       const p = this.hass.callService("homeassistant", "update_entity", {
         entity_id: e.entity_id,
       });
@@ -642,6 +929,46 @@ export class TankstellenAustriaCard extends LitElement {
         });
       }
     }
+
+    // After HA has had time to fetch, check if data actually changed.
+    window.setTimeout(() => {
+      try {
+        const updated = this._resolveEntities();
+        const updatedActive = updated[this._activeTab] ?? updated[0];
+        if (updatedActive?.last_updated === preRefreshTimestamp) {
+          this._noNewData = true;
+        }
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.warn("[Tankstellen Austria] post-refresh check failed", err);
+      }
+    }, 3000);
+
+    // Per-second re-render so the countdown stays live.
+    if (this._cooldownInterval !== undefined) {
+      clearInterval(this._cooldownInterval);
+    }
+    this._cooldownInterval = window.setInterval(() => {
+      if (Date.now() - this._lastManualRefresh >= DYNAMIC_MANUAL_COOLDOWN_MS) {
+        if (this._cooldownInterval !== undefined) {
+          clearInterval(this._cooldownInterval);
+          this._cooldownInterval = undefined;
+        }
+      }
+      this._cooldownTick = (this._cooldownTick + 1) % 1_000_000;
+    }, 1000);
+  }
+
+  private async _onVersionReload(): Promise<void> {
+    try {
+      if (typeof window !== "undefined" && "caches" in window) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map((k) => caches.delete(k)));
+      }
+    } catch {
+      // caches API requires HTTPS in some contexts; fall through to reload.
+    }
+    location.reload();
   }
 
   static styles: CSSResultGroup = cardStyles;
