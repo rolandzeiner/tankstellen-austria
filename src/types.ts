@@ -52,11 +52,6 @@ export interface TankstellenAustriaCardConfig extends LovelaceCardConfig {
   show_car_consumption?: boolean;
   cars?: CarConfig[];
 
-  // Stub-editor fields — retained so the B0 editor stub compiles until
-  // the B6 editor rewrite drops them. Not read by the card itself.
-  show_warning?: boolean;
-  show_error?: boolean;
-
   tap_action?: ActionConfig;
   hold_action?: ActionConfig;
   double_tap_action?: ActionConfig;
