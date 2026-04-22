@@ -280,7 +280,6 @@ This can be used directly in automations and templates, e.g. to alert when the c
 - **Rate limit**: Don't poll more than every 10 minutes (60 minutes is safe)
 - **No API key** required
 - Returns 5 cheapest stations (with prices) + surrounding stations (without)
-- All requests include a `User-Agent` header identifying the integration and HA version
 
 ### Important Notes
 

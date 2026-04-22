@@ -97,6 +97,46 @@ async def test_api_failure_raises_update_failed(hass: HomeAssistant) -> None:
         await coordinator._async_update_data()
 
 
+async def test_coordinator_fetch_sends_canonical_user_agent(hass: HomeAssistant) -> None:
+    """coordinator._fetch sends RFC-9110 UA: HomeAssistant/<ver> tankstellen_austria/<int_ver>.
+
+    Regression guard. Before v1.7.0 the integration's outbound User-Agent was
+    derived from CARD_VERSION (which carries a -beta-N suffix during card
+    development), leaking card betas into the backend UA. The canonical
+    constant in const.py decouples the two. If someone later inlines a
+    different header string here, this test fails loudly.
+    """
+    from homeassistant.const import __version__ as HA_VERSION
+
+    from custom_components.tankstellen_austria.const import (
+        DOMAIN as TS_DOMAIN,
+        INTEGRATION_VERSION,
+        USER_AGENT,
+    )
+
+    # Canonical format: two space-separated product tokens, each with a slash.
+    assert USER_AGENT == f"HomeAssistant/{HA_VERSION} {TS_DOMAIN}/{INTEGRATION_VERSION}"
+
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+    coordinator = TankstellenCoordinator(hass, entry)
+
+    # Substitute a session mock whose .get() is awaitable and returns an empty
+    # station list — enough for _fetch to reach the resp.json() path without
+    # raising, so we can inspect the outgoing headers.
+    resp = MagicMock()
+    resp.raise_for_status = MagicMock()
+    resp.json = AsyncMock(return_value=[])
+    coordinator._session = MagicMock()
+    coordinator._session.get = AsyncMock(return_value=resp)
+
+    await coordinator._fetch("DIE", 48.0, 16.0)
+
+    assert coordinator._session.get.called
+    headers = coordinator._session.get.call_args.kwargs["headers"]
+    assert headers == {"User-Agent": USER_AGENT}
+
+
 async def test_config_entry_not_ready_on_first_refresh_failure(
     hass: HomeAssistant,
 ) -> None:
