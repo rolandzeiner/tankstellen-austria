@@ -57,7 +57,6 @@ import {
 import {
   analyzeBestRefuel,
   buildHourlyEnvelope,
-  resolveMarkerIdx,
   type BestRefuelResult,
 } from "./analytics/best-refuel";
 import { cardStyles } from "./styles";
@@ -485,7 +484,6 @@ export class TankstellenAustriaCard extends LitElement {
 
     const showBestRefuel = this._config.show_best_refuel !== false;
     const analysis = showBestRefuel ? analyzeBestRefuel(points) : null;
-    const markerIdx = resolveMarkerIdx(points, analysis);
 
     const result = buildSparkline({
       points,
@@ -493,7 +491,7 @@ export class TankstellenAustriaCard extends LitElement {
       showHourEnvelope,
       showNoonMarkers,
       hourEnvelope: envelope,
-      markerIdx,
+      analysis,
       translations: {
         min_label: this._t("min_label"),
         max_label: this._t("max_label"),

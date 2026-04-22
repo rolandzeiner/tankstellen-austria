@@ -1,5 +1,6 @@
 import { html, svg, TemplateResult, nothing } from "lit";
 
+import type { BestRefuelResult } from "./analytics/best-refuel";
 import type { HistoryPoint } from "./history";
 import {
   monotoneCubicPath,
@@ -26,7 +27,11 @@ export interface SparklineOpts {
   showHourEnvelope: boolean;
   showNoonMarkers: boolean;
   hourEnvelope?: HourlyEnvelope | null;
-  markerIdx?: number; // -1 = no best-refuel marker
+  // Best-refuel analysis output. When provided and confident, the
+  // sparkline draws the green dashed marker at the nearest point in the
+  // *visible* 7-day slice — not the full 4-week history (index
+  // semantics would be meaningless across the two arrays).
+  analysis?: BestRefuelResult | null;
   translations: {
     min_label: string;
     max_label: string;
@@ -56,6 +61,42 @@ const WIDTH = 280;
 const HEIGHT = 48;
 const PAD_Y = 4;
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+
+// Walks the *visible* 7-day array and returns the index of the point
+// nearest in time to the analysis's target hour (and weekday, when
+// confident enough to surface). The vanilla card inlined this next to
+// the rendering loop; keeping it here preserves the invariant that the
+// marker index always refers to the same array that's rendered.
+function resolveVisibleMarkerIdx(
+  data: HistoryPoint[],
+  analysis: BestRefuelResult | null | undefined,
+): number {
+  if (!analysis?.hasEnoughData || analysis.hour == null) return -1;
+  if (data.length === 0) return -1;
+
+  const now = new Date();
+  const target = new Date(now);
+  if (analysis.weekday != null) {
+    let daysBack = (now.getDay() - analysis.weekday + 7) % 7;
+    if (daysBack === 0 && now.getHours() < analysis.hour) daysBack = 7;
+    target.setDate(target.getDate() - daysBack);
+  } else if (now.getHours() < analysis.hour) {
+    target.setDate(target.getDate() - 1);
+  }
+  target.setHours(analysis.hour, 0, 0, 0);
+  const targetMs = target.getTime();
+
+  let bestDist = Infinity;
+  let bestIdx = -1;
+  for (let i = 0; i < data.length; i++) {
+    const dist = Math.abs(data[i].time - targetMs);
+    if (dist < bestDist) {
+      bestDist = dist;
+      bestIdx = i;
+    }
+  }
+  return bestIdx;
+}
 
 function sliceLast7Days(all: HistoryPoint[]): HistoryPoint[] {
   const cutoff = Date.now() - SEVEN_DAYS_MS;
@@ -111,8 +152,15 @@ export function buildSparkline(opts: SparklineOpts): SparklineResult {
     if (data.length < 2) return empty;
 
     const values = data.map((d) => d.value);
-    let min = Math.min(...values);
-    let max = Math.max(...values);
+    // Labels under the sparkline always describe the 7-day line — the data
+    // the user actually sees traced. `min`/`max` below may expand to include
+    // the 4-week envelope band so its ribbon fits in the Y axis, but that's
+    // a layout concern, not a data one.
+    const dataMin = Math.min(...values);
+    const dataMax = Math.max(...values);
+
+    let min = dataMin;
+    let max = dataMax;
 
     const envelope = opts.showHourEnvelope ? opts.hourEnvelope ?? null : null;
     if (envelope) {
@@ -206,8 +254,10 @@ export function buildSparkline(opts: SparklineOpts): SparklineResult {
                   stroke-dasharray="4,3" opacity="0.55"/>`
       : nothing;
 
-    // Best-refuel marker.
-    const markerIdx = opts.markerIdx ?? -1;
+    // Best-refuel marker. Must be computed against the *visible* 7-day
+    // `data` array, not the full history that `analysis` was derived
+    // from — the indices don't correspond across the two arrays.
+    const markerIdx = resolveVisibleMarkerIdx(data, opts.analysis);
     const marker: TemplateResult | typeof nothing =
       markerIdx >= 0 && markerIdx < svgPoints.length
         ? svg`
@@ -299,14 +349,14 @@ export function buildSparkline(opts: SparklineOpts): SparklineResult {
       <div class="sparkline-labels">
         <span>
           <span class="sparkline-minmax-label">${opts.translations.min_label}</span>
-          ${formatPriceShort(min)}
+          ${formatPriceShort(dataMin)}
         </span>
         <span class="sparkline-period">
           ${opts.translations.last_7_days}${deltaTmpl === nothing ? nothing : html` · ${deltaTmpl}`}
         </span>
         <span>
           <span class="sparkline-minmax-label">${opts.translations.max_label}</span>
-          ${formatPriceShort(max)}
+          ${formatPriceShort(dataMax)}
         </span>
       </div>
     `;
