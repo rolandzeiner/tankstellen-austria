@@ -1,0 +1,17 @@
+{
+  "common": {
+    "version": "Version",
+    "invalid_configuration": "Invalid configuration",
+    "show_warning": "Show warning",
+    "show_error": "Show error",
+    "loading": "Loading…"
+  },
+  "editor": {
+    "section_main": "Main",
+    "section_display": "Display",
+    "name": "Name (optional)",
+    "entity": "Entity (required)",
+    "show_warning": "Show warning",
+    "show_error": "Show error"
+  }
+}
