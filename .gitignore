@@ -62,3 +62,10 @@ test/
 
 # Local dev tooling (push scripts, etc. — not shared)
 scripts/
+
+# Card build — source-of-truth is src/; bundle in www/ is tracked.
+node_modules/
+*.js.map
+
+# Local reference copies during in-flight refactors
+*.bak

@@ -2,7 +2,7 @@
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
 [![HA min version](https://img.shields.io/badge/Home%20Assistant-%3E%3D2025.1-blue.svg)](https://www.home-assistant.io/)
-[![Version](https://img.shields.io/badge/version-1.6.0-blue.svg)](https://github.com/rolandzeiner/tankstellen-austria/releases)
+[![Version](https://img.shields.io/badge/version-1.7.0-blue.svg)](https://github.com/rolandzeiner/tankstellen-austria/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![vibe-coded](https://img.shields.io/badge/vibe-coded-ff69b4?logo=musicbrainz&logoColor=white)](https://en.wikipedia.org/wiki/Vibe_coding)
 
@@ -395,6 +395,25 @@ logger:
 1. Go to **Settings → Devices & Services**, find the Tankstellen Austria integration, and click the three-dot menu → **Delete**
 2. Restart Home Assistant
 3. Remove the `custom_components/tankstellen_austria/` directory from your HA config (manual installs only — HACS removes it automatically)
+
+## Development
+
+### Lovelace card
+
+The custom card is written in TypeScript with Lit 3 and bundled by Rollup into
+a single `custom_components/tankstellen_austria/www/tankstellen-austria-card.js`.
+End users install via HACS and never run `npm`; contributors do:
+
+```bash
+npm install
+npm run build       # production bundle (terser-minified)
+npm run dev         # watch mode for iteration
+```
+
+`src/const.ts` and `custom_components/tankstellen_austria/const.py` both
+carry `CARD_VERSION` — they must stay byte-identical, or the frontend
+version check shows an infinite reload banner. Bump both together when
+releasing.
 
 ## License
 
