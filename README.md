@@ -373,10 +373,32 @@ template:
         state: >
           {{ state_attr('sensor.tankstellen_home_diesel', 'stations')
              | selectattr('name', 'search', 'Essmeister')
-             | map(attribute='price') | list | first | default('unavailable') }}
+             | map(attribute='price') | list | first | default(none) }}
 ```
 
-The `search` test does a regex substring match against the station name — replace `Essmeister` with any fragment of the name shown in the `stations` attribute. Because the API only returns the **5 cheapest** stations with prices, a pinned station that isn't in the current top-5 will show as `unavailable` for that update cycle.
+The `search` test does a regex substring match against the station name — replace `Essmeister` with any fragment of the name shown in the `stations` attribute. Because the API only returns the **5 cheapest** stations with prices, a pinned station that isn't in the current top-5 will show as `unavailable` for that update cycle. (`| default(none)` is important — returning the string `'unavailable'` here would make HA log an "expected a number" validation error because the `€/L` unit marks the sensor as numeric.)
+
+**Same sensor via the UI Template helper**
+
+If you'd rather click than edit YAML, go to **Settings → Devices & Services → Helpers → + Create Helper → Template → Template a sensor** and fill in:
+
+| Field | Value |
+|---|---|
+| Name | `Favourite Station Diesel` |
+| State template | see below |
+| Unit of measurement | `€/L` |
+| Device class | *(leave empty)* |
+| State class | `measurement` *(optional — enables history graphs)* |
+
+State template:
+
+```jinja
+{{ state_attr('sensor.tankstellen_home_diesel', 'stations')
+   | selectattr('name', 'search', 'Essmeister')
+   | map(attribute='price') | list | first | default(none) }}
+```
+
+The helper stores its config in HA's internal storage (not `configuration.yaml`), so no restart is needed — the entity appears immediately and behaves identically to the YAML version. Use whichever approach you prefer; both produce a regular `sensor.favourite_station_diesel` entity you can add to the Tankstellen Austria card or use in automations.
 
 ## Troubleshooting
 
