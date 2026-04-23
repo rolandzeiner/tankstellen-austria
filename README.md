@@ -316,12 +316,16 @@ The integration polls the E-Control API on a per-entry schedule:
 - **Follow-me prices while driving** — a dynamic-mode entry bound to your phone's `device_tracker` updates the card with prices near your current location, ideal for long road trips.
 - **Home + work monitoring** — run two fixed entries at different locations and compare.
 - **Payment-method aware automations** — template on the `payment_methods` per-station attribute to skip stations that don't accept your card.
-- **Pin a favourite station** — use a template sensor to filter the `stations` attribute by name and track a specific station's price, even when it isn't the cheapest in the area (see **Automation Examples** below).
+- **Pin a favourite station** — use a template sensor to filter the `stations` attribute by name and track a specific station's price, even when it isn't the cheapest in the area (see **Automation or Template Sensor Examples** below).
 - **Long-term analysis** — the `average_price` attribute is a stable number HA's recorder can chart for months; useful for tracking regional price trends.
 
-## Automation Examples
+## Automation or Template Sensor Examples
 
-> **Where to put these snippets.** All examples below go into your `configuration.yaml` (restart Home Assistant after editing). The **automation** block belongs under a top-level `automation:` key — or move it into `automations.yaml` if you already use `automation: !include automations.yaml`. The **template sensor** blocks belong under a top-level `template:` key; if you already have one, append the `- sensor:` entry to the existing list instead of adding a second `template:` key. Validate with **Developer Tools → YAML → Check configuration** before restarting.
+> **Where to put the template-sensor snippets.** Template sensors go into your `configuration.yaml` under a top-level `template:` key (restart Home Assistant after editing). If you already have a `template:` block, append the new `- sensor:` entry to the existing list instead of adding a second `template:` key. Validate with **Developer Tools → YAML → Check configuration** before restarting.
+>
+> Home Assistant also has a UI-based Template helper (**Settings → Devices & Services → Helpers → + Create Helper → Template**), but it only exposes a single state-template field, so multi-line examples with `attributes:` or `{% set %}` blocks like the ones below are more readable in YAML.
+>
+> The automation example can be created in the UI instead (**Settings → Automations & Scenes → + Create Automation**) — the YAML is shown here for reference.
 
 Notify when the cheapest Diesel drops below 1.50 €/l:
 
