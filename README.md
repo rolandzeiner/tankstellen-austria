@@ -321,6 +321,8 @@ The integration polls the E-Control API on a per-entry schedule:
 
 ## Automation Examples
 
+> **Where to put these snippets.** All examples below go into your `configuration.yaml` (restart Home Assistant after editing). The **automation** block belongs under a top-level `automation:` key — or move it into `automations.yaml` if you already use `automation: !include automations.yaml`. The **template sensor** blocks belong under a top-level `template:` key; if you already have one, append the `- sensor:` entry to the existing list instead of adding a second `template:` key. Validate with **Developer Tools → YAML → Check configuration** before restarting.
+
 Notify when the cheapest Diesel drops below 1.50 €/l:
 
 ```yaml
