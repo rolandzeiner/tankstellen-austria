@@ -323,7 +323,7 @@ The integration polls the E-Control API on a per-entry schedule:
 
 > **Where to put the template-sensor snippets.** Template sensors go into your `configuration.yaml` under a top-level `template:` key (restart Home Assistant after editing). If you already have a `template:` block, append the new `- sensor:` entry to the existing list instead of adding a second `template:` key. Validate with **Developer Tools → YAML → Check configuration** before restarting.
 >
-> Home Assistant also has a UI-based Template helper (**Settings → Devices & Services → Helpers → + Create Helper → Template**), but it only exposes a single state-template field, so multi-line examples with `attributes:` or `{% set %}` blocks like the ones below are more readable in YAML.
+> Home Assistant also has a UI-based Template helper (**Settings → Devices & Services → Helpers → + Create Helper → Template**), but it only exposes a single state-template field, so multi-line examples with `attributes:` or `{% set %}` blocks like the ones below are more readable in YAML. A worked UI-Helper walkthrough for the single-line favourite-station sensor is included further down (**Same sensor via the UI Template helper**).
 >
 > The automation example can be created in the UI instead (**Settings → Automations & Scenes → + Create Automation**) — the YAML is shown here for reference.
 
