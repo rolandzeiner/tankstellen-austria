@@ -237,10 +237,10 @@ export class TankstellenAustriaCardEditor
         ${this._renderToggle("show_history", this._et("show_history"), showHistory)}
         ${showHistory
           ? html`
-              ${this._renderToggle("show_best_refuel", this._et("show_best_refuel"), showBestRefuel, true)}
               ${this._renderToggle("show_median_line", this._et("show_median_line"), showMedianLine, true)}
               ${this._renderToggle("show_hour_envelope", this._et("show_hour_envelope"), showHourEnvelope, true)}
               ${this._renderToggle("show_noon_markers", this._et("show_noon_markers"), showNoonMarkers, true)}
+              ${this._renderToggle("show_best_refuel", this._et("show_best_refuel"), showBestRefuel, true)}
               ${showBestRefuel ? this._renderRecorderHint() : nothing}
             `
           : nothing}
