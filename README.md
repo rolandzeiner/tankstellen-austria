@@ -2,7 +2,7 @@
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
 [![HA min version](https://img.shields.io/badge/Home%20Assistant-%3E%3D2025.1-blue.svg)](https://www.home-assistant.io/)
-[![Version](https://img.shields.io/badge/version-1.6.0-blue.svg)](https://github.com/rolandzeiner/tankstellen-austria/releases)
+[![Version](https://img.shields.io/badge/version-1.7.0-blue.svg)](https://github.com/rolandzeiner/tankstellen-austria/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![vibe-coded](https://img.shields.io/badge/vibe-coded-ff69b4?logo=musicbrainz&logoColor=white)](https://en.wikipedia.org/wiki/Vibe_coding)
 
@@ -280,7 +280,6 @@ This can be used directly in automations and templates, e.g. to alert when the c
 - **Rate limit**: Don't poll more than every 10 minutes (60 minutes is safe)
 - **No API key** required
 - Returns 5 cheapest stations (with prices) + surrounding stations (without)
-- All requests include a `User-Agent` header identifying the integration and HA version
 
 ### Important Notes
 
@@ -317,9 +316,16 @@ The integration polls the E-Control API on a per-entry schedule:
 - **Follow-me prices while driving** — a dynamic-mode entry bound to your phone's `device_tracker` updates the card with prices near your current location, ideal for long road trips.
 - **Home + work monitoring** — run two fixed entries at different locations and compare.
 - **Payment-method aware automations** — template on the `payment_methods` per-station attribute to skip stations that don't accept your card.
+- **Pin a favourite station** — use a template sensor to filter the `stations` attribute by name and track a specific station's price, even when it isn't the cheapest in the area (see **Automation or Template Sensor Examples** below).
 - **Long-term analysis** — the `average_price` attribute is a stable number HA's recorder can chart for months; useful for tracking regional price trends.
 
-## Automation Examples
+## Automation or Template Sensor Examples
+
+> **Where to put the template-sensor snippets.** Template sensors go into your `configuration.yaml` under a top-level `template:` key (restart Home Assistant after editing). If you already have a `template:` block, append the new `- sensor:` entry to the existing list instead of adding a second `template:` key. Validate with **Developer Tools → YAML → Check configuration** before restarting.
+>
+> Home Assistant also has a UI-based Template helper (**Settings → Devices & Services → Helpers → + Create Helper → Template**), but it only exposes a single state-template field, so multi-line examples with `attributes:` or `{% set %}` blocks like the ones below are more readable in YAML. A worked UI-Helper walkthrough for the single-line favourite-station sensor is included further down (**Same sensor via the UI Template helper**).
+>
+> The automation example can be created in the UI instead (**Settings → Automations & Scenes → + Create Automation**) — the YAML is shown here for reference.
 
 Notify when the cheapest Diesel drops below 1.50 €/l:
 
@@ -356,6 +362,43 @@ template:
                selectattr('payment_methods.others', 'contains', 'Austrocard') | list %}
             {{ open_acc[0].price if open_acc else none }}
 ```
+
+Template sensor for a **specific named station** — tracks your favourite even when another station is cheaper:
+
+```yaml
+template:
+  - sensor:
+      - name: "Favourite station Diesel"
+        unit_of_measurement: "€/L"
+        state: >
+          {{ state_attr('sensor.tankstellen_home_diesel', 'stations')
+             | selectattr('name', 'search', 'Essmeister')
+             | map(attribute='price') | list | first | default(none) }}
+```
+
+The `search` test does a regex substring match against the station name — replace `Essmeister` with any fragment of the name shown in the `stations` attribute. Because the API only returns the **5 cheapest** stations with prices, a pinned station that isn't in the current top-5 will show as `unavailable` for that update cycle. (`| default(none)` is important — returning the string `'unavailable'` here would make HA log an "expected a number" validation error because the `€/L` unit marks the sensor as numeric.)
+
+**Same sensor via the UI Template helper**
+
+If you'd rather click than edit YAML, go to **Settings → Devices & Services → Helpers → + Create Helper → Template → Template a sensor** and fill in:
+
+| Field | Value |
+|---|---|
+| Name | `Favourite Station Diesel` |
+| State template | see below |
+| Unit of measurement | `€/L` |
+| Device class | *(leave empty)* |
+| State class | `measurement` *(optional — enables history graphs)* |
+
+State template:
+
+```jinja
+{{ state_attr('sensor.tankstellen_home_diesel', 'stations')
+   | selectattr('name', 'search', 'Essmeister')
+   | map(attribute='price') | list | first | default(none) }}
+```
+
+The helper stores its config in HA's internal storage (not `configuration.yaml`), so no restart is needed — the entity appears immediately and behaves identically to the YAML version. Use whichever approach you prefer; both produce a regular `sensor.favourite_station_diesel` entity you can add to the Tankstellen Austria card or use in automations.
 
 ## Troubleshooting
 
@@ -395,6 +438,25 @@ logger:
 1. Go to **Settings → Devices & Services**, find the Tankstellen Austria integration, and click the three-dot menu → **Delete**
 2. Restart Home Assistant
 3. Remove the `custom_components/tankstellen_austria/` directory from your HA config (manual installs only — HACS removes it automatically)
+
+## Development
+
+### Lovelace card
+
+The custom card is written in TypeScript with Lit 3 and bundled by Rollup into
+a single `custom_components/tankstellen_austria/www/tankstellen-austria-card.js`.
+End users install via HACS and never run `npm`; contributors do:
+
+```bash
+npm install
+npm run build       # production bundle (terser-minified)
+npm run dev         # watch mode for iteration
+```
+
+`src/const.ts` and `custom_components/tankstellen_austria/const.py` both
+carry `CARD_VERSION` — they must stay byte-identical, or the frontend
+version check shows an infinite reload banner. Bump both together when
+releasing.
 
 ## License
 

@@ -1,4 +1,7 @@
 """Constants for Tankstellen Austria."""
+from typing import Final
+
+from homeassistant.const import __version__ as _HA_VERSION
 
 DOMAIN = "tankstellen_austria"
 CONF_LATITUDE = "latitude"
@@ -30,7 +33,19 @@ DYNAMIC_SAFETY_INTERVAL_HOURS = 6      # fallback timer when no movement detecte
 # Key inside hass.data[DOMAIN] for cross-entry rate limiting
 DOMAIN_LAST_API_CALL_KEY = "last_api_call"
 
-CARD_VERSION = "1.6.0"
+CARD_VERSION = "1.7.0"
+
+# Integration version — tracks manifest.json "version" (always the clean
+# release name, never a beta suffix). Kept separate from CARD_VERSION so the
+# served JS bundle and the Python integration can be released independently
+# without breaking the frontend WS version check.
+INTEGRATION_VERSION: Final = "1.7.0"
+
+# Canonical HTTP User-Agent for upstream API calls. RFC-9110 format:
+# `<product>/<version> <product>/<version>` with a single space between
+# tokens — parsers treat the string as one opaque identifier if the first
+# slash is missing.
+USER_AGENT: Final = f"HomeAssistant/{_HA_VERSION} {DOMAIN}/{INTEGRATION_VERSION}"
 
 # Retry delay when the API returns no station data (e.g. mid-update window)
 NO_DATA_RETRY_MINUTES = 10

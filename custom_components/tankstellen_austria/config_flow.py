@@ -35,7 +35,6 @@ from homeassistant.helpers.selector import (
 from .const import (
     API_BASE_URL,
     API_ENDPOINT,
-    CARD_VERSION,
     CONF_DYNAMIC_ENTITY,
     CONF_FUEL_TYPES,
     CONF_INCLUDE_CLOSED,
@@ -46,6 +45,7 @@ from .const import (
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
     FUEL_TYPES,
+    USER_AGENT,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -67,7 +67,7 @@ async def _test_api_connection(
         resp = await session.get(
             url,
             params=params,
-            headers={"User-Agent": f"HomeAssistant tankstellen_austria/{CARD_VERSION}"},
+            headers={"User-Agent": USER_AGENT},
             timeout=aiohttp.ClientTimeout(total=10),
         )
         resp.raise_for_status()
