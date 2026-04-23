@@ -316,6 +316,7 @@ The integration polls the E-Control API on a per-entry schedule:
 - **Follow-me prices while driving** — a dynamic-mode entry bound to your phone's `device_tracker` updates the card with prices near your current location, ideal for long road trips.
 - **Home + work monitoring** — run two fixed entries at different locations and compare.
 - **Payment-method aware automations** — template on the `payment_methods` per-station attribute to skip stations that don't accept your card.
+- **Pin a favourite station** — use a template sensor to filter the `stations` attribute by name and track a specific station's price, even when it isn't the cheapest in the area (see **Automation Examples** below).
 - **Long-term analysis** — the `average_price` attribute is a stable number HA's recorder can chart for months; useful for tracking regional price trends.
 
 ## Automation Examples
@@ -355,6 +356,21 @@ template:
                selectattr('payment_methods.others', 'contains', 'Austrocard') | list %}
             {{ open_acc[0].price if open_acc else none }}
 ```
+
+Template sensor for a **specific named station** — tracks your favourite even when another station is cheaper:
+
+```yaml
+template:
+  - sensor:
+      - name: "Favourite station Diesel"
+        unit_of_measurement: "€/L"
+        state: >
+          {{ state_attr('sensor.tankstellen_home_diesel', 'stations')
+             | selectattr('name', 'search', 'Essmeister')
+             | map(attribute='price') | list | first | default('unavailable') }}
+```
+
+The `search` test does a regex substring match against the station name — replace `Essmeister` with any fragment of the name shown in the `stations` attribute. Because the API only returns the **5 cheapest** stations with prices, a pinned station that isn't in the current top-5 will show as `unavailable` for that update cycle.
 
 ## Troubleshooting
 
