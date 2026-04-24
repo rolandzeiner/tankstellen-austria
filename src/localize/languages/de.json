@@ -68,6 +68,7 @@
     "entities": "Sensoren",
     "entities_hint": "Leer lassen für automatische Erkennung",
     "max_stations": "Anzahl Tankstellen",
+    "show_index": "Platzierung anzeigen",
     "show_map_links": "Google Maps Links anzeigen",
     "show_opening_hours": "Öffnungszeiten anzeigen",
     "show_payment_methods": "Zahlungsarten anzeigen",

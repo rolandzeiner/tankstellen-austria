@@ -33,6 +33,7 @@ export interface TankstellenAustriaCardConfig extends LovelaceCardConfig {
 
   max_stations?: number; // 0..5
 
+  show_index?: boolean;
   show_map_links?: boolean;
   show_opening_hours?: boolean;
   show_payment_methods?: boolean;

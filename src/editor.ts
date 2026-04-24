@@ -218,6 +218,7 @@ export class TankstellenAustriaCardEditor
   }
 
   private _renderDisplaySection(): TemplateResult {
+    const showIndex = this._config.show_index !== false;
     const showMap = this._config.show_map_links !== false;
     const showHours = this._config.show_opening_hours !== false;
     const showPayment = this._config.show_payment_methods !== false;
@@ -233,6 +234,8 @@ export class TankstellenAustriaCardEditor
     return html`
       <div class="editor-section">
         <div class="section-header">${this._et("section_display")}</div>
+        ${this._renderToggle("show_index", this._et("show_index"), showIndex)}
+        <div class="divider"></div>
         ${this._renderToggle("show_map_links", this._et("show_map_links"), showMap)}
         <div class="divider"></div>
         ${this._renderToggle("show_opening_hours", this._et("show_opening_hours"), showHours)}

@@ -108,6 +108,7 @@ export class TankstellenAustriaCard extends LitElement {
     return {
       entities: entities.length ? [entities[0]] : [],
       max_stations: 5,
+      show_index: true,
       show_map_links: true,
       show_opening_hours: true,
       show_payment_methods: true,
@@ -809,6 +810,7 @@ export class TankstellenAustriaCard extends LitElement {
     paymentFilter: readonly string[],
     highlightMode: boolean,
   ): TemplateResult {
+    const showIndex = this._config.show_index !== false;
     const showMapLinks = this._config.show_map_links !== false;
     const showHours = this._config.show_opening_hours !== false;
     const showPayment = this._config.show_payment_methods !== false;
@@ -859,7 +861,7 @@ export class TankstellenAustriaCard extends LitElement {
           @keydown=${(ev: KeyboardEvent) =>
             this._onStationKeydown(ev, key, hasDetail)}
         >
-          <div class="rank">${idx + 1}</div>
+          ${showIndex ? html`<div class="rank">${idx + 1}</div>` : nothing}
           <div class="info">
             <div class="name">
               ${hasName

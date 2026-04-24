@@ -68,6 +68,7 @@
     "entities": "Sensors",
     "entities_hint": "Leave empty for auto-detection",
     "max_stations": "Number of stations",
+    "show_index": "Show rank",
     "show_map_links": "Show Google Maps links",
     "show_opening_hours": "Show opening hours",
     "show_payment_methods": "Show payment methods",
