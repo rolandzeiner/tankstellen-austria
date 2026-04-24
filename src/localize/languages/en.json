@@ -75,6 +75,7 @@
     "payment_filter": "Only stations with",
     "payment_filter_custom_placeholder": "Custom, e.g. Routex",
     "payment_filter_custom_hint": "Must match the API string exactly. Common values: Routex, UTA, DKV, Austrocard, Fleetcard, ADAC",
+    "payment_filter_add_custom": "Add custom payment method",
     "payment_highlight_mode": "Highlight instead of filter",
     "section_sensors": "Sensors",
     "section_display": "Display",
@@ -89,6 +90,9 @@
     "car_name_placeholder": "Name (e.g. Golf TDI)",
     "car_tank_placeholder": "Liters",
     "car_consumption_placeholder": "⌀ l/100km",
+    "car_fuel_type": "Fuel type",
+    "car_choose_icon": "Choose icon",
+    "car_delete": "Delete car",
     "add_car": "+ Add car"
   }
 }

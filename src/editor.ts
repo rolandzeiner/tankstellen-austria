@@ -151,6 +151,8 @@ export class TankstellenAustriaCardEditor
     return html`
       <button
         class=${classMap({ "entity-chip": true, selected: isSelected })}
+        type="button"
+        aria-pressed=${isSelected ? "true" : "false"}
         @click=${() => this._toggleEntity(eid)}
       >
         <span class="fuel-name">${ftName}</span>
@@ -188,10 +190,12 @@ export class TankstellenAustriaCardEditor
             if (trackerName) defaultLabel += ` · ${trackerName}`;
           }
           const current = typeof labels[eid] === "string" ? labels[eid] : "";
+          const inputId = `tablbl-${eid.replace(/[^a-z0-9_-]/gi, "-")}`;
           return html`
             <div class="tab-label-row">
-              <span class="tab-label-default" title=${defaultLabel}>${defaultLabel}</span>
+              <label class="tab-label-default" for=${inputId} title=${defaultLabel}>${defaultLabel}</label>
               <input
+                id=${inputId}
                 class="tab-label-input"
                 type="text"
                 maxlength="50"
@@ -276,10 +280,12 @@ export class TankstellenAustriaCardEditor
     checked: boolean,
     sub = false,
   ): TemplateResult {
+    const switchId = `toggle-${String(field)}`;
     return html`
       <div class=${classMap({ "toggle-row": true, "toggle-row-sub": sub })}>
-        <label>${label}</label>
+        <label for=${switchId}>${label}</label>
         <ha-switch
+          id=${switchId}
           .checked=${checked}
           @change=${(e: Event) => this._onBooleanToggle(field, e)}
         ></ha-switch>
@@ -336,7 +342,8 @@ export class TankstellenAustriaCardEditor
             @keypress=${this._stop}
           ></ha-textfield>
           <ha-icon-button
-            title="+"
+            .label=${this._et("payment_filter_add_custom")}
+            title=${this._et("payment_filter_add_custom")}
             @click=${this._onAddCustomPm}
           >
             <ha-icon icon="mdi:plus-circle"></ha-icon>
@@ -380,6 +387,8 @@ export class TankstellenAustriaCardEditor
           active: isActive,
           confirm: isPending,
         })}
+        type="button"
+        aria-pressed=${isActive ? "true" : "false"}
         @click=${() => this._togglePaymentChip(key, isCustom)}
       >
         ${isPending ? `✕ ${label}?` : label}
@@ -409,7 +418,11 @@ export class TankstellenAustriaCardEditor
           : nothing}
         <div class="divider"></div>
         ${cars.map((car, idx) => this._renderCarRow(car, idx))}
-        <button class="car-add-btn" @click=${this._onAddCar}>
+        <button
+          class="car-add-btn"
+          type="button"
+          @click=${this._onAddCar}
+        >
           ${this._et("add_car")}
         </button>
       </div>
@@ -424,7 +437,10 @@ export class TankstellenAustriaCardEditor
         <div class="car-editor-row">
           <button
             class=${classMap({ "car-icon-btn": true, active: iconExpanded })}
-            title="Choose icon"
+            type="button"
+            aria-label=${this._et("car_choose_icon")}
+            aria-expanded=${iconExpanded ? "true" : "false"}
+            title=${this._et("car_choose_icon")}
             @click=${(e: Event) => this._onToggleIconPicker(e, idx)}
           >
             <ha-icon icon=${currentIcon}></ha-icon>
@@ -432,6 +448,7 @@ export class TankstellenAustriaCardEditor
           <input
             class="car-input car-name-input"
             type="text"
+            aria-label=${this._et("car_name_placeholder")}
             placeholder=${this._et("car_name_placeholder")}
             .value=${car.name ?? ""}
             @click=${this._stop}
@@ -443,6 +460,7 @@ export class TankstellenAustriaCardEditor
           />
           <select
             class="car-select"
+            aria-label=${this._et("car_fuel_type")}
             @click=${this._stop}
             @pointerdown=${this._stop}
             @change=${(e: Event) => this._onCarFieldChange(idx, "fuel_type", e)}
@@ -460,6 +478,7 @@ export class TankstellenAustriaCardEditor
             type="number"
             min="1"
             max="200"
+            aria-label=${this._et("car_tank_placeholder")}
             placeholder=${this._et("car_tank_placeholder")}
             .value=${car.tank_size != null ? String(car.tank_size) : ""}
             @click=${this._stop}
@@ -475,6 +494,7 @@ export class TankstellenAustriaCardEditor
             min="0"
             max="30"
             step="0.1"
+            aria-label=${this._et("car_consumption_placeholder")}
             placeholder=${this._et("car_consumption_placeholder")}
             .value=${car.consumption != null ? String(car.consumption) : ""}
             @click=${this._stop}
@@ -486,6 +506,9 @@ export class TankstellenAustriaCardEditor
           />
           <button
             class="car-delete-btn"
+            type="button"
+            aria-label=${this._et("car_delete")}
+            title=${this._et("car_delete")}
             @click=${(e: Event) => this._onDeleteCar(e, idx)}
           >
             <ha-icon icon="mdi:delete-outline"></ha-icon>
@@ -501,6 +524,9 @@ export class TankstellenAustriaCardEditor
                         "car-icon-option": true,
                         active: currentIcon === icon,
                       })}
+                      type="button"
+                      aria-label=${icon.replace("mdi:", "")}
+                      aria-pressed=${currentIcon === icon ? "true" : "false"}
                       title=${icon.replace("mdi:", "")}
                       @click=${(e: Event) => this._onPickCarIcon(e, idx, icon)}
                     >

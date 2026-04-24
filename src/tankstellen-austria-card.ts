@@ -148,6 +148,20 @@ export class TankstellenAustriaCard extends LitElement {
     return 6;
   }
 
+  public getGridOptions(): {
+    columns: number | "full";
+    rows: number | "auto";
+    min_columns: number;
+    min_rows: number;
+  } {
+    return {
+      columns: 12,
+      rows: "auto",
+      min_columns: 6,
+      min_rows: 4,
+    };
+  }
+
   // Fingerprint-based gate. The default `hasConfigOrEntityChanged` only
   // watches a single `config.entity`, which this multi-entity card doesn't
   // have. Re-render on: config change, UI state change, history arrival,
@@ -337,9 +351,13 @@ export class TankstellenAustriaCard extends LitElement {
     if (!this._versionMismatch) return nothing;
     const msg = this._t("version_update", { v: this._versionMismatch });
     return html`
-      <div class="version-notice">
+      <div class="version-notice" role="alert" aria-live="assertive">
         <span>${msg}</span>
-        <button class="version-reload-btn" @click=${this._onVersionReload}>
+        <button
+          class="version-reload-btn"
+          type="button"
+          @click=${this._onVersionReload}
+        >
           ${this._t("version_reload")}
         </button>
       </div>
@@ -353,7 +371,7 @@ export class TankstellenAustriaCard extends LitElement {
     if (entities.length <= 1) return nothing;
     const customLabels: Record<string, string> = this._config.tab_labels ?? {};
     return html`
-      <div class="tabs">
+      <div class="tabs" role="tablist">
         ${entities.map((e, i) => {
           const custom = customLabels[e.entity_id];
           let label: string;
@@ -371,10 +389,17 @@ export class TankstellenAustriaCard extends LitElement {
               if (trackerName) label += ` · ${trackerName}`;
             }
           }
+          const selected = i === activeTab;
           return html`
             <button
-              class=${classMap({ tab: true, active: i === activeTab })}
+              type="button"
+              role="tab"
+              class=${classMap({ tab: true, active: selected })}
+              aria-selected=${selected ? "true" : "false"}
+              tabindex=${selected ? "0" : "-1"}
               @click=${() => this._onTabClick(i)}
+              @keydown=${(ev: KeyboardEvent) =>
+                this._onTabKeydown(ev, i, entities.length)}
             >
               ${label}
             </button>
@@ -449,17 +474,20 @@ export class TankstellenAustriaCard extends LitElement {
 
     return html`
       <div class="dynamic-meta">
-        <div class="dynamic-meta-inner">
+        <div class="dynamic-meta-inner" aria-live="polite">
           ${lastUpdated
             ? html`<span class="last-updated">${this._t("last_updated")} ${lastUpdated}</span>`
             : nothing}
           ${this._noNewData
-            ? html`<span class="no-new-data">${this._t("no_new_data")}</span>`
+            ? html`<span class="no-new-data" role="status">${this._t("no_new_data")}</span>`
             : nothing}
         </div>
       </div>
       <button
         class=${classMap({ "refresh-btn": true, cooling })}
+        type="button"
+        aria-label=${this._t("refresh")}
+        aria-disabled=${cooling ? "true" : "false"}
         @click=${this._onRefresh}
       >
         <ha-icon icon="mdi:refresh" class="refresh-icon"></ha-icon>
@@ -743,11 +771,24 @@ export class TankstellenAustriaCard extends LitElement {
     const hasPaymentBlock = showPayment && hasPaymentMethods(s.payment_methods);
     const hasDetail = hasHoursBlock || hasPaymentBlock;
 
+    const rowLabel = [
+      s.name || "–",
+      loc.city ?? "",
+      formatPrice(s.price),
+    ]
+      .filter(Boolean)
+      .join(", ");
     return html`
       <div class=${classMap({ station: true, "pm-highlight": highlighted })}>
         <div
           class="station-main"
+          role=${hasDetail ? "button" : "group"}
+          tabindex=${hasDetail ? "0" : "-1"}
+          aria-expanded=${hasDetail ? (isExpanded ? "true" : "false") : nothing}
+          aria-label=${rowLabel}
           @click=${() => this._onStationClick(key)}
+          @keydown=${(ev: KeyboardEvent) =>
+            this._onStationKeydown(ev, key, hasDetail)}
         >
           <div class="rank">${idx + 1}</div>
           <div class="info">
@@ -775,6 +816,7 @@ export class TankstellenAustriaCard extends LitElement {
                   href=${mapsUrl(loc, s.name ?? "")}
                   target="_blank"
                   rel="noopener noreferrer"
+                  aria-label=${`${this._t("map")}: ${s.name ?? ""}`}
                   title=${this._t("map")}
                   @click=${this._onMapLinkClick}
                 >
@@ -879,11 +921,53 @@ export class TankstellenAustriaCard extends LitElement {
     this._expandedStations = new Set();
   }
 
+  // WAI-ARIA tab pattern: arrow keys move focus and activate; Home/End
+  // jump to the first/last tab. After switching we focus the newly-active
+  // tab so keyboard users see the focus ring follow their selection.
+  private _onTabKeydown(ev: KeyboardEvent, index: number, count: number): void {
+    let next = index;
+    switch (ev.key) {
+      case "ArrowRight":
+        next = (index + 1) % count;
+        break;
+      case "ArrowLeft":
+        next = (index - 1 + count) % count;
+        break;
+      case "Home":
+        next = 0;
+        break;
+      case "End":
+        next = count - 1;
+        break;
+      default:
+        return;
+    }
+    ev.preventDefault();
+    this._onTabClick(next);
+    this.updateComplete.then(() => {
+      const tabs = this.shadowRoot?.querySelectorAll<HTMLButtonElement>(
+        '.tabs [role="tab"]',
+      );
+      tabs?.[next]?.focus();
+    });
+  }
+
   private _onStationClick(key: string): void {
     const next = new Set(this._expandedStations);
     if (next.has(key)) next.delete(key);
     else next.add(key);
     this._expandedStations = next;
+  }
+
+  private _onStationKeydown(
+    ev: KeyboardEvent,
+    key: string,
+    hasDetail: boolean,
+  ): void {
+    if (!hasDetail) return;
+    if (ev.key !== "Enter" && ev.key !== " ") return;
+    ev.preventDefault();
+    this._onStationClick(key);
   }
 
   private _onMapLinkClick(e: Event): void {

@@ -12,6 +12,10 @@ export const cardStyles = css`
   ha-card {
     padding: 0;
     overflow: hidden;
+    /* Card responds to its own width, not the viewport — lets narrow
+       dashboard columns trigger compact layout even on a wide screen. */
+    container-type: inline-size;
+    container-name: tscard;
   }
   .empty {
     padding: 24px 16px;
@@ -28,7 +32,7 @@ export const cardStyles = css`
     padding: 8px 16px;
     background: var(--warning-color, #ff9800);
     color: #fff;
-    font-size: 13px;
+    font-size: 0.8125rem;
   }
   .version-reload-btn {
     flex-shrink: 0;
@@ -37,7 +41,7 @@ export const cardStyles = css`
     border-radius: 4px;
     color: #fff;
     cursor: pointer;
-    font-size: 12px;
+    font-size: 0.75rem;
     padding: 4px 12px;
   }
 
@@ -45,19 +49,26 @@ export const cardStyles = css`
   .tabs {
     display: flex;
     border-bottom: 1px solid var(--divider-color, rgba(255, 255, 255, 0.12));
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .tabs::-webkit-scrollbar {
+    display: none;
   }
   .tab {
-    flex: 1;
-    padding: 12px 8px;
+    flex: 1 0 auto;
+    min-height: 44px;
+    padding: 12px 12px;
     background: none;
     border: none;
     color: var(--secondary-text-color);
-    font-size: 14px;
+    font-size: 0.875rem;
     font-weight: 500;
     cursor: pointer;
     transition: color 0.2s, border-color 0.2s;
     border-bottom: 2px solid transparent;
     font-family: inherit;
+    white-space: nowrap;
   }
   .tab.active {
     color: var(--primary-color);
@@ -81,7 +92,7 @@ export const cardStyles = css`
     display: flex;
     align-items: center;
     gap: 6px;
-    font-size: 15px;
+    font-size: 0.9375rem;
     font-weight: 600;
     color: var(--primary-text-color);
   }
@@ -110,17 +121,17 @@ export const cardStyles = css`
     flex-direction: column;
   }
   .header-price-label {
-    font-size: 11px;
+    font-size: 0.6875rem;
     color: var(--secondary-text-color);
     font-weight: 400;
   }
   .header-price-value {
-    font-size: 18px;
+    font-size: 1.125rem;
     font-weight: 700;
     color: var(--primary-text-color);
   }
   .header-price-value.avg {
-    font-size: 15px;
+    font-size: 0.9375rem;
     font-weight: 500;
     color: var(--secondary-text-color);
   }
@@ -142,7 +153,7 @@ export const cardStyles = css`
     display: flex;
     align-items: center;
     gap: 5px;
-    font-size: 13px;
+    font-size: 0.8125rem;
     color: var(--secondary-text-color);
   }
   .car-icon {
@@ -150,11 +161,11 @@ export const cardStyles = css`
     color: var(--secondary-text-color);
   }
   .car-fillup-liters {
-    font-size: 11px;
+    font-size: 0.6875rem;
     opacity: 0.65;
   }
   .car-fillup-cost {
-    font-size: 14px;
+    font-size: 0.875rem;
     font-weight: 600;
     color: var(--primary-text-color);
   }
@@ -166,12 +177,12 @@ export const cardStyles = css`
     margin-top: -2px;
   }
   .car-per100-label {
-    font-size: 11px;
+    font-size: 0.6875rem;
     color: var(--secondary-text-color);
     opacity: 0.75;
   }
   .car-per100-cost {
-    font-size: 12px;
+    font-size: 0.75rem;
     color: var(--secondary-text-color);
   }
 
@@ -183,7 +194,11 @@ export const cardStyles = css`
   }
   .sparkline {
     width: 100%;
-    height: 48px;
+    /* Fluid height: scales between 40 and 72 px with viewport width, and
+       respects a --ts-sparkline-height override for themes that want a
+       taller chart. The SVG uses preserveAspectRatio="none" so the
+       internal 280×48 coordinate space stretches vertically to fit. */
+    height: var(--ts-sparkline-height, clamp(40px, 8vw + 24px, 72px));
     display: block;
   }
   .sparkline-tooltip {
@@ -196,7 +211,7 @@ export const cardStyles = css`
     border: 1px solid var(--divider-color);
     border-radius: 6px;
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
-    font-size: 11px;
+    font-size: 0.6875rem;
     white-space: nowrap;
     pointer-events: none;
     z-index: 2;
@@ -214,12 +229,12 @@ export const cardStyles = css`
   .sparkline-labels {
     display: flex;
     justify-content: space-between;
-    font-size: 10px;
+    font-size: 0.625rem;
     color: var(--secondary-text-color);
     padding: 2px 0 0;
   }
   .sparkline-period {
-    font-size: 10px;
+    font-size: 0.625rem;
     opacity: 0.6;
   }
   .sparkline-minmax-label {
@@ -246,7 +261,7 @@ export const cardStyles = css`
     display: flex;
     align-items: center;
     gap: 5px;
-    font-size: 11px;
+    font-size: 0.6875rem;
     font-weight: 500;
     color: var(--success-color, #4caf50);
     margin-top: 5px;
@@ -256,7 +271,7 @@ export const cardStyles = css`
     display: flex;
     align-items: center;
     gap: 5px;
-    font-size: 11px;
+    font-size: 0.6875rem;
     color: var(--secondary-text-color);
     opacity: 0.75;
     margin-top: 5px;
@@ -271,7 +286,7 @@ export const cardStyles = css`
   }
   .refuel-confidence {
     flex-shrink: 0;
-    font-size: 9px;
+    font-size: 0.5625rem;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.3px;
@@ -330,7 +345,7 @@ export const cardStyles = css`
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 12px;
+    font-size: 0.75rem;
     font-weight: 700;
     flex-shrink: 0;
   }
@@ -340,7 +355,7 @@ export const cardStyles = css`
   }
   .name {
     font-weight: 500;
-    font-size: 14px;
+    font-size: 0.875rem;
     color: var(--primary-text-color);
     white-space: nowrap;
     overflow: hidden;
@@ -350,7 +365,7 @@ export const cardStyles = css`
     gap: 8px;
   }
   .address {
-    font-size: 12px;
+    font-size: 0.75rem;
     color: var(--secondary-text-color);
     white-space: nowrap;
     overflow: hidden;
@@ -358,7 +373,7 @@ export const cardStyles = css`
   }
   .price {
     font-weight: 700;
-    font-size: 16px;
+    font-size: 1rem;
     color: var(--primary-text-color);
     white-space: nowrap;
   }
@@ -366,12 +381,19 @@ export const cardStyles = css`
     color: var(--secondary-text-color);
     transition: color 0.2s;
     flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 40px;
+    min-height: 40px;
+    border-radius: 50%;
   }
   .map-link:hover {
     color: var(--primary-color);
+    background: var(--secondary-background-color, rgba(255, 255, 255, 0.04));
   }
   .badge {
-    font-size: 10px;
+    font-size: 0.625rem;
     padding: 1px 6px;
     border-radius: 4px;
     font-weight: 600;
@@ -385,7 +407,7 @@ export const cardStyles = css`
     color: #fff;
   }
   .pm-match-chip {
-    font-size: 10px;
+    font-size: 0.625rem;
     padding: 1px 6px;
     border: 1px solid var(--success-color, #4caf50);
     border-radius: 8px;
@@ -405,7 +427,7 @@ export const cardStyles = css`
     flex: 1;
   }
   .last-updated {
-    font-size: 11px;
+    font-size: 0.6875rem;
     color: var(--secondary-text-color);
   }
   .dynamic-meta-inner {
@@ -415,7 +437,7 @@ export const cardStyles = css`
     line-height: 1.2;
   }
   .no-new-data {
-    font-size: 11px;
+    font-size: 0.6875rem;
     color: var(--warning-color, #ff9800);
   }
   .refresh-btn {
@@ -423,12 +445,13 @@ export const cardStyles = css`
     align-items: center;
     gap: 4px;
     margin-left: auto;
-    padding: 4px 8px;
+    padding: 6px 12px;
+    min-height: 32px;
     background: none;
     border: 1px solid var(--primary-color);
     border-radius: 6px;
     color: var(--primary-color);
-    font-size: 12px;
+    font-size: 0.75rem;
     font-weight: 500;
     cursor: pointer;
     white-space: nowrap;
@@ -446,15 +469,24 @@ export const cardStyles = css`
     color: var(--text-primary-color, #fff);
   }
 
-  /* Station-detail drawer */
+  /* Station-detail drawer.
+     Uses the grid-template-rows 0fr ↔ 1fr pattern instead of animating
+     max-height so long content (many opening-hour lines + payment
+     methods) is not clipped at a fixed height. The direct child gets
+     overflow:hidden + min-height:0 so the row collapse actually hides
+     it. */
   .station-detail {
-    max-height: 0;
-    overflow: hidden;
-    transition: max-height 0.3s ease, padding 0.3s ease;
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 0.3s ease, padding 0.3s ease;
     padding: 0 16px 0 52px;
   }
+  .station-detail > * {
+    overflow: hidden;
+    min-height: 0;
+  }
   .station-detail.expanded {
-    max-height: 200px;
+    grid-template-rows: 1fr;
     padding: 0 16px 12px 52px;
   }
   .detail-cols {
@@ -469,7 +501,7 @@ export const cardStyles = css`
     display: grid;
     grid-template-columns: auto 1fr;
     gap: 2px 12px;
-    font-size: 12px;
+    font-size: 0.75rem;
     color: var(--secondary-text-color);
   }
   .hours-grid .day {
@@ -482,7 +514,7 @@ export const cardStyles = css`
     gap: 6px;
   }
   .pm-label {
-    font-size: 12px;
+    font-size: 0.75rem;
     font-weight: 500;
     color: var(--primary-text-color);
   }
@@ -494,16 +526,71 @@ export const cardStyles = css`
   .pm-badge {
     display: inline-flex;
     align-items: center;
-    gap: 3px;
-    padding: 2px 7px;
+    gap: 4px;
+    padding: 4px 10px;
     border-radius: 10px;
-    font-size: 11px;
+    font-size: 0.6875rem;
+    line-height: 1.4;
     background: var(--secondary-background-color, #f5f5f5);
     color: var(--secondary-text-color);
     border: 1px solid var(--divider-color, #e0e0e0);
   }
   .pm-badge.pm-other {
     font-style: italic;
+  }
+
+  /* Narrow-card layout: tightens paddings, lets address wrap, shrinks
+     the hero price a touch. Kicks in when a dashboard column is narrow
+     even on a desktop viewport. */
+  @container tscard (inline-size < 360px) {
+    .station-main {
+      gap: 8px;
+      padding: 10px 12px;
+    }
+    .rank {
+      width: 28px;
+      height: 28px;
+      font-size: 0.8125rem;
+    }
+    .address {
+      white-space: normal;
+    }
+    .price {
+      font-size: 0.9375rem;
+    }
+    .tab {
+      padding: 12px 10px;
+      font-size: 0.8125rem;
+    }
+    .card-header {
+      padding: 12px 12px 6px;
+    }
+    .station-detail.expanded {
+      padding: 0 12px 10px 42px;
+    }
+  }
+
+  /* Accessibility: visible focus ring for keyboard users. */
+  .tab:focus-visible,
+  .station-main:focus-visible,
+  .pm-filter-chip:focus-visible,
+  a:focus-visible,
+  button:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+
+  /* Accessibility: honour user motion preference. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 `;
 
@@ -527,7 +614,7 @@ export const editorStyles = css`
     gap: 10px;
   }
   .section-header {
-    font-size: 11px;
+    font-size: 0.6875rem;
     font-weight: 600;
     letter-spacing: 0.6px;
     text-transform: uppercase;
@@ -535,7 +622,7 @@ export const editorStyles = css`
     margin-bottom: 2px;
   }
   .editor-hint {
-    font-size: 12px;
+    font-size: 0.75rem;
     color: var(--secondary-text-color);
     line-height: 1.4;
   }
@@ -552,7 +639,7 @@ export const editorStyles = css`
     gap: 4px;
     padding: 5px 12px;
     border-radius: 16px;
-    font-size: 13px;
+    font-size: 0.8125rem;
     cursor: pointer;
     transition: all 0.15s;
     border: 1px solid var(--divider-color);
@@ -572,7 +659,7 @@ export const editorStyles = css`
     font-weight: 500;
   }
   .entity-chip-suffix {
-    font-size: 11px;
+    font-size: 0.6875rem;
     opacity: 0.7;
   }
 
@@ -584,7 +671,7 @@ export const editorStyles = css`
     padding: 2px 0;
   }
   .toggle-row label {
-    font-size: 13px;
+    font-size: 0.8125rem;
     color: var(--primary-text-color);
     cursor: pointer;
   }
@@ -592,7 +679,7 @@ export const editorStyles = css`
     padding-left: 16px;
   }
   .toggle-row-sub label {
-    font-size: 12px;
+    font-size: 0.75rem;
     color: var(--secondary-text-color);
   }
 
@@ -605,7 +692,7 @@ export const editorStyles = css`
     border: 1px solid var(--divider-color);
   }
   .recorder-hint-text {
-    font-size: 11px;
+    font-size: 0.6875rem;
     line-height: 1.4;
     color: var(--secondary-text-color);
     margin-bottom: 6px;
@@ -616,7 +703,7 @@ export const editorStyles = css`
     border-radius: 4px;
     background: var(--code-editor-background-color, var(--primary-background-color, #0e0e0e));
     font-family: var(--code-font-family, monospace);
-    font-size: 11px;
+    font-size: 0.6875rem;
     line-height: 1.35;
     color: var(--primary-text-color);
     overflow-x: auto;
@@ -632,7 +719,7 @@ export const editorStyles = css`
     background: transparent;
     border: 1px solid var(--divider-color);
     color: var(--primary-text-color);
-    font-size: 11px;
+    font-size: 0.6875rem;
     cursor: pointer;
     font-family: inherit;
   }
@@ -663,7 +750,7 @@ export const editorStyles = css`
     min-width: 20px;
     text-align: center;
     font-weight: 600;
-    font-size: 14px;
+    font-size: 0.875rem;
     color: var(--primary-color);
   }
 
@@ -675,7 +762,7 @@ export const editorStyles = css`
   }
   .tab-label-default {
     flex: 0 0 40%;
-    font-size: 13px;
+    font-size: 0.8125rem;
     color: var(--secondary-text-color);
     overflow: hidden;
     text-overflow: ellipsis;
@@ -689,7 +776,7 @@ export const editorStyles = css`
     border: 1px solid var(--divider-color);
     background: var(--card-background-color, #fff);
     color: var(--primary-text-color);
-    font-size: 13px;
+    font-size: 0.8125rem;
     font-family: inherit;
   }
   .tab-label-input:focus {
@@ -706,7 +793,7 @@ export const editorStyles = css`
   .pm-filter-chip {
     padding: 4px 12px;
     border-radius: 14px;
-    font-size: 12px;
+    font-size: 0.75rem;
     cursor: pointer;
     border: 1px solid var(--divider-color);
     background: var(--card-background-color, #fff);
@@ -757,7 +844,7 @@ export const editorStyles = css`
     border: 1px solid var(--divider-color);
     border-radius: 8px;
     padding: 6px 8px;
-    font-size: 13px;
+    font-size: 0.8125rem;
     color: var(--primary-text-color);
     outline: none;
     font-family: inherit;
@@ -783,7 +870,7 @@ export const editorStyles = css`
     border: 1px solid var(--divider-color);
     border-radius: 8px;
     padding: 6px 2px;
-    font-size: 13px;
+    font-size: 0.8125rem;
     color: var(--primary-text-color);
     cursor: pointer;
     font-family: inherit;
@@ -812,7 +899,7 @@ export const editorStyles = css`
     border-radius: 8px;
     color: var(--primary-color);
     cursor: pointer;
-    font-size: 13px;
+    font-size: 0.8125rem;
     padding: 8px 14px;
     width: 100%;
     font-family: inherit;

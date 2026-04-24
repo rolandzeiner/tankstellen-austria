@@ -300,15 +300,23 @@ export function buildSparkline(opts: SparklineOpts): SparklineResult {
         })()
       : nothing;
 
+    const ariaLabel =
+      `${opts.translations.last_7_days}: ` +
+      `${opts.translations.min_label} ${formatPriceShort(dataMin)} · ` +
+      `${opts.translations.max_label} ${formatPriceShort(dataMax)}`;
+
     const template = html`
       <svg
         class="sparkline"
         viewBox="0 0 ${WIDTH} ${HEIGHT}"
         preserveAspectRatio="none"
+        role="img"
+        aria-label=${ariaLabel}
         data-points=${JSON.stringify(hoverPoints)}
         data-width=${WIDTH}
         data-height=${HEIGHT}
       >
+        <title>${ariaLabel}</title>
         <defs>
           <linearGradient id=${gradId} x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stop-color="var(--primary-color)" stop-opacity="0.3" />
