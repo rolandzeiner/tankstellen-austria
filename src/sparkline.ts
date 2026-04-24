@@ -183,42 +183,12 @@ export function buildSparkline(opts: SparklineOpts): SparklineResult {
     const priceToY = (p: number): number =>
       HEIGHT - PAD_Y - ((p - min) / range) * (HEIGHT - 2 * PAD_Y);
 
-    // Anchor the X-axis to a fixed 7-day window ending now. Points are
-    // placed at their true time position, so low-volatility entities
-    // (e.g. Diesel over weekends, where HA's `significant_changes_only`
-    // flag drops same-value samples) render with visible weekend flats
-    // instead of silently stretching their weekday points across the
-    // whole axis.
-    const tEnd = Date.now();
-    const tStart = tEnd - SEVEN_DAYS_MS;
-    const tSpan = SEVEN_DAYS_MS;
-    const timeToX = (t: number): number =>
-      Math.max(0, Math.min(WIDTH, ((t - tStart) / tSpan) * WIDTH));
-
-    const svgPoints: Point[] = data.map((d) => ({
-      x: timeToX(d.time),
+    const svgPoints: Point[] = data.map((d, i) => ({
+      x: (i / (data.length - 1)) * WIDTH,
       y: priceToY(d.value),
     }));
 
-    // Extend the line flat to the left and right edges when data
-    // doesn't reach the axis bounds. Without this the area fill closes
-    // diagonally across the chart (line ends mid-axis, path jumps to
-    // the corner) and short-history entities show an awkward gap on
-    // the left. The extensions are visually "the price was this value
-    // before/after this window too" — stable-price assumption, same
-    // one `sliceLast7Days` already uses when it prepends a prior
-    // sample.
-    const firstY = svgPoints[0].y;
-    const lastY = svgPoints[svgPoints.length - 1].y;
-    const linePoints: Point[] = [
-      ...(svgPoints[0].x > 1 ? [{ x: 0, y: firstY }] : []),
-      ...svgPoints,
-      ...(svgPoints[svgPoints.length - 1].x < WIDTH - 1
-        ? [{ x: WIDTH, y: lastY }]
-        : []),
-    ];
-
-    const linePath = monotoneCubicPath(linePoints);
+    const linePath = monotoneCubicPath(svgPoints);
     const areaPath = linePath
       ? `${linePath} L ${WIDTH.toFixed(2)} ${HEIGHT.toFixed(2)} L 0 ${HEIGHT.toFixed(2)} Z`
       : "";
@@ -244,18 +214,34 @@ export function buildSparkline(opts: SparklineOpts): SparklineResult {
       }
     }
 
-    // Overlay 2: noon markers — one dashed vertical at each 12:00 local
-    // time inside the 7-day axis. Time-proportional X means we can map
-    // directly; no interpolation between data points needed.
+    // Overlay 2: noon markers — one dashed vertical at each 12:00 local time
+    // inside the 7-day window. Uniform-index sparkline, so we interpolate
+    // visual x between the two surrounding data points.
     const noonLines: TemplateResult[] = [];
-    if (opts.showNoonMarkers) {
+    if (opts.showNoonMarkers && data.length >= 2) {
+      const tStart = data[0].time;
+      const tEnd = data[data.length - 1].time;
       const first = new Date(tStart);
       first.setHours(12, 0, 0, 0);
       if (first.getTime() < tStart) first.setDate(first.getDate() + 1);
 
+      const xForTime = (t: number): number | null => {
+        if (t <= tStart || t >= tEnd) return null;
+        let lo = 0;
+        let hi = data.length - 1;
+        while (lo < hi - 1) {
+          const mid = (lo + hi) >> 1;
+          if (data[mid].time <= t) lo = mid;
+          else hi = mid;
+        }
+        const dt = data[lo + 1].time - data[lo].time;
+        const frac = dt > 0 ? (t - data[lo].time) / dt : 0;
+        return svgPoints[lo].x + frac * (svgPoints[lo + 1].x - svgPoints[lo].x);
+      };
+
       for (let t = first.getTime(); t <= tEnd; t += 24 * 3600 * 1000) {
-        const x = timeToX(t);
-        if (x <= 0 || x >= WIDTH) continue;
+        const x = xForTime(t);
+        if (x == null) continue;
         noonLines.push(svg`
           <line x1=${x.toFixed(1)} y1="0" x2=${x.toFixed(1)} y2=${HEIGHT}
                 stroke="var(--secondary-text-color)" stroke-width="0.9"
