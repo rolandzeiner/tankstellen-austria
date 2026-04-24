@@ -77,6 +77,7 @@
     "show_median_line": "Show 7-day median",
     "show_hour_envelope": "Typical hourly range (4 wk)",
     "show_noon_markers": "Noon reset markers",
+    "show_minmax": "Show min/max",
     "recorder_hint_intro": "Home Assistant keeps only 10 days of history by default. For better recommendations, add this block to configuration.yaml and restart:",
     "copy": "Copy",
     "copied": "Copied",

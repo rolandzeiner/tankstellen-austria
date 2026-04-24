@@ -227,6 +227,7 @@ export class TankstellenAustriaCardEditor
     const showMedianLine = this._config.show_median_line === true;
     const showHourEnvelope = this._config.show_hour_envelope === true;
     const showNoonMarkers = this._config.show_noon_markers === true;
+    const showMinMax = this._config.show_minmax !== false;
     const showCars = this._config.show_cars === true;
 
     const maxStations = this._config.max_stations ?? 5;
@@ -248,6 +249,7 @@ export class TankstellenAustriaCardEditor
               ${this._renderToggle("show_median_line", this._et("show_median_line"), showMedianLine, true)}
               ${this._renderToggle("show_hour_envelope", this._et("show_hour_envelope"), showHourEnvelope, true)}
               ${this._renderToggle("show_noon_markers", this._et("show_noon_markers"), showNoonMarkers, true)}
+              ${this._renderToggle("show_minmax", this._et("show_minmax"), showMinMax, true)}
               ${this._renderToggle("show_best_refuel", this._et("show_best_refuel"), showBestRefuel, true)}
               ${showBestRefuel ? this._renderRecorderHint() : nothing}
             `

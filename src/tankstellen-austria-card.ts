@@ -113,6 +113,7 @@ export class TankstellenAustriaCard extends LitElement {
       show_opening_hours: true,
       show_payment_methods: true,
       show_history: true,
+      show_minmax: true,
       show_best_refuel: true,
       payment_filter: [],
       payment_highlight_mode: true,
@@ -549,6 +550,7 @@ export class TankstellenAustriaCard extends LitElement {
     const showMedianLine = this._config.show_median_line === true;
     const showHourEnvelope = this._config.show_hour_envelope === true;
     const showNoonMarkers = this._config.show_noon_markers === true;
+    const showMinMax = this._config.show_minmax !== false;
     const envelope: HourlyEnvelope | null = showHourEnvelope
       ? buildHourlyEnvelope(points)
       : null;
@@ -561,6 +563,7 @@ export class TankstellenAustriaCard extends LitElement {
       showMedianLine,
       showHourEnvelope,
       showNoonMarkers,
+      showMinMax,
       hourEnvelope: envelope,
       analysis,
       translations: {

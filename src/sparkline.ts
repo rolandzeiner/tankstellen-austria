@@ -26,6 +26,7 @@ export interface SparklineOpts {
   showMedianLine: boolean;
   showHourEnvelope: boolean;
   showNoonMarkers: boolean;
+  showMinMax: boolean;
   hourEnvelope?: HourlyEnvelope | null;
   // Best-refuel analysis output. When provided and confident, the
   // sparkline draws the green dashed marker at the nearest point in the
@@ -386,17 +387,21 @@ export function buildSparkline(opts: SparklineOpts): SparklineResult {
         <span class="sparkline-tooltip-price"></span>
       </div>
       <div class="sparkline-labels">
-        <span>
-          <span class="sparkline-minmax-label">${opts.translations.min_label}</span>
-          ${formatPriceShort(dataMin)}
-        </span>
+        ${opts.showMinMax
+          ? html`<span>
+              <span class="sparkline-minmax-label">${opts.translations.min_label}</span>
+              ${formatPriceShort(dataMin)}
+            </span>`
+          : nothing}
         <span class="sparkline-period">
           ${opts.translations.last_7_days}${deltaTmpl === nothing ? nothing : html` · ${deltaTmpl}`}
         </span>
-        <span>
-          <span class="sparkline-minmax-label">${opts.translations.max_label}</span>
-          ${formatPriceShort(dataMax)}
-        </span>
+        ${opts.showMinMax
+          ? html`<span>
+              <span class="sparkline-minmax-label">${opts.translations.max_label}</span>
+              ${formatPriceShort(dataMax)}
+            </span>`
+          : nothing}
       </div>
     `;
 

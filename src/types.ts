@@ -42,6 +42,7 @@ export interface TankstellenAustriaCardConfig extends LovelaceCardConfig {
   show_median_line?: boolean;
   show_hour_envelope?: boolean;
   show_noon_markers?: boolean;
+  show_minmax?: boolean;
 
   payment_filter?: string[];
   payment_highlight_mode?: boolean;
