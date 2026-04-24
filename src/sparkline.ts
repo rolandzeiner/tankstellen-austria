@@ -200,16 +200,23 @@ export function buildSparkline(opts: SparklineOpts): SparklineResult {
       y: priceToY(d.value),
     }));
 
-    // If the last sample is older than "now" (stable price — no new
-    // significant-changes event), extend the line flat to the right
-    // edge so the sparkline covers the full 7-day axis instead of
-    // dangling mid-chart.
-    const lastTime = data[data.length - 1].time;
+    // Extend the line flat to the left and right edges when data
+    // doesn't reach the axis bounds. Without this the area fill closes
+    // diagonally across the chart (line ends mid-axis, path jumps to
+    // the corner) and short-history entities show an awkward gap on
+    // the left. The extensions are visually "the price was this value
+    // before/after this window too" — stable-price assumption, same
+    // one `sliceLast7Days` already uses when it prepends a prior
+    // sample.
+    const firstY = svgPoints[0].y;
     const lastY = svgPoints[svgPoints.length - 1].y;
-    const linePoints: Point[] =
-      lastTime < tEnd - 60_000
-        ? [...svgPoints, { x: WIDTH, y: lastY }]
-        : svgPoints;
+    const linePoints: Point[] = [
+      ...(svgPoints[0].x > 1 ? [{ x: 0, y: firstY }] : []),
+      ...svgPoints,
+      ...(svgPoints[svgPoints.length - 1].x < WIDTH - 1
+        ? [{ x: WIDTH, y: lastY }]
+        : []),
+    ];
 
     const linePath = monotoneCubicPath(linePoints);
     const areaPath = linePath
