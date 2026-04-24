@@ -33,6 +33,8 @@
     "no_new_data": "Keine neuen Daten",
     "version_update": "Tankstellen Austria wurde auf v{v} aktualisiert — bitte neu laden",
     "version_reload": "Neu laden",
+    "version_reload_stuck": "Neu-Laden hat die neue Version nicht geladen. In HACS prüfen und einen harten Reload (Strg+Umschalt+R) ausführen.",
+    "version_dismiss": "Ausblenden",
     "fill_up": "Volltanken",
     "best_refuel_hour": "Tipp: Am günstigsten zwischen {h1}:00–{h2}:00",
     "best_refuel_hour_weekday": "Tipp: Am günstigsten zwischen {h1}:00–{h2}:00, meist {day}",

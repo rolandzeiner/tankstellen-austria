@@ -37,6 +37,31 @@ def _parse_payment_methods(raw: dict[str, Any] | None) -> dict[str, Any]:
 PARALLEL_UPDATES = 0
 
 
+def _extract_price(station: Any) -> float | None:
+    """Pull the first-price amount from a station dict, defensively.
+
+    The E-Control payload is mostly stable but the card and sensor both
+    blow up if an unexpected shape slips through (prices is None, the
+    first entry isn't a dict, amount is a string that can't cast). We
+    log once and return None rather than propagate.
+    """
+    if not isinstance(station, dict):
+        return None
+    prices = station.get("prices")
+    if not isinstance(prices, list) or not prices:
+        return None
+    first = prices[0]
+    if not isinstance(first, dict):
+        return None
+    amount = first.get("amount")
+    if amount is None:
+        return None
+    try:
+        return float(amount)
+    except (TypeError, ValueError):
+        return None
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: TankstellenConfigEntry,
@@ -88,17 +113,13 @@ class TankstellenSensor(CoordinatorEntity[TankstellenCoordinator], SensorEntity)
         stations = self._stations
         if not stations:
             return None
-        try:
-            amount = stations[0]["prices"][0]["amount"]
-        except (KeyError, IndexError) as err:
+        price = _extract_price(stations[0])
+        if price is None:
             _LOGGER.debug(
-                "No price for %s: API payload missing expected field (%s: %s)",
+                "No price for %s: unexpected API payload shape",
                 self.entity_id or self._fuel_type,
-                type(err).__name__,
-                err,
             )
-            return None
-        return float(amount) if amount is not None else None
+        return price
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
@@ -106,9 +127,9 @@ class TankstellenSensor(CoordinatorEntity[TankstellenCoordinator], SensorEntity)
         stations = self._stations
         attr_stations: list[dict[str, Any]] = []
         for s in stations:
-            price = None
-            if s.get("prices"):
-                price = s["prices"][0].get("amount")
+            if not isinstance(s, dict):
+                continue
+            price = _extract_price(s)
             attr_stations.append({
                 "id": s.get("id"),
                 "name": s.get("name"),

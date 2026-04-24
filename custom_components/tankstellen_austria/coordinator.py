@@ -157,10 +157,15 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]
             if lat is not None and lng is not None:
                 self._clear_tracker_issue()
                 return float(lat), float(lng)
-        # Fallback: HA instance location. Raise a Repairs issue the first time
-        # we fall back so the user knows their tracker-based setup has silently
-        # degraded to fixed.
+        # Fallback: HA instance location. Log every fallback at DEBUG so the
+        # trail is visible even after the Repairs issue is dismissed; raise
+        # the issue itself on the first occurrence (idempotent inside
+        # _raise_tracker_issue).
         if self._dynamic_entity:
+            _LOGGER.debug(
+                "device_tracker %s missing coordinates — using HA home location",
+                self._dynamic_entity,
+            )
             self._raise_tracker_issue()
         return self.hass.config.latitude, self.hass.config.longitude
 

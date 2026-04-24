@@ -363,6 +363,30 @@ export class TankstellenAustriaCard extends LitElement {
 
   private _renderVersionBanner(): TemplateResult | typeof nothing {
     if (!this._versionMismatch) return nothing;
+    // If the user already clicked reload in this session and the version
+    // we just saw from the backend is still ahead of CARD_VERSION, the
+    // reload didn't pick up the new bundle (likely a stuck SW/CDN cache).
+    // Switch the banner to a stuck-state message so the user isn't
+    // trapped in a reload → banner → reload loop.
+    const reloadTried =
+      typeof sessionStorage !== "undefined" &&
+      sessionStorage.getItem(
+        `tsa-reload-attempted-${this._versionMismatch}`,
+      ) === "1";
+    if (reloadTried) {
+      return html`
+        <div class="version-notice" role="alert" aria-live="assertive">
+          <span>${this._t("version_reload_stuck")}</span>
+          <button
+            class="version-reload-btn"
+            type="button"
+            @click=${this._onDismissVersionBanner}
+          >
+            ${this._t("version_dismiss")}
+          </button>
+        </div>
+      `;
+    }
     const msg = this._t("version_update", { v: this._versionMismatch });
     return html`
       <div class="version-notice" role="alert" aria-live="assertive">
@@ -377,6 +401,10 @@ export class TankstellenAustriaCard extends LitElement {
       </div>
     `;
   }
+
+  private _onDismissVersionBanner = (): void => {
+    this._versionMismatch = null;
+  };
 
   private _renderTabs(
     entities: TankstellenEntity[],
@@ -1105,6 +1133,19 @@ export class TankstellenAustriaCard extends LitElement {
   }
 
   private async _onVersionReload(): Promise<void> {
+    // Flag this target version as "user tried reload" before the page
+    // unloads, so on re-render the banner flips to the stuck-state
+    // variant instead of a second reload button.
+    if (this._versionMismatch) {
+      try {
+        sessionStorage.setItem(
+          `tsa-reload-attempted-${this._versionMismatch}`,
+          "1",
+        );
+      } catch {
+        // sessionStorage can be disabled in private browsing — fall through.
+      }
+    }
     try {
       if (typeof window !== "undefined" && "caches" in window) {
         const keys = await caches.keys();

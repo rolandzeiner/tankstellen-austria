@@ -33,6 +33,8 @@
     "no_new_data": "No new data",
     "version_update": "Tankstellen Austria updated to v{v} — please reload",
     "version_reload": "Reload",
+    "version_reload_stuck": "Reload didn't load the new version. Check HACS and do a hard refresh (Ctrl+Shift+R).",
+    "version_dismiss": "Dismiss",
     "fill_up": "Fill up",
     "best_refuel_hour": "Tip: Cheapest between {h1}:00–{h2}:00",
     "best_refuel_hour_weekday": "Tip: Cheapest between {h1}:00–{h2}:00, usually {day}",
