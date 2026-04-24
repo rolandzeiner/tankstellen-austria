@@ -105,7 +105,7 @@ function e(e,t,i,n){var r,o=arguments.length,s=o<3?t:null===n?n=Object.getOwnPro
     padding: 8px 16px;
     background: var(--warning-color, #ff9800);
     color: #fff;
-    font-size: 0.8125rem;
+    font-size: 0.875rem;
   }
   .version-reload-btn {
     flex-shrink: 0;
@@ -114,7 +114,7 @@ function e(e,t,i,n){var r,o=arguments.length,s=o<3?t:null===n?n=Object.getOwnPro
     border-radius: 4px;
     color: #fff;
     cursor: pointer;
-    font-size: 0.75rem;
+    font-size: 0.8125rem;
     padding: 8px 14px;
     min-height: 44px;
   }
@@ -136,7 +136,7 @@ function e(e,t,i,n){var r,o=arguments.length,s=o<3?t:null===n?n=Object.getOwnPro
     background: none;
     border: none;
     color: var(--secondary-text-color);
-    font-size: 0.875rem;
+    font-size: 0.9375rem;
     font-weight: 500;
     cursor: pointer;
     transition: color 0.2s, border-color 0.2s;
@@ -166,7 +166,7 @@ function e(e,t,i,n){var r,o=arguments.length,s=o<3?t:null===n?n=Object.getOwnPro
     display: flex;
     align-items: center;
     gap: 6px;
-    font-size: 0.9375rem;
+    font-size: 1rem;
     font-weight: 600;
     color: var(--primary-text-color);
   }
@@ -195,17 +195,17 @@ function e(e,t,i,n){var r,o=arguments.length,s=o<3?t:null===n?n=Object.getOwnPro
     flex-direction: column;
   }
   .header-price-label {
-    font-size: 0.6875rem;
+    font-size: 0.75rem;
     color: var(--secondary-text-color);
     font-weight: 400;
   }
   .header-price-value {
-    font-size: 1.125rem;
+    font-size: 1.25rem;
     font-weight: 700;
     color: var(--primary-text-color);
   }
   .header-price-value.avg {
-    font-size: 0.9375rem;
+    font-size: 1rem;
     font-weight: 500;
     color: var(--secondary-text-color);
   }
@@ -227,7 +227,7 @@ function e(e,t,i,n){var r,o=arguments.length,s=o<3?t:null===n?n=Object.getOwnPro
     display: flex;
     align-items: center;
     gap: 5px;
-    font-size: 0.8125rem;
+    font-size: 0.875rem;
     color: var(--secondary-text-color);
   }
   .car-icon {
@@ -235,11 +235,11 @@ function e(e,t,i,n){var r,o=arguments.length,s=o<3?t:null===n?n=Object.getOwnPro
     color: var(--secondary-text-color);
   }
   .car-fillup-liters {
-    font-size: 0.6875rem;
+    font-size: 0.75rem;
     opacity: 0.65;
   }
   .car-fillup-cost {
-    font-size: 0.875rem;
+    font-size: 0.9375rem;
     font-weight: 600;
     color: var(--primary-text-color);
   }
@@ -251,12 +251,12 @@ function e(e,t,i,n){var r,o=arguments.length,s=o<3?t:null===n?n=Object.getOwnPro
     margin-top: -2px;
   }
   .car-per100-label {
-    font-size: 0.6875rem;
+    font-size: 0.75rem;
     color: var(--secondary-text-color);
     opacity: 0.75;
   }
   .car-per100-cost {
-    font-size: 0.75rem;
+    font-size: 0.8125rem;
     color: var(--secondary-text-color);
   }
 
@@ -285,7 +285,7 @@ function e(e,t,i,n){var r,o=arguments.length,s=o<3?t:null===n?n=Object.getOwnPro
     border: 1px solid var(--divider-color);
     border-radius: 6px;
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
-    font-size: 0.6875rem;
+    font-size: 0.75rem;
     white-space: nowrap;
     pointer-events: none;
     z-index: 2;
@@ -303,12 +303,12 @@ function e(e,t,i,n){var r,o=arguments.length,s=o<3?t:null===n?n=Object.getOwnPro
   .sparkline-labels {
     display: flex;
     justify-content: space-between;
-    font-size: 0.625rem;
+    font-size: 0.6875rem;
     color: var(--secondary-text-color);
     padding: 2px 0 0;
   }
   .sparkline-period {
-    font-size: 0.625rem;
+    font-size: 0.6875rem;
     opacity: 0.6;
   }
   .sparkline-minmax-label {
@@ -335,7 +335,7 @@ function e(e,t,i,n){var r,o=arguments.length,s=o<3?t:null===n?n=Object.getOwnPro
     display: flex;
     align-items: center;
     gap: 5px;
-    font-size: 0.6875rem;
+    font-size: 0.75rem;
     font-weight: 500;
     color: var(--success-color, #4caf50);
     margin-top: 5px;
@@ -345,7 +345,7 @@ function e(e,t,i,n){var r,o=arguments.length,s=o<3?t:null===n?n=Object.getOwnPro
     display: flex;
     align-items: center;
     gap: 5px;
-    font-size: 0.6875rem;
+    font-size: 0.75rem;
     color: var(--secondary-text-color);
     opacity: 0.75;
     margin-top: 5px;
@@ -360,7 +360,7 @@ function e(e,t,i,n){var r,o=arguments.length,s=o<3?t:null===n?n=Object.getOwnPro
   }
   .refuel-confidence {
     flex-shrink: 0;
-    font-size: 0.5625rem;
+    font-size: 0.625rem;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.3px;
@@ -419,7 +419,7 @@ function e(e,t,i,n){var r,o=arguments.length,s=o<3?t:null===n?n=Object.getOwnPro
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 0.75rem;
+    font-size: 0.8125rem;
     font-weight: 700;
     flex-shrink: 0;
   }
@@ -429,7 +429,7 @@ function e(e,t,i,n){var r,o=arguments.length,s=o<3?t:null===n?n=Object.getOwnPro
   }
   .name {
     font-weight: 500;
-    font-size: 0.875rem;
+    font-size: 0.9375rem;
     color: var(--primary-text-color);
     white-space: nowrap;
     overflow: hidden;
@@ -439,7 +439,7 @@ function e(e,t,i,n){var r,o=arguments.length,s=o<3?t:null===n?n=Object.getOwnPro
     gap: 8px;
   }
   .address {
-    font-size: 0.75rem;
+    font-size: 0.8125rem;
     color: var(--secondary-text-color);
     white-space: nowrap;
     overflow: hidden;
@@ -447,7 +447,7 @@ function e(e,t,i,n){var r,o=arguments.length,s=o<3?t:null===n?n=Object.getOwnPro
   }
   .price {
     font-weight: 700;
-    font-size: 1rem;
+    font-size: 1.125rem;
     color: var(--primary-text-color);
     white-space: nowrap;
   }
@@ -467,7 +467,7 @@ function e(e,t,i,n){var r,o=arguments.length,s=o<3?t:null===n?n=Object.getOwnPro
     background: var(--secondary-background-color, rgba(255, 255, 255, 0.04));
   }
   .badge {
-    font-size: 0.625rem;
+    font-size: 0.6875rem;
     padding: 1px 6px;
     border-radius: 4px;
     font-weight: 600;
@@ -481,7 +481,7 @@ function e(e,t,i,n){var r,o=arguments.length,s=o<3?t:null===n?n=Object.getOwnPro
     color: #fff;
   }
   .pm-match-chip {
-    font-size: 0.625rem;
+    font-size: 0.6875rem;
     padding: 1px 6px;
     border: 1px solid var(--success-color, #4caf50);
     border-radius: 8px;
@@ -501,7 +501,7 @@ function e(e,t,i,n){var r,o=arguments.length,s=o<3?t:null===n?n=Object.getOwnPro
     flex: 1;
   }
   .last-updated {
-    font-size: 0.6875rem;
+    font-size: 0.75rem;
     color: var(--secondary-text-color);
   }
   .dynamic-meta-inner {
@@ -511,7 +511,7 @@ function e(e,t,i,n){var r,o=arguments.length,s=o<3?t:null===n?n=Object.getOwnPro
     line-height: 1.2;
   }
   .no-new-data {
-    font-size: 0.6875rem;
+    font-size: 0.75rem;
     color: var(--warning-color, #ff9800);
   }
   .refresh-btn {
@@ -526,7 +526,7 @@ function e(e,t,i,n){var r,o=arguments.length,s=o<3?t:null===n?n=Object.getOwnPro
     border: 1px solid var(--primary-color);
     border-radius: 6px;
     color: var(--primary-color);
-    font-size: 0.75rem;
+    font-size: 0.8125rem;
     font-weight: 500;
     cursor: pointer;
     white-space: nowrap;
@@ -576,7 +576,7 @@ function e(e,t,i,n){var r,o=arguments.length,s=o<3?t:null===n?n=Object.getOwnPro
     display: grid;
     grid-template-columns: auto 1fr;
     gap: 2px 12px;
-    font-size: 0.75rem;
+    font-size: 0.8125rem;
     color: var(--secondary-text-color);
   }
   .hours-grid .day {
@@ -589,7 +589,7 @@ function e(e,t,i,n){var r,o=arguments.length,s=o<3?t:null===n?n=Object.getOwnPro
     gap: 6px;
   }
   .pm-label {
-    font-size: 0.75rem;
+    font-size: 0.8125rem;
     font-weight: 500;
     color: var(--primary-text-color);
   }
@@ -604,7 +604,7 @@ function e(e,t,i,n){var r,o=arguments.length,s=o<3?t:null===n?n=Object.getOwnPro
     gap: 4px;
     padding: 4px 10px;
     border-radius: 10px;
-    font-size: 0.6875rem;
+    font-size: 0.75rem;
     line-height: 1.4;
     background: var(--secondary-background-color, #f5f5f5);
     color: var(--secondary-text-color);
@@ -625,17 +625,17 @@ function e(e,t,i,n){var r,o=arguments.length,s=o<3?t:null===n?n=Object.getOwnPro
     .rank {
       width: 28px;
       height: 28px;
-      font-size: 0.8125rem;
+      font-size: 0.875rem;
     }
     .address {
       white-space: normal;
     }
     .price {
-      font-size: 0.9375rem;
+      font-size: 1rem;
     }
     .tab {
       padding: 12px 10px;
-      font-size: 0.8125rem;
+      font-size: 0.875rem;
     }
     .card-header {
       padding: 12px 12px 6px;
@@ -687,7 +687,7 @@ function e(e,t,i,n){var r,o=arguments.length,s=o<3?t:null===n?n=Object.getOwnPro
     gap: 10px;
   }
   .section-header {
-    font-size: 0.6875rem;
+    font-size: 0.75rem;
     font-weight: 600;
     letter-spacing: 0.6px;
     text-transform: uppercase;
@@ -695,7 +695,7 @@ function e(e,t,i,n){var r,o=arguments.length,s=o<3?t:null===n?n=Object.getOwnPro
     margin-bottom: 2px;
   }
   .editor-hint {
-    font-size: 0.75rem;
+    font-size: 0.8125rem;
     color: var(--secondary-text-color);
     line-height: 1.4;
   }
@@ -712,7 +712,7 @@ function e(e,t,i,n){var r,o=arguments.length,s=o<3?t:null===n?n=Object.getOwnPro
     gap: 4px;
     padding: 5px 12px;
     border-radius: 16px;
-    font-size: 0.8125rem;
+    font-size: 0.875rem;
     cursor: pointer;
     transition: all 0.15s;
     border: 1px solid var(--divider-color);
@@ -732,7 +732,7 @@ function e(e,t,i,n){var r,o=arguments.length,s=o<3?t:null===n?n=Object.getOwnPro
     font-weight: 500;
   }
   .entity-chip-suffix {
-    font-size: 0.6875rem;
+    font-size: 0.75rem;
     opacity: 0.7;
   }
 
@@ -744,7 +744,7 @@ function e(e,t,i,n){var r,o=arguments.length,s=o<3?t:null===n?n=Object.getOwnPro
     padding: 2px 0;
   }
   .toggle-row label {
-    font-size: 0.8125rem;
+    font-size: 0.875rem;
     color: var(--primary-text-color);
     cursor: pointer;
   }
@@ -752,7 +752,7 @@ function e(e,t,i,n){var r,o=arguments.length,s=o<3?t:null===n?n=Object.getOwnPro
     padding-left: 16px;
   }
   .toggle-row-sub label {
-    font-size: 0.75rem;
+    font-size: 0.8125rem;
     color: var(--secondary-text-color);
   }
 
@@ -765,7 +765,7 @@ function e(e,t,i,n){var r,o=arguments.length,s=o<3?t:null===n?n=Object.getOwnPro
     border: 1px solid var(--divider-color);
   }
   .recorder-hint-text {
-    font-size: 0.6875rem;
+    font-size: 0.75rem;
     line-height: 1.4;
     color: var(--secondary-text-color);
     margin-bottom: 6px;
@@ -776,7 +776,7 @@ function e(e,t,i,n){var r,o=arguments.length,s=o<3?t:null===n?n=Object.getOwnPro
     border-radius: 4px;
     background: var(--code-editor-background-color, var(--primary-background-color, #0e0e0e));
     font-family: var(--code-font-family, monospace);
-    font-size: 0.6875rem;
+    font-size: 0.75rem;
     line-height: 1.35;
     color: var(--primary-text-color);
     overflow-x: auto;
@@ -792,7 +792,7 @@ function e(e,t,i,n){var r,o=arguments.length,s=o<3?t:null===n?n=Object.getOwnPro
     background: transparent;
     border: 1px solid var(--divider-color);
     color: var(--primary-text-color);
-    font-size: 0.6875rem;
+    font-size: 0.75rem;
     cursor: pointer;
     font-family: inherit;
   }
@@ -823,7 +823,7 @@ function e(e,t,i,n){var r,o=arguments.length,s=o<3?t:null===n?n=Object.getOwnPro
     min-width: 20px;
     text-align: center;
     font-weight: 600;
-    font-size: 0.875rem;
+    font-size: 0.9375rem;
     color: var(--primary-color);
   }
 
@@ -835,7 +835,7 @@ function e(e,t,i,n){var r,o=arguments.length,s=o<3?t:null===n?n=Object.getOwnPro
   }
   .tab-label-default {
     flex: 0 0 40%;
-    font-size: 0.8125rem;
+    font-size: 0.875rem;
     color: var(--secondary-text-color);
     overflow: hidden;
     text-overflow: ellipsis;
@@ -849,7 +849,7 @@ function e(e,t,i,n){var r,o=arguments.length,s=o<3?t:null===n?n=Object.getOwnPro
     border: 1px solid var(--divider-color);
     background: var(--card-background-color, #fff);
     color: var(--primary-text-color);
-    font-size: 0.8125rem;
+    font-size: 0.875rem;
     font-family: inherit;
   }
   .tab-label-input:focus {
@@ -867,7 +867,7 @@ function e(e,t,i,n){var r,o=arguments.length,s=o<3?t:null===n?n=Object.getOwnPro
     padding: 6px 12px;
     min-height: 32px;
     border-radius: 14px;
-    font-size: 0.75rem;
+    font-size: 0.8125rem;
     cursor: pointer;
     border: 1px solid var(--divider-color);
     background: var(--card-background-color, #fff);
@@ -918,7 +918,7 @@ function e(e,t,i,n){var r,o=arguments.length,s=o<3?t:null===n?n=Object.getOwnPro
     border: 1px solid var(--divider-color);
     border-radius: 8px;
     padding: 6px 8px;
-    font-size: 0.8125rem;
+    font-size: 0.875rem;
     color: var(--primary-text-color);
     outline: none;
     font-family: inherit;
@@ -944,7 +944,7 @@ function e(e,t,i,n){var r,o=arguments.length,s=o<3?t:null===n?n=Object.getOwnPro
     border: 1px solid var(--divider-color);
     border-radius: 8px;
     padding: 6px 2px;
-    font-size: 0.8125rem;
+    font-size: 0.875rem;
     color: var(--primary-text-color);
     cursor: pointer;
     font-family: inherit;
@@ -973,7 +973,7 @@ function e(e,t,i,n){var r,o=arguments.length,s=o<3?t:null===n?n=Object.getOwnPro
     border-radius: 8px;
     color: var(--primary-color);
     cursor: pointer;
-    font-size: 0.8125rem;
+    font-size: 0.875rem;
     padding: 8px 14px;
     width: 100%;
     font-family: inherit;
