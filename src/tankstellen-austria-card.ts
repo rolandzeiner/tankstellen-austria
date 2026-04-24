@@ -129,6 +129,7 @@ export class TankstellenAustriaCard extends LitElement {
   @state() private _versionMismatch: string | null = null;
   @state() private _lastManualRefresh = 0;
   @state() private _noNewData = false;
+  @state() private _historyError = false;
   // Incremented by the cooldown interval so the countdown re-renders each
   // second while a refresh is on cooldown. Reactive, but never read —
   // shouldUpdate gates on it via `changed.has("_cooldownTick")`.
@@ -266,9 +267,11 @@ export class TankstellenAustriaCard extends LitElement {
           this._history = { ...this._history, [e.entity_id]: points };
         }),
       );
+      this._historyError = false;
     } catch (err) {
       // eslint-disable-next-line no-console
       console.warn("[Tankstellen Austria] history refresh failed", err);
+      this._historyError = true;
     }
   }
 
@@ -318,7 +321,13 @@ export class TankstellenAustriaCard extends LitElement {
 
   protected render(): TemplateResult {
     if (!this.hass || !this._config) {
-      return html`<ha-card></ha-card>`;
+      return html`
+        <ha-card>
+          <div class="empty" role="status" aria-live="polite">
+            ${this._t("loading")}
+          </div>
+        </ha-card>
+      `;
     }
 
     const entities = this._resolveEntities();
@@ -340,6 +349,11 @@ export class TankstellenAustriaCard extends LitElement {
       <ha-card>
         ${this._renderVersionBanner()}
         ${this._renderTabs(entities, activeTab)}
+        ${this._historyError
+          ? html`<ha-alert alert-type="warning" role="alert">
+              ${this._t("history_fetch_error")}
+            </ha-alert>`
+          : nothing}
         ${this._renderHeader(active)}
         ${this._renderCars(active)}
         ${this._renderStationList(active, activeTab)}
@@ -427,7 +441,7 @@ export class TankstellenAustriaCard extends LitElement {
       <div class="card-header">
         <div class="header-top">
           <div class="fuel-label">
-            <ha-icon icon="mdi:gas-station" class="fuel-icon"></ha-icon>
+            <ha-icon icon="mdi:gas-station" class="fuel-icon" aria-hidden="true"></ha-icon>
             <span>${fuelTypeName}</span>
           </div>
           ${isDynamic
@@ -490,7 +504,7 @@ export class TankstellenAustriaCard extends LitElement {
         aria-disabled=${cooling ? "true" : "false"}
         @click=${this._onRefresh}
       >
-        <ha-icon icon="mdi:refresh" class="refresh-icon"></ha-icon>
+        <ha-icon icon="mdi:refresh" class="refresh-icon" aria-hidden="true"></ha-icon>
         ${cooling ? countdownText : this._t("refresh")}
       </button>
     `;
@@ -527,6 +541,8 @@ export class TankstellenAustriaCard extends LitElement {
         median_delta_below: this._t("median_delta_below"),
         median_delta_above: this._t("median_delta_above"),
         median_delta_equal: this._t("median_delta_equal"),
+        sparkline_aria_summary: this._t("sparkline_aria_summary"),
+        sparkline_aria_simple: this._t("sparkline_aria_simple"),
       },
     });
     if (result.template === nothing) return nothing;
@@ -535,7 +551,16 @@ export class TankstellenAustriaCard extends LitElement {
       <div
         class="sparkline-container"
         data-entity=${entityId}
+        role="button"
+        tabindex="0"
+        aria-label=${this._t("sparkline_open_more_info")}
         @click=${() => this._onSparklineClick(entityId)}
+        @keydown=${(ev: KeyboardEvent) => {
+          if (ev.key === "Enter" || ev.key === " ") {
+            ev.preventDefault();
+            this._onSparklineClick(entityId);
+          }
+        }}
       >
         ${result.template}
         ${this._renderRecommendation(analysis)}
@@ -550,7 +575,7 @@ export class TankstellenAustriaCard extends LitElement {
     if (!analysis.hasEnoughData) {
       return html`
         <div class="refuel-hint">
-          <ha-icon icon="mdi:information-outline" class="refuel-icon"></ha-icon>
+          <ha-icon icon="mdi:information-outline" class="refuel-icon" aria-hidden="true"></ha-icon>
           ${this._t("not_enough_data_hint")}
         </div>
       `;
@@ -572,7 +597,7 @@ export class TankstellenAustriaCard extends LitElement {
     if (!c) {
       return html`
         <div class="refuel-recommendation">
-          <ha-icon icon="mdi:lightbulb-outline" class="refuel-icon"></ha-icon>
+          <ha-icon icon="mdi:lightbulb-outline" class="refuel-icon" aria-hidden="true"></ha-icon>
           <span class="refuel-text">${text}</span>
         </div>
       `;
@@ -591,11 +616,22 @@ export class TankstellenAustriaCard extends LitElement {
     const tooltip = escHtml(tooltipLines.join("\n"));
     const badgeClass = `refuel-confidence refuel-confidence-${c.level}`;
 
+    const badgeAriaLabel = [
+      `${this._t("confidence_title")}: ${levelLabel}`,
+      `${this._t("confidence_span")}: ${c.span_days} ${this._t("confidence_days")}`,
+      `${this._t("confidence_coverage")}: ${c.coverage_pct}%`,
+      `${this._t("confidence_gap")}: ${c.gap_cents.toFixed(1)} ${this._t("confidence_cents")}`,
+    ].join(". ");
+
     return html`
       <div class="refuel-recommendation">
-        <ha-icon icon="mdi:lightbulb-outline" class="refuel-icon"></ha-icon>
+        <ha-icon icon="mdi:lightbulb-outline" class="refuel-icon" aria-hidden="true"></ha-icon>
         <span class="refuel-text">${text}</span>
-        <span class=${badgeClass} title=${tooltip}>${levelLabel}</span>
+        <span
+          class=${badgeClass}
+          title=${tooltip}
+          aria-label=${badgeAriaLabel}
+        >${levelLabel}</span>
       </div>
     `;
   }
@@ -664,7 +700,7 @@ export class TankstellenAustriaCard extends LitElement {
       return html`
         <div class="car-fillup-row">
           <span class="car-fillup-name">
-            <ha-icon icon=${car.icon || "mdi:car"} class="car-icon"></ha-icon>
+            <ha-icon icon=${car.icon || "mdi:car"} class="car-icon" aria-hidden="true"></ha-icon>
             ${car.name}
             <span class="car-fillup-liters">${car.tank_size} L</span>
           </span>
@@ -689,7 +725,7 @@ export class TankstellenAustriaCard extends LitElement {
     return html`
       <div class="car-fillup-row">
         <span class="car-fillup-name">
-          <ha-icon icon=${car.icon || "mdi:car"} class="car-icon"></ha-icon>
+          <ha-icon icon=${car.icon || "mdi:car"} class="car-icon" aria-hidden="true"></ha-icon>
           ${car.name}
           <span class="car-fillup-liters">${consumptionStr} l/100 km</span>
         </span>
@@ -778,6 +814,10 @@ export class TankstellenAustriaCard extends LitElement {
     ]
       .filter(Boolean)
       .join(", ");
+    const detailId = hasDetail ? `tsa-station-detail-${activeTab}-${idx}` : undefined;
+    const hasName = !!s.name;
+    const cityText = loc.city ?? "";
+    const addressText = loc.address ?? "";
     return html`
       <div class=${classMap({ station: true, "pm-highlight": highlighted })}>
         <div
@@ -785,6 +825,7 @@ export class TankstellenAustriaCard extends LitElement {
           role=${hasDetail ? "button" : "group"}
           tabindex=${hasDetail ? "0" : "-1"}
           aria-expanded=${hasDetail ? (isExpanded ? "true" : "false") : nothing}
+          aria-controls=${detailId ?? nothing}
           aria-label=${rowLabel}
           @click=${() => this._onStationClick(key)}
           @keydown=${(ev: KeyboardEvent) =>
@@ -793,7 +834,9 @@ export class TankstellenAustriaCard extends LitElement {
           <div class="rank">${idx + 1}</div>
           <div class="info">
             <div class="name">
-              ${s.name || "–"}
+              ${hasName
+                ? html`<span lang="de">${s.name}</span>`
+                : "–"}
               ${isClosed
                 ? html`<span class="badge closed">${this._t("closed")}</span>`
                 : isClosingSoonFlag
@@ -804,8 +847,12 @@ export class TankstellenAustriaCard extends LitElement {
               )}
             </div>
             <div class="address">
-              ${loc.postalCode ?? ""} ${loc.city ?? ""},
-              ${loc.address ?? ""}
+              ${loc.postalCode ?? ""}${cityText
+                ? html` <span lang="de">${cityText}</span>`
+                : nothing},
+              ${addressText
+                ? html`<span lang="de">${addressText}</span>`
+                : nothing}
             </div>
           </div>
           <div class="price">${formatPrice(s.price)}</div>
@@ -823,6 +870,7 @@ export class TankstellenAustriaCard extends LitElement {
                   <ha-icon
                     icon=${/\d/.test(loc.address ?? "") ? "mdi:map-marker" : "mdi:magnify"}
                     class="map-icon"
+                    aria-hidden="true"
                   ></ha-icon>
                 </a>
               `
@@ -830,7 +878,10 @@ export class TankstellenAustriaCard extends LitElement {
         </div>
         ${hasDetail
           ? html`
-              <div class=${classMap({ "station-detail": true, expanded: isExpanded })}>
+              <div
+                id=${detailId!}
+                class=${classMap({ "station-detail": true, expanded: isExpanded })}
+              >
                 <div class="detail-cols">
                   ${hasHoursBlock
                     ? html`<div class="detail-col">${this._renderHours(s.opening_hours ?? [])}</div>`
@@ -879,7 +930,7 @@ export class TankstellenAustriaCard extends LitElement {
     if (pm.cash) {
       badges.push(html`
         <span class="pm-badge">
-          <ha-icon icon="mdi:cash" class="pm-icon"></ha-icon>
+          <ha-icon icon="mdi:cash" class="pm-icon" aria-hidden="true"></ha-icon>
           ${this._t("cash")}
         </span>
       `);
@@ -887,7 +938,7 @@ export class TankstellenAustriaCard extends LitElement {
     if (pm.debit_card) {
       badges.push(html`
         <span class="pm-badge">
-          <ha-icon icon="mdi:credit-card" class="pm-icon"></ha-icon>
+          <ha-icon icon="mdi:credit-card" class="pm-icon" aria-hidden="true"></ha-icon>
           ${this._t("debit_card")}
         </span>
       `);
@@ -895,7 +946,7 @@ export class TankstellenAustriaCard extends LitElement {
     if (pm.credit_card) {
       badges.push(html`
         <span class="pm-badge">
-          <ha-icon icon="mdi:credit-card" class="pm-icon"></ha-icon>
+          <ha-icon icon="mdi:credit-card" class="pm-icon" aria-hidden="true"></ha-icon>
           ${this._t("credit_card")}
         </span>
       `);
@@ -1026,19 +1077,31 @@ export class TankstellenAustriaCard extends LitElement {
       }
     }, 3000);
 
-    // Per-second re-render so the countdown stays live.
+    // Per-second re-render so the countdown stays live. Skipped when the
+    // user prefers reduced motion — WCAG 2.2.2 (animation > 5s needs a way
+    // to pause); a single wake-up at the end of the cooldown is enough.
     if (this._cooldownInterval !== undefined) {
       clearInterval(this._cooldownInterval);
     }
-    this._cooldownInterval = window.setInterval(() => {
-      if (Date.now() - this._lastManualRefresh >= DYNAMIC_MANUAL_COOLDOWN_MS) {
-        if (this._cooldownInterval !== undefined) {
-          clearInterval(this._cooldownInterval);
-          this._cooldownInterval = undefined;
+    const reduceMotion =
+      typeof window !== "undefined" &&
+      typeof window.matchMedia === "function" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduceMotion) {
+      window.setTimeout(() => {
+        this._cooldownTick = (this._cooldownTick + 1) % 1_000_000;
+      }, DYNAMIC_MANUAL_COOLDOWN_MS);
+    } else {
+      this._cooldownInterval = window.setInterval(() => {
+        if (Date.now() - this._lastManualRefresh >= DYNAMIC_MANUAL_COOLDOWN_MS) {
+          if (this._cooldownInterval !== undefined) {
+            clearInterval(this._cooldownInterval);
+            this._cooldownInterval = undefined;
+          }
         }
-      }
-      this._cooldownTick = (this._cooldownTick + 1) % 1_000_000;
-    }, 1000);
+        this._cooldownTick = (this._cooldownTick + 1) % 1_000_000;
+      }, 1000);
+    }
   }
 
   private async _onVersionReload(): Promise<void> {

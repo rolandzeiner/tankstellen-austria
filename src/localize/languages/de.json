@@ -49,7 +49,12 @@
     "confidence_short_history_hint": "Hinweis: Home Assistant speichert standardmäßig nur 10 Tage Verlauf. Für bessere Empfehlungen recorder.purge_keep_days auf 30 erhöhen.",
     "median_delta_below": "{c}¢ unter Median",
     "median_delta_above": "{c}¢ über Median",
-    "median_delta_equal": "auf Median"
+    "median_delta_equal": "auf Median",
+    "loading": "Wird geladen…",
+    "sparkline_open_more_info": "Preisverlauf öffnen",
+    "sparkline_aria_summary": "Preisverlauf der letzten 7 Tage: Minimum {min}, Maximum {max}, Median {median}",
+    "sparkline_aria_simple": "Preisverlauf der letzten 7 Tage: Minimum {min}, Maximum {max}",
+    "history_fetch_error": "Preisverlauf konnte nicht geladen werden"
   },
   "fuel_types": {
     "DIE": "Diesel",
@@ -93,6 +98,9 @@
     "car_fuel_type": "Kraftstoffart",
     "car_choose_icon": "Symbol wählen",
     "car_delete": "Fahrzeug entfernen",
-    "add_car": "+ Fahrzeug hinzufügen"
+    "add_car": "+ Fahrzeug hinzufügen",
+    "copy_sensor_id": "Sensor-ID in die Zwischenablage kopieren",
+    "tank_size_range_error": "Bitte einen Wert zwischen 1 und 200 Litern eingeben",
+    "consumption_range_error": "Bitte einen Wert zwischen 0 und 30 l/100 km eingeben"
   }
 }

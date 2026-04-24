@@ -42,7 +42,8 @@ export const cardStyles = css`
     color: #fff;
     cursor: pointer;
     font-size: 0.75rem;
-    padding: 4px 12px;
+    padding: 8px 14px;
+    min-height: 44px;
   }
 
   /* Tabs */
@@ -443,10 +444,11 @@ export const cardStyles = css`
   .refresh-btn {
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: 4px;
     margin-left: auto;
     padding: 6px 12px;
-    min-height: 32px;
+    min-height: 44px;
     background: none;
     border: 1px solid var(--primary-color);
     border-radius: 6px;
@@ -574,6 +576,7 @@ export const cardStyles = css`
   .tab:focus-visible,
   .station-main:focus-visible,
   .pm-filter-chip:focus-visible,
+  .sparkline-container:focus-visible,
   a:focus-visible,
   button:focus-visible {
     outline: 2px solid var(--primary-color);
@@ -791,7 +794,8 @@ export const editorStyles = css`
     gap: 6px;
   }
   .pm-filter-chip {
-    padding: 4px 12px;
+    padding: 6px 12px;
+    min-height: 32px;
     border-radius: 14px;
     font-size: 0.75rem;
     cursor: pointer;
@@ -944,7 +948,9 @@ export const editorStyles = css`
     border-radius: 6px;
     color: var(--secondary-text-color);
     cursor: pointer;
-    padding: 5px;
+    padding: 6px;
+    min-width: 32px;
+    min-height: 32px;
     display: flex;
     align-items: center;
     justify-content: center;

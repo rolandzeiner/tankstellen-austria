@@ -40,6 +40,11 @@ export interface SparklineOpts {
     median_delta_below: string;
     median_delta_above: string;
     median_delta_equal: string;
+    // Full aria-label template for the SVG, with `{min}`, `{max}`,
+    // `{median}` placeholders. The `_simple` variant is used when the
+    // median-line overlay is disabled.
+    sparkline_aria_summary: string;
+    sparkline_aria_simple: string;
   };
 }
 
@@ -300,10 +305,21 @@ export function buildSparkline(opts: SparklineOpts): SparklineResult {
         })()
       : nothing;
 
-    const ariaLabel =
-      `${opts.translations.last_7_days}: ` +
-      `${opts.translations.min_label} ${formatPriceShort(dataMin)} · ` +
-      `${opts.translations.max_label} ${formatPriceShort(dataMax)}`;
+    const sortedValues = [...values].sort((a, b) => a - b);
+    const midIdx = (sortedValues.length - 1) / 2;
+    const medianValue =
+      sortedValues.length > 0
+        ? (sortedValues[Math.floor(midIdx)] + sortedValues[Math.ceil(midIdx)]) /
+          2
+        : 0;
+    const ariaLabel = (
+      opts.showMedianLine
+        ? opts.translations.sparkline_aria_summary
+        : opts.translations.sparkline_aria_simple
+    )
+      .replace("{min}", formatPriceShort(dataMin))
+      .replace("{max}", formatPriceShort(dataMax))
+      .replace("{median}", formatPriceShort(medianValue));
 
     const template = html`
       <svg
