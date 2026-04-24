@@ -153,8 +153,21 @@ export function buildSparkline(opts: SparklineOpts): SparklineResult {
     const all = opts.points;
     if (!all || all.length < 2) return empty;
 
-    const data = sliceLast7Days(all);
+    let data = sliceLast7Days(all);
     if (data.length < 2) return empty;
+
+    // Extend a flat "tail" to now when the last recorded sample is
+    // stale. Austrian fuel prices freeze for 1–2 days on weekends/
+    // holidays (no significant change → no recorder sample → no
+    // history row), so without this the hover tooltip stops at the
+    // last weekday and the noon markers never reach Sat/Sun. The
+    // synthetic point carries the last-known value, which is the
+    // entity's current state too — accurate, not invented.
+    const STALE_MS = 30 * 60 * 1000;
+    const last = data[data.length - 1];
+    if (last.time < Date.now() - STALE_MS) {
+      data = [...data, { time: Date.now(), value: last.value }];
+    }
 
     const values = data.map((d) => d.value);
     // Labels under the sparkline always describe the 7-day line — the data
