@@ -105,16 +105,18 @@ function resolveVisibleMarkerIdx(
 
 function sliceLast7Days(all: HistoryPoint[]): HistoryPoint[] {
   const cutoff = Date.now() - SEVEN_DAYS_MS;
-  let data = all.filter((d) => d.time >= cutoff);
-  if (data.length < 2) {
-    // With significant_changes_only the most recent change may be older than
-    // 7 days (stable price). Prepend the last known prior point so the
-    // sparkline always renders.
-    const prior = all.filter((d) => d.time < cutoff);
-    const lastKnown = prior.length ? prior[prior.length - 1] : null;
-    if (lastKnown) data = [lastKnown, ...data];
-  }
-  return data;
+  const inside = all.filter((d) => d.time >= cutoff);
+  const prior = all.filter((d) => d.time < cutoff);
+  const lastKnown = prior.length ? prior[prior.length - 1] : null;
+  // Always prepend the most recent pre-window sample (if we have one)
+  // so the sparkline's left edge anchors at the *start* of the 7-day
+  // window with the correct pre-week value. Previously this only
+  // happened when `inside.length < 2` — which meant stable-price
+  // entities (e.g. Diesel whose last change was the prior Friday)
+  // rendered a line that visibly "started on Monday" because the
+  // prior-Friday row had been filtered out and no anchor prepended.
+  if (lastKnown) return [lastKnown, ...inside];
+  return inside;
 }
 
 function computeMedianDelta(values: number[]): MedianDelta | null {
