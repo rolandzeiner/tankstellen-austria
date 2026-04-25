@@ -178,6 +178,7 @@ export class TankstellenAustriaCard extends LitElement {
       changed.has("_activeTab") ||
       changed.has("_expandedStations") ||
       changed.has("_history") ||
+      changed.has("_historyError") ||
       changed.has("_versionMismatch") ||
       changed.has("_lastManualRefresh") ||
       changed.has("_noNewData") ||
@@ -499,13 +500,6 @@ export class TankstellenAustriaCard extends LitElement {
   }
 
   private _renderDynamicHeader(active: TankstellenEntity): TemplateResult {
-    const lastUpdated = active.last_updated
-      ? new Date(active.last_updated).toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-        })
-      : "";
-
     const remainingMs =
       DYNAMIC_MANUAL_COOLDOWN_MS - (Date.now() - this._lastManualRefresh);
     const cooling = remainingMs > 0;
@@ -519,8 +513,14 @@ export class TankstellenAustriaCard extends LitElement {
     return html`
       <div class="dynamic-meta">
         <div class="dynamic-meta-inner" aria-live="polite">
-          ${lastUpdated
-            ? html`<span class="last-updated">${this._t("last_updated")} ${lastUpdated}</span>`
+          ${active.last_updated
+            ? html`<span class="last-updated"
+                >${this._t("last_updated")}
+                <ha-relative-time
+                  .hass=${this.hass}
+                  .datetime=${new Date(active.last_updated)}
+                ></ha-relative-time
+              ></span>`
             : nothing}
           ${this._noNewData
             ? html`<span class="no-new-data" role="status">${this._t("no_new_data")}</span>`
