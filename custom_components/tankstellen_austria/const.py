@@ -33,7 +33,7 @@ DYNAMIC_SAFETY_INTERVAL_HOURS = 6      # fallback timer when no movement detecte
 # Key inside hass.data[DOMAIN] for cross-entry rate limiting
 DOMAIN_LAST_API_CALL_KEY = "last_api_call"
 
-CARD_VERSION = "1.7.0"
+CARD_VERSION = "1.8.0"
 
 # Integration version — tracks manifest.json "version" (always the clean
 # release name, never a beta suffix). Kept separate from CARD_VERSION so the

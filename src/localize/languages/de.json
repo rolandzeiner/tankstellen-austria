@@ -105,6 +105,10 @@
     "add_car": "+ Fahrzeug hinzufügen",
     "copy_sensor_id": "Sensor-ID in die Zwischenablage kopieren",
     "tank_size_range_error": "Bitte einen Wert zwischen 1 und 200 Litern eingeben",
-    "consumption_range_error": "Bitte einen Wert zwischen 0 und 30 l/100 km eingeben"
+    "consumption_range_error": "Bitte einen Wert zwischen 0 und 30 l/100 km eingeben",
+    "hide_header_price": "Günstigster/Durchschnittspreis im Header ausblenden",
+    "section_branding": "Branding & Quellenangabe",
+    "logo_adapt_to_theme": "E-Control-Logo an Theme-Farbe anpassen",
+    "hide_attribution": "Quellenangabe ausblenden"
   }
 }

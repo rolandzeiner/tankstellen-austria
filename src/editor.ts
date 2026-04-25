@@ -106,6 +106,27 @@ export class TankstellenAustriaCardEditor
         ${this._renderDisplaySection()}
         ${this._renderPaymentSection(apiPmKeys)}
         ${this._renderCarsSection()}
+        ${this._renderBrandingSection()}
+      </div>
+    `;
+  }
+
+  private _renderBrandingSection(): TemplateResult {
+    const adaptLogo = this._config.logo_adapt_to_theme === true;
+    const hideAttr = this._config.hide_attribution === true;
+    return html`
+      <div class="editor-section">
+        <div class="section-header">${this._et("section_branding")}</div>
+        ${this._renderToggle(
+          "logo_adapt_to_theme",
+          this._et("logo_adapt_to_theme"),
+          adaptLogo,
+        )}
+        ${this._renderToggle(
+          "hide_attribution",
+          this._et("hide_attribution"),
+          hideAttr,
+        )}
       </div>
     `;
   }
@@ -218,6 +239,7 @@ export class TankstellenAustriaCardEditor
   }
 
   private _renderDisplaySection(): TemplateResult {
+    const hideHeaderPrice = this._config.hide_header_price === true;
     const showIndex = this._config.show_index !== false;
     const showMap = this._config.show_map_links !== false;
     const showHours = this._config.show_opening_hours !== false;
@@ -235,6 +257,12 @@ export class TankstellenAustriaCardEditor
     return html`
       <div class="editor-section">
         <div class="section-header">${this._et("section_display")}</div>
+        ${this._renderToggle(
+          "hide_header_price",
+          this._et("hide_header_price"),
+          hideHeaderPrice,
+        )}
+        <div class="divider"></div>
         ${this._renderToggle("show_index", this._et("show_index"), showIndex)}
         <div class="divider"></div>
         ${this._renderToggle("show_map_links", this._et("show_map_links"), showMap)}

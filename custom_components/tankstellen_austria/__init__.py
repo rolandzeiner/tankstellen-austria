@@ -22,7 +22,8 @@ CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 _LOGGER = logging.getLogger(__name__)
 PLATFORMS: list[Platform] = [Platform.SENSOR]
 
-CARD_URL = "/tankstellen-austria/tankstellen-austria-card.js"
+URL_BASE = "/tankstellen-austria"
+CARD_URL = f"{URL_BASE}/tankstellen-austria-card.js"
 
 
 @websocket_api.websocket_command(  # type: ignore[attr-defined]
@@ -56,15 +57,17 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
 
 async def _async_register_card(hass: HomeAssistant) -> None:
     """Serve the card JS and add it to Lovelace resources."""
-    card_path = Path(__file__).parent / "www" / "tankstellen-austria-card.js"
+    www_dir = Path(__file__).parent / "www"
+    card_path = www_dir / "tankstellen-austria-card.js"
     if not card_path.is_file():
         _LOGGER.warning("Card JS not found at %s", card_path)
         return
 
-    # Serve the file over HTTP
+    # Mount the whole www/ directory so the JS bundle and static assets
+    # alongside it (e-control_logo.svg) all resolve under URL_BASE.
     try:
         await hass.http.async_register_static_paths(
-            [StaticPathConfig(CARD_URL, str(card_path), False)]
+            [StaticPathConfig(URL_BASE, str(www_dir), False)]
         )
     except Exception:  # noqa: BLE001
         _LOGGER.debug("Static path already registered or unavailable")

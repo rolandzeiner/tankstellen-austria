@@ -54,6 +54,22 @@ export interface TankstellenAustriaCardConfig extends LovelaceCardConfig {
   show_car_consumption?: boolean;
   cars?: CarConfig[];
 
+  // Hide the hero metric block (cheapest + "/ avg" + UPPERCASE label)
+  // from the header strip. Defaults to false: the hero is visible.
+  // Useful when stations list is the focus and the prices below are
+  // sufficient.
+  hide_header_price?: boolean;
+
+  // Brand-coloured E-Control logo by default. When true, the logo
+  // renders as a theme-adaptive silhouette (black on light themes,
+  // white on dark themes) — same vocabulary as the Ladestellen card.
+  logo_adapt_to_theme?: boolean;
+
+  // Hide the attribution footer (logo + "Datenquelle: E-Control"
+  // line). Defaults to false: the footer is visible by default,
+  // matching E-Control §3 attribution practice.
+  hide_attribution?: boolean;
+
   tap_action?: ActionConfig;
   hold_action?: ActionConfig;
   double_tap_action?: ActionConfig;
@@ -99,6 +115,7 @@ export interface TankstellenEntityAttributes {
   average_price?: number;
   dynamic_mode?: boolean;
   dynamic_entity?: string;
+  attribution?: string;
 }
 
 export interface TankstellenEntity {

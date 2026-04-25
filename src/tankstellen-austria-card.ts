@@ -67,6 +67,15 @@ import { cardStyles } from "./styles";
 // element, avoiding a race where HA creates an unregistered element.
 import "./editor";
 
+// E-Control attribution string (§3 attribution practice). Hard-coded as a
+// fallback so the footer stays correct even when a user-built template
+// sensor strips the upstream `attribution` attribute. Mirrors the
+// Ladestellen Austria card.
+const ATTRIBUTION_REQUIRED = "Datenquelle: E-Control";
+
+// Static path mounted by custom_components/tankstellen_austria/__init__.py.
+const E_CONTROL_LOGO_URL = "/tankstellen-austria/e-control_logo.svg";
+
 // Styled console banner for version-mismatch debugging in HA's console.
 console.info(
   `%c  Tankstellen Austria Card  %c  ${localize("common.version")} ${CARD_VERSION}  `,
@@ -329,6 +338,7 @@ export class TankstellenAustriaCard extends LitElement {
           <div class="empty" role="status" aria-live="polite">
             ${this._t("loading")}
           </div>
+          ${this._renderFooter(undefined)}
         </ha-card>
       `;
     }
@@ -342,25 +352,77 @@ export class TankstellenAustriaCard extends LitElement {
         <ha-card>
           ${this._renderVersionBanner()}
           <div class="empty">${this._t("no_data")}</div>
+          ${this._renderFooter(undefined)}
         </ha-card>
       `;
     }
 
     const active = entities[activeTab] ?? entities[0];
+    const attribution = active.attributes.attribution;
 
     return html`
       <ha-card>
-        ${this._renderVersionBanner()}
         ${this._renderTabs(entities, activeTab)}
-        ${this._historyError
-          ? html`<ha-alert alert-type="warning" role="alert">
-              ${this._t("history_fetch_error")}
-            </ha-alert>`
-          : nothing}
-        ${this._renderHeader(active)}
-        ${this._renderCars(active)}
-        ${this._renderStationList(active, activeTab)}
+        <div class="wrap">
+          ${this._renderVersionBanner()}
+          ${this._historyError
+            ? html`<ha-alert alert-type="warning" role="alert">
+                ${this._t("history_fetch_error")}
+              </ha-alert>`
+            : nothing}
+          <section
+            class="station-section"
+            style="--nb-accent: var(--primary-color);"
+          >
+            ${this._renderHeader(active)}
+            ${this._renderHero(active)}
+            ${this._renderSparklineBlock(active)}
+            ${this._renderCars(active)}
+          </section>
+          ${this._renderStationList(active, activeTab)}
+        </div>
+        ${this._renderFooter(attribution)}
       </ha-card>
+    `;
+  }
+
+  // E-Control attribution + brand-link footer. Mirrors the Ladestellen
+  // Austria card. When logo_adapt_to_theme is on, the SVG renders as a
+  // theme-following silhouette; otherwise it stays in its native colour.
+  // Suppressed entirely when hide_attribution is true.
+  private _renderFooter(
+    attribution: string | undefined,
+  ): TemplateResult | typeof nothing {
+    if (this._config?.hide_attribution === true) return nothing;
+    const adaptive = this._config?.logo_adapt_to_theme === true;
+    const darkMode = Boolean(
+      (this.hass?.themes as { darkMode?: boolean } | undefined)?.darkMode,
+    );
+    const logoClasses = adaptive
+      ? `brand-logo adaptive ${darkMode ? "adaptive-dark" : "adaptive-light"}`
+      : "brand-logo";
+    const text =
+      attribution && attribution.includes("E-Control")
+        ? attribution
+        : ATTRIBUTION_REQUIRED;
+    return html`
+      <div class="footer">
+        <a
+          class="brand-link"
+          href="https://www.e-control.at/"
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="E-Control"
+          @click=${(ev: Event) => ev.stopPropagation()}
+        >
+          <img
+            class=${logoClasses}
+            src=${E_CONTROL_LOGO_URL}
+            alt="E-Control"
+          />
+        </a>
+        <span class="attribution-text">${text}</span>
+      </div>
     `;
   }
 
@@ -456,50 +518,72 @@ export class TankstellenAustriaCard extends LitElement {
 
   private _renderHeader(
     active: TankstellenEntity,
-  ): TemplateResult | typeof nothing {
-    const stations: Station[] = active.attributes.stations ?? [];
-    if (!stations.length) return nothing;
-
+  ): TemplateResult {
     const fuelType = active.attributes.fuel_type ?? "";
     const fuelTypeName =
       active.attributes.fuel_type_name || getFuelName(fuelType, this._ctx());
-    const avgPrice = active.attributes.average_price;
-    const cheapest = stations[0]?.price;
     const isDynamic = active.attributes.dynamic_mode === true;
-    const showHistory = this._config.show_history !== false;
+
+    let subtitle: string | null = null;
+    if (isDynamic) {
+      const trackerId = active.attributes.dynamic_entity;
+      const trackerName = trackerId
+        ? this.hass.states[trackerId]?.attributes?.friendly_name ||
+          trackerId.split(".")[1]
+        : null;
+      subtitle = trackerName ?? null;
+    }
 
     return html`
-      <div class="card-header">
-        <div class="header-top">
-          <div class="fuel-label">
-            <ha-icon icon="mdi:gas-station" class="fuel-icon" aria-hidden="true"></ha-icon>
-            <span>${fuelTypeName}</span>
-          </div>
-          ${isDynamic
-            ? this._renderDynamicHeader(active)
-            : html`
-                <div class="header-prices">
-                  <div class="header-price-item">
-                    <span class="header-price-label">${this._t("cheapest")}</span>
-                    <span class="header-price-value">${formatPrice(cheapest)}</span>
-                  </div>
-                  ${avgPrice != null
-                    ? html`
-                        <div class="header-price-item">
-                          <span class="header-price-label">${this._t("average")}</span>
-                          <span class="header-price-value avg">${formatPrice(avgPrice)}</span>
-                        </div>
-                      `
-                    : nothing}
-                </div>
-              `}
+      <header class="header">
+        <div class="icon-tile" aria-hidden="true">
+          <ha-icon icon="mdi:gas-station"></ha-icon>
         </div>
-        ${showHistory && !isDynamic ? this._renderSparkline(active) : nothing}
+        <div class="header-text">
+          <h2 class="title">${fuelTypeName}</h2>
+          ${subtitle
+            ? html`<p class="subtitle">${subtitle}</p>`
+            : nothing}
+        </div>
+        ${isDynamic
+          ? html`
+              <div class="header-actions">
+                ${this._renderRefreshButton()}
+                ${this._renderDynamicChips(active)}
+              </div>
+            `
+          : nothing}
+      </header>
+    `;
+  }
+
+  private _renderDynamicChips(
+    active: TankstellenEntity,
+  ): TemplateResult | typeof nothing {
+    const hasLastUpdated = !!active.last_updated;
+    if (!hasLastUpdated && !this._noNewData) return nothing;
+    return html`
+      <div class="chip-row" aria-live="polite">
+        ${hasLastUpdated
+          ? html`<span class="chip muted">
+              <ha-icon icon="mdi:clock-outline" aria-hidden="true"></ha-icon>
+              <ha-relative-time
+                .hass=${this.hass}
+                .datetime=${new Date(active.last_updated as string)}
+              ></ha-relative-time>
+            </span>`
+          : nothing}
+        ${this._noNewData
+          ? html`<span class="chip warn" role="status">
+              <ha-icon icon="mdi:alert-circle-outline" aria-hidden="true"></ha-icon>
+              ${this._t("no_new_data")}
+            </span>`
+          : nothing}
       </div>
     `;
   }
 
-  private _renderDynamicHeader(active: TankstellenEntity): TemplateResult {
+  private _renderRefreshButton(): TemplateResult {
     const remainingMs =
       DYNAMIC_MANUAL_COOLDOWN_MS - (Date.now() - this._lastManualRefresh);
     const cooling = remainingMs > 0;
@@ -511,33 +595,63 @@ export class TankstellenAustriaCard extends LitElement {
       : "";
 
     return html`
-      <div class="dynamic-meta">
-        <div class="dynamic-meta-inner" aria-live="polite">
-          ${active.last_updated
-            ? html`<span class="last-updated"
-                >${this._t("last_updated")}
-                <ha-relative-time
-                  .hass=${this.hass}
-                  .datetime=${new Date(active.last_updated)}
-                ></ha-relative-time
-              ></span>`
-            : nothing}
-          ${this._noNewData
-            ? html`<span class="no-new-data" role="status">${this._t("no_new_data")}</span>`
-            : nothing}
-        </div>
-      </div>
       <button
-        class=${classMap({ "refresh-btn": true, cooling })}
+        class=${classMap({ "btn-primary": true, cooling })}
         type="button"
         aria-label=${this._t("refresh")}
         aria-disabled=${cooling ? "true" : "false"}
         @click=${this._onRefresh}
       >
-        <ha-icon icon="mdi:refresh" class="refresh-icon" aria-hidden="true"></ha-icon>
-        ${cooling ? countdownText : this._t("refresh")}
+        <ha-icon icon="mdi:refresh" aria-hidden="true"></ha-icon>
+        <span>${cooling ? countdownText : this._t("refresh")}</span>
       </button>
     `;
+  }
+
+  private _renderHero(
+    active: TankstellenEntity,
+  ): TemplateResult | typeof nothing {
+    const stations: Station[] = active.attributes.stations ?? [];
+    if (!stations.length) return nothing;
+
+    const isDynamic = active.attributes.dynamic_mode === true;
+    const cheapest = stations[0]?.price;
+    const avgPrice = active.attributes.average_price;
+
+    // Dynamic mode: no hero metric (last-updated + no_new_data chips
+    // live next to the refresh button in the header).
+    if (isDynamic) return nothing;
+
+    // User-suppressed hero (hide_header_price toggle).
+    if (this._config.hide_header_price === true) return nothing;
+
+    // Static-mode hero: stacked metric (cheapest large, "/ avg" small,
+    // UPPERCASE label below).
+    if (cheapest == null) return nothing;
+    return html`
+      <div class="hero">
+        <div class="metric">
+          <div class="metric-value">
+            <span class="metric-num">${formatPrice(cheapest)}</span>
+            ${avgPrice != null
+              ? html`<span class="metric-of"
+                  >/ ${formatPrice(avgPrice)} ${this._t("average")}</span
+                >`
+              : nothing}
+          </div>
+          <div class="metric-label">${this._t("cheapest")}</div>
+        </div>
+      </div>
+    `;
+  }
+
+  private _renderSparklineBlock(
+    active: TankstellenEntity,
+  ): TemplateResult | typeof nothing {
+    const isDynamic = active.attributes.dynamic_mode === true;
+    if (isDynamic) return nothing;
+    if (this._config.show_history === false) return nothing;
+    return this._renderSparkline(active);
   }
 
   private _renderSparkline(
@@ -864,19 +978,23 @@ export class TankstellenAustriaCard extends LitElement {
           @keydown=${(ev: KeyboardEvent) =>
             this._onStationKeydown(ev, key, hasDetail)}
         >
-          ${showIndex ? html`<div class="rank">${idx + 1}</div>` : nothing}
+          ${showIndex
+            ? html`<div class="index-tile" aria-hidden="true">${idx + 1}</div>`
+            : nothing}
           <div class="info">
             <div class="name">
               ${hasName
                 ? html`<span lang="de">${s.name}</span>`
                 : "–"}
               ${isClosed
-                ? html`<span class="badge closed">${this._t("closed")}</span>`
+                ? html`<span class="flag closed">${this._t("closed")}</span>`
                 : isClosingSoonFlag
-                  ? html`<span class="badge closing-soon">${this._t("closing_soon")}</span>`
+                  ? html`<span class="flag closing-soon"
+                      >${this._t("closing_soon")}</span
+                    >`
                   : nothing}
               ${matchChips.map(
-                (m) => html`<span class="pm-match-chip">${m}</span>`,
+                (m) => html`<span class="chip match">${m}</span>`,
               )}
             </div>
             <div class="address">
@@ -892,7 +1010,7 @@ export class TankstellenAustriaCard extends LitElement {
           ${showMapLinks
             ? html`
                 <a
-                  class="map-link"
+                  class="icon-action map"
                   href=${mapsUrl(loc, s.name ?? "")}
                   target="_blank"
                   rel="noopener noreferrer"
@@ -901,12 +1019,20 @@ export class TankstellenAustriaCard extends LitElement {
                   @click=${this._onMapLinkClick}
                 >
                   <ha-icon
-                    icon=${/\d/.test(loc.address ?? "") ? "mdi:map-marker" : "mdi:magnify"}
-                    class="map-icon"
+                    icon=${/\d/.test(loc.address ?? "")
+                      ? "mdi:map-marker"
+                      : "mdi:magnify"}
                     aria-hidden="true"
                   ></ha-icon>
                 </a>
               `
+            : nothing}
+          ${hasDetail
+            ? html`<ha-icon
+                class="expander-chevron"
+                icon="mdi:chevron-down"
+                aria-hidden="true"
+              ></ha-icon>`
             : nothing}
         </div>
         ${hasDetail

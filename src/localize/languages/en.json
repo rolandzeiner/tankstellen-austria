@@ -105,6 +105,10 @@
     "add_car": "+ Add car",
     "copy_sensor_id": "Copy sensor ID to clipboard",
     "tank_size_range_error": "Please enter a value between 1 and 200 litres",
-    "consumption_range_error": "Please enter a value between 0 and 30 l/100 km"
+    "consumption_range_error": "Please enter a value between 0 and 30 l/100 km",
+    "hide_header_price": "Hide cheapest / average price in header",
+    "section_branding": "Branding & attribution",
+    "logo_adapt_to_theme": "Adapt E-Control logo color to theme",
+    "hide_attribution": "Hide attribution footer"
   }
 }
