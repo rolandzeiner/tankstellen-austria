@@ -2,7 +2,7 @@
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
 [![HA min version](https://img.shields.io/badge/Home%20Assistant-%3E%3D2025.1-blue.svg)](https://www.home-assistant.io/)
-[![Version](https://img.shields.io/badge/version-1.7.0-blue.svg)](https://github.com/rolandzeiner/tankstellen-austria/releases)
+[![Version](https://img.shields.io/badge/version-1.8.0-blue.svg)](https://github.com/rolandzeiner/tankstellen-austria/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![vibe-coded](https://img.shields.io/badge/vibe-coded-ff69b4?logo=musicbrainz&logoColor=white)](https://en.wikipedia.org/wiki/Vibe_coding)
 
@@ -23,6 +23,12 @@ and/or CNG.
 - **Car fill-up cost widget** *(1.5.0)* – define your cars (name, fuel type, tank size, optional ⌀ consumption in l/100 km) in the card editor and see the total fill-up cost at the cheapest nearby station, shown below the price header; when consumption is set, the cost per 100 km is shown as a second line; each car gets its own MDI icon picked from a built-in icon grid; per-row toggles ("Tankkosten anzeigen" / "Verbrauch anzeigen") let you show only the fill-up cost, only the per-100 km cost (cars without consumption are hidden in that mode), or both
 - **Best refuel time recommendation** *(1.5.0)* – analyses up to 4 weeks of price history to identify the weekday and hour that is consistently cheapest *relative to that week's prices*; uses time-weighted hourly sampling and per-week normalisation so a slot that is always the weekly low point wins regardless of whether prices were generally high or low that week; shown below the sparkline with a green marker on the graph; requires data spanning at least 2 weeks before a recommendation is shown (a "not enough data" hint is displayed until then)
 - **Custom tab labels** *(1.6.0)* – rename the fuel-type tabs in the card editor (e.g. "Werkstatt" instead of "Diesel"); defaults to the fuel-type name, leave empty to restore
+- **Tile-card UI redesign** *(1.8.0)* – modern HA tile-card visual language matching the sibling Austria cards (Nextbike, Wiener Linien, Ladestellen): rounded-square `icon-tile` header with accent-tinted fuel icon, stacked hero metric (cheapest as a big tabular number with `/ avg` and an UPPERCASE label below), pill chips for status flags and payment matches, container-query density ladder for narrow / default / wide dashboard columns
+- **Chevron arrows on collapsible station rows** *(1.8.0)* – discoverability cue rotating 180° on expand, same pattern as the Ladestellen card
+- **E-Control attribution footer** *(1.8.0)* – `Datenquelle: E-Control` line and a brand-link to e-control.at, mirroring the Ladestellen card; visible by default
+- **Hide cheapest / average price** *(1.8.0)* – `hide_header_price` toggle removes the hero metric block when the stations list is the focus
+- **Theme-adaptive E-Control logo** *(1.8.0)* – `logo_adapt_to_theme` toggle renders the logo as a theme-following silhouette (black on light themes, white on dark themes)
+- **Hide attribution footer** *(1.8.0)* – `hide_attribution` toggle removes the entire footer; users who hide it remain responsible for E-Control's attribution practice
 - **Auto-detection** – the card automatically finds all Tankstellen Austria sensors, no manual entity configuration needed
 - **Visual card editor** – configure everything through the HA UI
 - **Average price tracking** – average of all 5 stations as sensor attribute, tracked in HA history for long-term analysis

@@ -5,7 +5,7 @@
 // Bump both in the same commit. The README badge + manifest.json stay at the
 // clean version; this constant + const.py can carry a `-beta-N` suffix during
 // development.
-export const CARD_VERSION = "1.8.0";
+export const CARD_VERSION = "1.8.0-beta-1";
 
 export const DOMAIN = "tankstellen_austria";
 
