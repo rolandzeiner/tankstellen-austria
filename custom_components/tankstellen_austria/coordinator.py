@@ -258,16 +258,32 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]
             lng = self._longitude
 
         was_available = self.last_update_success
+
+        # Fan out per fuel type in parallel — they are independent requests
+        # against the same host. Sequentially awaiting each adds up (3 fuel
+        # types × 30 s timeout = 90 s wall-clock worst case). gather() with
+        # return_exceptions captures per-type failures so the partial-failure
+        # branch below still works; the loop re-raises any non-Exception
+        # BaseException (CancelledError etc.) to preserve cancellation
+        # semantics.
+        fetched = await asyncio.gather(
+            *(self._fetch(ft, lat, lng) for ft in self._fuel_types),
+            return_exceptions=True,
+        )
         results: dict[str, list[dict[str, Any]]] = {}
         errors: dict[str, Exception] = {}
-        for fuel_type in self._fuel_types:
-            try:
-                results[fuel_type] = await self._fetch(fuel_type, lat, lng)
-            except Exception as err:  # noqa: BLE001 - capture per-type, decide below
-                errors[fuel_type] = err
+        for fuel_type, outcome in zip(self._fuel_types, fetched, strict=True):
+            if isinstance(outcome, BaseException) and not isinstance(
+                outcome, Exception
+            ):
+                raise outcome
+            if isinstance(outcome, Exception):
+                errors[fuel_type] = outcome
                 _LOGGER.warning(
-                    "Fetch failed for fuel type %s: %s", fuel_type, err
+                    "Fetch failed for fuel type %s: %s", fuel_type, outcome
                 )
+            else:
+                results[fuel_type] = outcome
 
         if errors and not results:
             # All fuel types failed — coordinator goes unavailable.
@@ -326,7 +342,10 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]
         """Fire a refresh after the no-data retry delay."""
         self._no_data_retry_cancel = None
         _LOGGER.info("Retrying fetch after no-data response")
-        self.hass.async_create_task(self.async_refresh())
+        # async_request_refresh debounces against any concurrent refresh
+        # (e.g. a card-side manual refresh that landed during the retry
+        # window) so we don't double-fire.
+        self.hass.async_create_task(self.async_request_refresh())
 
     async def _fetch(
         self, fuel_type: str, lat: float, lng: float

@@ -119,7 +119,7 @@ Bind a `device_tracker` to follow your phone. The fixed coordinates from setup a
 | Domain-wide cooldown | 5 min | Throttle across all entries |
 | Safety-net poll | 6 hours | Keeps data fresh if the tracker stops reporting |
 
-In the card, dynamic tabs label as `Diesel · iPhone`, the header replaces prices with the last-updated time, and a refresh button (with 2-min cooldown countdown) triggers an immediate poll. The sparkline is hidden — history from varying locations isn't meaningful.
+In the card, dynamic tabs label as `Diesel · iPhone`, the header replaces prices with the last-updated time, and a refresh button triggers an immediate poll. The 2-min cooldown shown on the button is a UI-side guard against accidental rapid clicks — clicks always poll fresh data. The sparkline is hidden in dynamic mode (history from varying locations isn't meaningful).
 
 You can mix fixed and dynamic entries; both render as separate tabs in the same card.
 
