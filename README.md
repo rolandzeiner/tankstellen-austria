@@ -20,7 +20,7 @@ and CNG. No API key required.
 - **Payment-method filter / highlight** — show only stations accepting your card, or keep all visible with matches highlighted in green
 - **Car fill-up cost widget** — define cars and see total fill-up cost (and €/100 km) at the cheapest station for that fuel type
 - **Closed / Closing-Soon flags** on stations that won't be open when you arrive
-- **German + English** translations; visual card editor; no API key
+- **German + English** translations and visual card editor
 
 ## Screenshots
 
@@ -135,8 +135,6 @@ recorder:
   purge_keep_days: 30
 ```
 
-The recommendation needs at least **7 days** of history before any tip appears. Granularity is one hour. Austrian public holidays are not modelled separately.
-
 ### How it works
 
 Austrian law (Preisauszeichnungsgesetz) lets prices rise only once a day at 12:00 noon and drop at any time, producing a reliable daily sawtooth. The card exploits that pattern in six steps:
@@ -184,7 +182,7 @@ The weekday is appended to the tip only when its own signal is strong enough —
 
 ## Supported functions
 
-- Fetch the 5 cheapest nearby stations per fuel type from the E-Control API (read-only, no service actions).
+- Fetch the 5 cheapest nearby stations *with prices* per fuel type from the E-Control API (read-only, no service actions).
 - One sensor per fuel type with full station list in attributes.
 - Fixed coordinates **or** dynamic `device_tracker` follow-me, mixable across entries.
 - Multiple simultaneous entries (e.g. home + work + phone).
@@ -275,8 +273,8 @@ The helper stores its config in HA's internal storage (not `configuration.yaml`)
 - API covers **Austria only** — neighbouring countries are not returned.
 - Each query returns at most **5 stations with prices** for the requested fuel type.
 - Don't poll faster than every 10 minutes (informal API rate limit).
-- Best-refuel recommendation needs ≥ 7 days of history; improves up to 28.
-- Austrian public holidays are not modelled separately.
+- Best-refuel recommendation needs ≥ 7 days of history; improves up to 28; granularity is one hour.
+- Austrian public holidays are not modelled separately in the best-refuel pipeline.
 - `average_price` is the average of the 5 cheapest only — not a regional average.
 
 ## Removal
