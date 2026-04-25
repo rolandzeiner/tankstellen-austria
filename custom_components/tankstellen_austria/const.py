@@ -1,4 +1,6 @@
 """Constants for Tankstellen Austria."""
+import json
+from pathlib import Path
 from typing import Final
 
 from homeassistant.const import __version__ as _HA_VERSION
@@ -35,11 +37,15 @@ DOMAIN_LAST_API_CALL_KEY = "last_api_call"
 
 CARD_VERSION = "1.8.0-beta-1"
 
-# Integration version — tracks manifest.json "version" (always the clean
-# release name, never a beta suffix). Kept separate from CARD_VERSION so the
-# served JS bundle and the Python integration can be released independently
-# without breaking the frontend WS version check.
-INTEGRATION_VERSION: Final = "1.8.0"
+# Integration version — read from manifest.json at module import so the
+# string can never drift from HACS's authoritative source. Kept separate
+# from CARD_VERSION so the served JS bundle and the Python integration
+# can be released independently without breaking the frontend WS version
+# check. The manifest read is sync at import time (~one filesystem stat
+# of a 600-byte file), runs once, and is required for HACS anyway.
+INTEGRATION_VERSION: Final = json.loads(
+    (Path(__file__).parent / "manifest.json").read_text(encoding="utf-8")
+)["version"]
 
 # Canonical HTTP User-Agent for upstream API calls. RFC-9110 format:
 # `<product>/<version> <product>/<version>` with a single space between
