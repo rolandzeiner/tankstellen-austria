@@ -137,6 +137,19 @@ recorder:
 
 The recommendation needs at least **7 days** of history before any tip appears. Granularity is one hour. Austrian public holidays are not modelled separately.
 
+### How it works
+
+Austrian law (Preisauszeichnungsgesetz) lets prices rise only once a day at 12:00 noon and drop at any time, producing a reliable daily sawtooth. The card exploits that pattern in six steps:
+
+1. **Time-weighted hourly expansion** — sparse change-events are held constant across full hours into a dense hourly series.
+2. **Per-week winsorising** — values outside the 5th–95th percentile of each Monday-aligned week are clipped (kills sensor glitches and the noon-reset spike).
+3. **Per-week normalisation** — each sample becomes `price − week_mean`, so a slot that's consistently the weekly low wins regardless of absolute price level.
+4. **Independent bucketing** — deltas aggregated separately into 24 hour-of-day and 7 weekday buckets (a single 168-cell grid would mix strong + weak signals).
+5. **Weighted median per bucket** — recency weight `0.5^(age_in_days / 14)`; samples from 2 weeks ago count half, 4 weeks ago a quarter.
+6. **Confidence score** averages three components: data span (28-day window coverage), hour coverage (≥3 obs per hour), and separation (gap between winning bucket and cross-bucket median in cents). Maps to **High / Medium / Low**.
+
+The weekday is appended to the tip only when its own signal is strong enough — otherwise the tip shows the hour alone. The tip reflects the *cheapest nearby station at each point in time*, not any single station's pattern.
+
 ## Sensors
 
 | Entity | State | Unit |
@@ -222,6 +235,23 @@ template:
 ```
 
 The API only returns the 5 cheapest stations with prices, so a pinned station that's not currently in the top 5 will show as `unavailable` for that update cycle. `| default(none)` is important — returning the string `'unavailable'` would trip the `€/L` numeric-unit validation.
+
+**Same sensor via the UI Template helper.** Prefer clicking to editing YAML? Go to **Settings → Devices & Services → Helpers → + Create Helper → Template → Template a sensor** and fill in:
+
+| Field | Value |
+|---|---|
+| Name | `Favourite Station Diesel` |
+| State template | (paste the state expression below) |
+| Unit of measurement | `€/L` |
+| State class | `measurement` *(optional — enables history graphs)* |
+
+```jinja
+{{ state_attr('sensor.tankstellen_home_diesel', 'stations')
+   | selectattr('name', 'search', 'Essmeister')
+   | map(attribute='price') | list | first | default(none) }}
+```
+
+The helper stores its config in HA's internal storage (not `configuration.yaml`), so no restart is needed — the entity appears immediately and behaves identically to the YAML version.
 
 ## Troubleshooting
 
