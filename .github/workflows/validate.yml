@@ -63,6 +63,8 @@ jobs:
           cache: "npm"
       - name: Install card deps
         run: npm ci
+      - name: Audit production deps
+        run: npm audit --omit=dev --audit-level=high
       - name: Build card bundle
         run: npm run build
       - name: Syntax-check bundle
