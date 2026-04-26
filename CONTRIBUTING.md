@@ -25,6 +25,18 @@ npm run build           # produces custom_components/tankstellen_austria/www/tan
 
 `README.md` badge + `manifest.json` stay at the clean (non-beta) version; `const.py` + the TS constant can carry a `-beta-N` suffix during development.
 
+## Tooling & config
+
+- `pyproject.toml` — source of truth for ruff (target-version, line-length), mypy (strict, ignore_missing_imports, files), and coverage config. Change rules here, not in CI flags.
+- `pytest.ini` — pytest config and the **`--cov-fail-under=90` coverage gate**. `pytest tests/` automatically runs with coverage; CI fails fast if a new commit drops coverage below the gate. Current measurement sits ~93%, so you have ~3pts of headroom before the gate bites.
+- `ATTRIBUTION` — canonical data-source statement (E-Control Spritpreisrechner) and licence terms; matches the `attribution` attribute every sensor emits. Update when the upstream API or licence wording changes.
+
+View per-file coverage locally:
+
+```bash
+pytest tests/ --cov-report=term-missing
+```
+
 ## Verification gate (must pass before pushing)
 
 ```bash
