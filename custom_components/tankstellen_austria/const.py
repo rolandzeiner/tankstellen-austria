@@ -35,7 +35,7 @@ DYNAMIC_SAFETY_INTERVAL_HOURS = 6      # fallback timer when no movement detecte
 # Key inside hass.data[DOMAIN] for cross-entry rate limiting
 DOMAIN_LAST_API_CALL_KEY = "last_api_call"
 
-CARD_VERSION = "1.8.0-beta-1"
+CARD_VERSION = "1.8.0-beta-2"
 
 # Integration version — read from manifest.json at module import so the
 # string can never drift from HACS's authoritative source. Kept separate
