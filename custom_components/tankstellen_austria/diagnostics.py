@@ -6,10 +6,11 @@ from typing import Any
 from homeassistant.components.diagnostics import async_redact_data
 from homeassistant.core import HomeAssistant
 
-from .const import CONF_LATITUDE, CONF_LONGITUDE
 from .coordinator import TankstellenConfigEntry
 
-TO_REDACT = {"latitude", "longitude", CONF_LATITUDE, CONF_LONGITUDE}
+# CONF_LATITUDE/CONF_LONGITUDE are equal to the literal strings, so the
+# set would collapse anyway — keeping just the literals for clarity.
+TO_REDACT = {"latitude", "longitude"}
 
 
 async def async_get_config_entry_diagnostics(

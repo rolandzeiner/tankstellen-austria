@@ -1,7 +1,9 @@
 """Tests for the Tankstellen Austria coordinator."""
+import asyncio
 from datetime import timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import aiohttp
 import pytest
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import UpdateFailed
@@ -16,6 +18,7 @@ from custom_components.tankstellen_austria.const import (
     CONF_SCAN_INTERVAL,
     DOMAIN,
     DOMAIN_LAST_API_CALL_KEY,
+    DYNAMIC_COOLDOWN_MINUTES,
 )
 from custom_components.tankstellen_austria.coordinator import TankstellenCoordinator
 
@@ -224,17 +227,24 @@ async def test_should_update_first_call_no_prior_position(hass: HomeAssistant) -
 
 
 async def test_should_update_distance_below_threshold(hass: HomeAssistant) -> None:
-    """_should_update returns False when moved less than threshold."""
+    """_should_update returns False when moved less than threshold.
+
+    Steps the per-entry cooldown timestamp past ``DYNAMIC_COOLDOWN_MINUTES + 1``
+    rather than a magic 1-hour offset — that way bumping the constant
+    above 60 doesn't silently flip this test from a distance-gate
+    assertion to a cooldown-gate one.
+    """
     from homeassistant.util import dt as dt_util
 
     entry = _make_entry({CONF_DYNAMIC_ENTITY: "device_tracker.phone"})
     entry.add_to_hass(hass)
     coordinator = TankstellenCoordinator(hass, entry)
 
-    # Simulate a previous fetch nearby (< 1500 m away)
     coordinator._last_fetch_lat = 48.1478
     coordinator._last_fetch_lng = 16.5147
-    coordinator._last_fetch_time = dt_util.utcnow() - timedelta(hours=1)
+    coordinator._last_fetch_time = dt_util.utcnow() - timedelta(
+        minutes=DYNAMIC_COOLDOWN_MINUTES + 1
+    )
 
     # Move only ~10 m
     assert coordinator._should_update(48.1479, 16.5148) is False
@@ -250,7 +260,9 @@ async def test_should_update_distance_above_threshold(hass: HomeAssistant) -> No
 
     coordinator._last_fetch_lat = 48.1478
     coordinator._last_fetch_lng = 16.5147
-    coordinator._last_fetch_time = dt_util.utcnow() - timedelta(hours=1)
+    coordinator._last_fetch_time = dt_util.utcnow() - timedelta(
+        minutes=DYNAMIC_COOLDOWN_MINUTES + 1
+    )
 
     # Move ~15 km
     assert coordinator._should_update(48.25, 16.6) is True
@@ -542,6 +554,186 @@ async def test_tracker_restored_clears_repair_issue(hass: HomeAssistant) -> None
 
     assert registry.async_get_issue(DOMAIN, f"tracker_missing_{entry.entry_id}") is None
     assert coordinator._tracker_issue_raised is False
+
+
+# ---------------------------------------------------------------------------
+# _fetch — payload shaping + error translation keys
+# ---------------------------------------------------------------------------
+
+
+def _stub_session_returning(coordinator: TankstellenCoordinator, payload: object) -> None:
+    """Replace coordinator._session.get with a stub returning ``payload`` as JSON."""
+    resp = MagicMock()
+    resp.raise_for_status = MagicMock()
+    resp.status = 200
+    resp.json = AsyncMock(return_value=payload)
+    coordinator._session = MagicMock()
+    coordinator._session.get = AsyncMock(return_value=resp)
+
+
+async def test_fetch_caps_results_at_five_stations(hass: HomeAssistant) -> None:
+    """_fetch returns at most 5 priced stations even if the API sends more.
+
+    The E-Control API attaches prices only to the first five entries of
+    its response and pads the rest with priceless siblings; the cap is
+    what makes the priced-vs-priceless boundary deterministic for the
+    sensor and card.
+    """
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+    coordinator = TankstellenCoordinator(hass, entry)
+
+    payload = [
+        {**MOCK_STATION, "id": i, "prices": [{"amount": 1.0 + i / 100}]}
+        for i in range(10)
+    ]
+    _stub_session_returning(coordinator, payload)
+
+    stations = await coordinator._fetch("DIE", 48.0, 16.0)
+    assert len(stations) == 5
+    assert [s["id"] for s in stations] == [0, 1, 2, 3, 4]
+
+
+async def test_fetch_drops_priceless_stations(hass: HomeAssistant) -> None:
+    """Stations without a ``prices`` array are filtered out before the cap.
+
+    The API mixes priced + priceless entries; the sensor relies on the
+    coordinator to pre-filter so cheapest-price logic doesn't see a
+    ``None`` price.
+    """
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+    coordinator = TankstellenCoordinator(hass, entry)
+
+    no_prices_key = {k: v for k, v in MOCK_STATION.items() if k != "prices"}
+    payload = [
+        {**MOCK_STATION, "id": 1, "prices": [{"amount": 1.5}]},
+        {**MOCK_STATION, "id": 2, "prices": []},  # filtered (empty)
+        {**no_prices_key, "id": 3},  # filtered (no key)
+        {**MOCK_STATION, "id": 4, "prices": [{"amount": 1.6}]},
+    ]
+    _stub_session_returning(coordinator, payload)
+
+    stations = await coordinator._fetch("DIE", 48.0, 16.0)
+    assert [s["id"] for s in stations] == [1, 4]
+
+
+async def test_fetch_timeout_uses_translation_key(hass: HomeAssistant) -> None:
+    """asyncio.TimeoutError → UpdateFailed(translation_key='api_timeout')."""
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+    coordinator = TankstellenCoordinator(hass, entry)
+
+    coordinator._session = MagicMock()
+    coordinator._session.get = AsyncMock(side_effect=asyncio.TimeoutError())
+
+    with pytest.raises(UpdateFailed) as exc:
+        await coordinator._fetch("DIE", 48.0, 16.0)
+    assert exc.value.translation_key == "api_timeout"
+
+
+async def test_fetch_http_error_uses_translation_key(hass: HomeAssistant) -> None:
+    """ClientResponseError → UpdateFailed(translation_key='api_http_error')."""
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+    coordinator = TankstellenCoordinator(hass, entry)
+
+    request_info = MagicMock()
+    request_info.real_url = "https://example.invalid"
+    err = aiohttp.ClientResponseError(
+        request_info=request_info,
+        history=(),
+        status=500,
+        message="Internal Server Error",
+    )
+    coordinator._session = MagicMock()
+    coordinator._session.get = AsyncMock(side_effect=err)
+
+    with pytest.raises(UpdateFailed) as exc:
+        await coordinator._fetch("DIE", 48.0, 16.0)
+    assert exc.value.translation_key == "api_http_error"
+
+
+async def test_fetch_connection_error_uses_translation_key(hass: HomeAssistant) -> None:
+    """Generic ClientError → UpdateFailed(translation_key='api_connection_error')."""
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+    coordinator = TankstellenCoordinator(hass, entry)
+
+    coordinator._session = MagicMock()
+    coordinator._session.get = AsyncMock(side_effect=aiohttp.ClientError("DNS"))
+
+    with pytest.raises(UpdateFailed) as exc:
+        await coordinator._fetch("DIE", 48.0, 16.0)
+    assert exc.value.translation_key == "api_connection_error"
+
+
+async def test_fetch_invalid_json_uses_translation_key(hass: HomeAssistant) -> None:
+    """ValueError from resp.json() → UpdateFailed(translation_key='api_invalid_json')."""
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+    coordinator = TankstellenCoordinator(hass, entry)
+
+    resp = MagicMock()
+    resp.raise_for_status = MagicMock()
+    resp.status = 200
+    resp.json = AsyncMock(side_effect=ValueError("not JSON"))
+    coordinator._session = MagicMock()
+    coordinator._session.get = AsyncMock(return_value=resp)
+
+    with pytest.raises(UpdateFailed) as exc:
+        await coordinator._fetch("DIE", 48.0, 16.0)
+    assert exc.value.translation_key == "api_invalid_json"
+
+
+# ---------------------------------------------------------------------------
+# _retry_no_data_fetch + tracker-fallback to HA home location
+# ---------------------------------------------------------------------------
+
+
+async def test_retry_no_data_fetch_clears_handle_and_requests_refresh(
+    hass: HomeAssistant,
+) -> None:
+    """The scheduled callback clears its handle and requests a refresh.
+
+    The handle clear is what allows a *next* no-data response to schedule
+    again; the refresh request is what actually re-tries the fetch. If
+    either is dropped, the no-data retry mechanism silently breaks.
+    """
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+    coordinator = TankstellenCoordinator(hass, entry)
+    coordinator._no_data_retry_cancel = MagicMock()
+
+    with patch.object(
+        coordinator, "async_request_refresh", new=AsyncMock()
+    ) as mock_request_refresh:
+        coordinator._retry_no_data_fetch(None)
+        await hass.async_block_till_done()
+
+    assert coordinator._no_data_retry_cancel is None
+    mock_request_refresh.assert_awaited_once()
+
+
+async def test_get_entity_coords_falls_back_to_home_location(
+    hass: HomeAssistant,
+) -> None:
+    """When the tracker is missing coords, _get_entity_coords returns hass.config.lat/lng.
+
+    The Repairs-issue branch is already covered; this test guards the
+    *return* contract. If someone refactors the fallback to return None,
+    the dynamic coordinator will start fetching with stale coords
+    instead of the home location and this test fails.
+    """
+    hass.config.latitude = 47.5
+    hass.config.longitude = 13.5
+
+    entry = _make_entry({CONF_DYNAMIC_ENTITY: "device_tracker.phone"})
+    entry.add_to_hass(hass)
+    coordinator = TankstellenCoordinator(hass, entry)
+
+    lat, lng = coordinator._get_entity_coords(None)
+    assert (lat, lng) == (47.5, 13.5)
 
 
 async def test_tracker_issue_raised_only_once(hass: HomeAssistant) -> None:
