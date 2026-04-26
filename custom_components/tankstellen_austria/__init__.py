@@ -169,3 +169,41 @@ async def _async_reload_entry(hass: HomeAssistant, entry: TankstellenConfigEntry
 async def async_unload_entry(hass: HomeAssistant, entry: TankstellenConfigEntry) -> bool:
     """Unload a config entry."""
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+
+
+async def async_remove_entry(hass: HomeAssistant, entry: TankstellenConfigEntry) -> None:
+    """Drop the Lovelace resource when the last config entry is removed.
+
+    Card registration is component-level (one resource per HA install, not
+    per entry), so this only runs when no other entries of this integration
+    remain. Reload goes through async_unload_entry, not here, so the card
+    stays registered across reloads.
+    """
+    remaining = [
+        e
+        for e in hass.config_entries.async_entries(DOMAIN)
+        if e.entry_id != entry.entry_id
+    ]
+    if remaining:
+        return
+
+    lovelace = hass.data.get("lovelace")
+    if lovelace is None:
+        return
+    mode = getattr(lovelace, "mode", None) or getattr(
+        getattr(lovelace, "config", None), "mode", None
+    )
+    if mode is not None and mode != "storage":
+        return
+    resources = getattr(lovelace, "resources", None)
+    if resources is None:
+        return
+
+    try:
+        await resources.async_load()
+        for item in list(resources.async_items()):
+            if item.get("url", "").split("?")[0] == CARD_URL:
+                await resources.async_delete_item(item["id"])
+                _LOGGER.info("Removed Lovelace resource for %s", CARD_URL)
+    except Exception as err:  # noqa: BLE001
+        _LOGGER.debug("Could not unregister Lovelace resource: %s", err)

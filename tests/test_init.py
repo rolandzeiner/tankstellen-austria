@@ -19,6 +19,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from custom_components.tankstellen_austria import (
     CARD_URL,
     _async_register_card,
+    async_remove_entry,
 )
 from custom_components.tankstellen_austria.const import (
     CARD_VERSION,
@@ -274,3 +275,71 @@ async def test_register_card_delete_recreate_when_update_fails(
     lovelace.resources.async_create_item.assert_awaited_once_with(
         {"res_type": "module", "url": f"{CARD_URL}?v={CARD_VERSION}"}
     )
+
+
+# ---------------------------------------------------------------------
+# async_remove_entry
+# ---------------------------------------------------------------------
+
+
+async def test_remove_entry_deletes_lovelace_resource_when_last(
+    hass: HomeAssistant,
+) -> None:
+    """Removing the last entry deletes the integration's Lovelace resource."""
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+
+    existing = {"id": "abc", "url": f"{CARD_URL}?v={CARD_VERSION}", "res_type": "module"}
+    lovelace = _build_lovelace([existing])
+    hass.data["lovelace"] = lovelace
+
+    await async_remove_entry(hass, entry)
+
+    lovelace.resources.async_delete_item.assert_awaited_once_with("abc")
+
+
+async def test_remove_entry_keeps_resource_when_other_entries_exist(
+    hass: HomeAssistant,
+) -> None:
+    """When another entry remains, the Lovelace resource is left in place."""
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+    other = MockConfigEntry(
+        domain=DOMAIN,
+        data=_BASE_DATA,
+        options={},
+        title="Other",
+        unique_id="48.200_16.400",
+    )
+    other.add_to_hass(hass)
+
+    existing = {"id": "abc", "url": f"{CARD_URL}?v={CARD_VERSION}", "res_type": "module"}
+    lovelace = _build_lovelace([existing])
+    hass.data["lovelace"] = lovelace
+
+    await async_remove_entry(hass, entry)
+
+    lovelace.resources.async_delete_item.assert_not_awaited()
+
+
+async def test_remove_entry_noop_in_yaml_mode(hass: HomeAssistant) -> None:
+    """YAML-mode Lovelace must not be mutated on removal."""
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+
+    existing = {"id": "abc", "url": f"{CARD_URL}?v={CARD_VERSION}", "res_type": "module"}
+    lovelace = _build_lovelace([existing], mode="yaml")
+    hass.data["lovelace"] = lovelace
+
+    await async_remove_entry(hass, entry)
+
+    lovelace.resources.async_delete_item.assert_not_awaited()
+
+
+async def test_remove_entry_handles_missing_lovelace(hass: HomeAssistant) -> None:
+    """No Lovelace data → return cleanly without raising."""
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+    hass.data.pop("lovelace", None)
+
+    await async_remove_entry(hass, entry)  # must not raise
