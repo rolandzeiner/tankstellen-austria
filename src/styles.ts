@@ -381,6 +381,23 @@ export const cardStyles = css`
     height: var(--ts-sparkline-height, clamp(40px, 8vw + 24px, 72px));
     display: block;
   }
+  /* Cheapest-refill marker dot. Lives OUTSIDE the SVG (HTML overlay
+     positioned via percentage left/top) because the SVG uses
+     preserveAspectRatio="none" to stretch the line across the card
+     width — circles inside that SVG get squashed into ovals on wide
+     cards. As a regular HTML element with border-radius: 50%, this
+     stays a true circle regardless of card width. */
+  .sparkline-marker {
+    position: absolute;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--tankst-rt);
+    border: 1.5px solid var(--card-background-color, #fff);
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    z-index: 1;
+  }
   .sparkline-tooltip {
     position: absolute;
     top: -28px;

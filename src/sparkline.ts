@@ -279,17 +279,27 @@ export function buildSparkline(opts: SparklineOpts): SparklineResult {
     // `data` array, not the full history that `analysis` was derived
     // from — the indices don't correspond across the two arrays.
     const markerIdx = resolveVisibleMarkerIdx(data, opts.analysis);
+    // Vertical dashed line stays inside the SVG — a 1-px vertical line
+    // scales fine under preserveAspectRatio="none". The dot at the line/
+    // sparkline intersection is moved OUT of the SVG to an HTML overlay
+    // (rendered below as .sparkline-marker) so it stays a true circle on
+    // wide cards instead of being squashed into an oval by the SVG's
+    // non-uniform stretch.
     const marker: TemplateResult | typeof nothing =
       markerIdx >= 0 && markerIdx < svgPoints.length
         ? svg`
           <line x1=${svgPoints[markerIdx].x.toFixed(1)} y1="0"
                 x2=${svgPoints[markerIdx].x.toFixed(1)} y2=${HEIGHT}
                 stroke="var(--success-color,#4CAF50)" stroke-width="1"
-                stroke-dasharray="3,2" opacity="0.8"/>
-          <circle cx=${svgPoints[markerIdx].x.toFixed(1)}
-                  cy=${svgPoints[markerIdx].y.toFixed(1)} r="3.5"
-                  fill="var(--success-color,#4CAF50)"
-                  stroke="var(--card-background-color,#fff)" stroke-width="1.5"/>`
+                stroke-dasharray="3,2" opacity="0.8"/>`
+        : nothing;
+    const markerDot: TemplateResult | typeof nothing =
+      markerIdx >= 0 && markerIdx < svgPoints.length
+        ? html`<div
+            class="sparkline-marker"
+            style=${`left:${((svgPoints[markerIdx].x / WIDTH) * 100).toFixed(2)}%;top:${((svgPoints[markerIdx].y / HEIGHT) * 100).toFixed(2)}%;`}
+            aria-hidden="true"
+          ></div>`
         : nothing;
 
     const hoverPoints = data.map((d, i) => ({
@@ -382,6 +392,7 @@ export function buildSparkline(opts: SparklineOpts): SparklineResult {
           opacity="0" pointer-events="none"
         />
       </svg>
+      ${markerDot}
       <div class="sparkline-tooltip" hidden>
         <span class="sparkline-tooltip-time"></span>
         <span class="sparkline-tooltip-price"></span>
