@@ -376,27 +376,48 @@ export const cardStyles = css`
     cursor: pointer;
     position: relative;
   }
+  /* Tight wrap around the SVG that gives marker + hover-dot HTML
+     overlays a positioning context EQUAL to the SVG's rendered box.
+     If the markers were positioned against .sparkline-container
+     directly, their percentage top/left would resolve against a
+     taller container that also includes tooltip + labels — dot
+     would land below the line. */
+  .sparkline-svg-wrap {
+    position: relative;
+    width: 100%;
+  }
   .sparkline {
     width: 100%;
     height: var(--ts-sparkline-height, clamp(40px, 8vw + 24px, 72px));
     display: block;
   }
-  /* Cheapest-refill marker dot. Lives OUTSIDE the SVG (HTML overlay
-     positioned via percentage left/top) because the SVG uses
-     preserveAspectRatio="none" to stretch the line across the card
-     width — circles inside that SVG get squashed into ovals on wide
-     cards. As a regular HTML element with border-radius: 50%, this
-     stays a true circle regardless of card width. */
-  .sparkline-marker {
+  /* Cheapest-refill marker + hover dot. Both live OUTSIDE the SVG
+     (HTML overlays positioned via percentage left/top inside
+     .sparkline-svg-wrap) because the SVG uses preserveAspectRatio
+     "none" to stretch the line across the card width — circles
+     inside that SVG get squashed into ovals on wide cards. As regular
+     HTML elements with border-radius: 50%, these stay true circles
+     regardless of card width. */
+  .sparkline-marker,
+  .sparkline-hover-dot {
     position: absolute;
     width: 7px;
     height: 7px;
     border-radius: 50%;
-    background: var(--tankst-rt);
     border: 1.5px solid var(--card-background-color, #fff);
     transform: translate(-50%, -50%);
     pointer-events: none;
     z-index: 1;
+  }
+  .sparkline-marker {
+    background: var(--tankst-rt);
+  }
+  .sparkline-hover-dot {
+    background: var(--primary-color);
+    transition:
+      left var(--ha-transition-duration-fast, 60ms) linear,
+      top var(--ha-transition-duration-fast, 60ms) linear,
+      opacity var(--ha-transition-duration-fast, 120ms) var(--ha-transition-easing-standard, ease);
   }
   .sparkline-tooltip {
     position: absolute;

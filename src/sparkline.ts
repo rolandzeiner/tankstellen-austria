@@ -348,6 +348,7 @@ export function buildSparkline(opts: SparklineOpts): SparklineResult {
       .replace("{median}", formatPriceShort(medianValue));
 
     const template = html`
+      <div class="sparkline-svg-wrap">
       <svg
         class="sparkline"
         viewBox="0 0 ${WIDTH} ${HEIGHT}"
@@ -384,15 +385,10 @@ export function buildSparkline(opts: SparklineOpts): SparklineResult {
           stroke="var(--primary-text-color)" stroke-width="0.6"
           stroke-dasharray="2,2" opacity="0" pointer-events="none"
         />
-        <circle
-          class="sparkline-hover-dot"
-          cx="0" cy="0" r="3"
-          fill="var(--primary-color)"
-          stroke="var(--card-background-color,#fff)" stroke-width="1.5"
-          opacity="0" pointer-events="none"
-        />
       </svg>
       ${markerDot}
+      <div class="sparkline-hover-dot" style="opacity:0" aria-hidden="true"></div>
+      </div>
       <div class="sparkline-tooltip" hidden>
         <span class="sparkline-tooltip-time"></span>
         <span class="sparkline-tooltip-price"></span>
@@ -450,7 +446,13 @@ export function attachSparklineHover(
     if (!svgEl || !tooltip) return noop;
 
     const line = svgEl.querySelector<SVGLineElement>(".sparkline-hover-line");
-    const dot = svgEl.querySelector<SVGCircleElement>(".sparkline-hover-dot");
+    // Hover dot lives OUTSIDE the SVG as an HTML overlay (sibling of
+    // svg.sparkline inside .sparkline-svg-wrap). Same reason as the
+    // cheapest-refill marker — preserveAspectRatio="none" on the SVG
+    // squashes any inner <circle> into an oval on wide cards. As an
+    // HTML element with border-radius: 50%, the dot stays a true
+    // circle at any width.
+    const dot = container.querySelector<HTMLElement>(".sparkline-hover-dot");
     const timeEl = tooltip.querySelector<HTMLElement>(".sparkline-tooltip-time");
     const priceEl = tooltip.querySelector<HTMLElement>(".sparkline-tooltip-price");
     if (!line || !dot || !timeEl || !priceEl) return noop;
@@ -465,6 +467,7 @@ export function attachSparklineHover(
     if (!pts.length) return noop;
 
     const vbWidth = Number(svgEl.dataset.width) || 280;
+    const vbHeight = Number(svgEl.dataset.height) || 64;
 
     const show = (clientX: number): void => {
       const rect = svgEl.getBoundingClientRect();
@@ -483,9 +486,11 @@ export function attachSparklineHover(
       line.setAttribute("x1", String(best.x));
       line.setAttribute("x2", String(best.x));
       line.setAttribute("opacity", "0.5");
-      dot.setAttribute("cx", String(best.x));
-      dot.setAttribute("cy", String(best.y));
-      dot.setAttribute("opacity", "1");
+      // HTML overlay — position via percentage so the dot tracks the
+      // data point regardless of the SVG's actual rendered width.
+      dot.style.left = `${(best.x / vbWidth) * 100}%`;
+      dot.style.top = `${(best.y / vbHeight) * 100}%`;
+      dot.style.opacity = "1";
 
       timeEl.textContent = opts.formatTime(best.t);
       priceEl.textContent = opts.formatPrice(best.v);
@@ -502,7 +507,7 @@ export function attachSparklineHover(
 
     const hide = (): void => {
       line.setAttribute("opacity", "0");
-      dot.setAttribute("opacity", "0");
+      dot.style.opacity = "0";
       tooltip.hidden = true;
     };
 
