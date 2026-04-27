@@ -1,0 +1,31 @@
+Datenquelle: E-Control
+
+Data source
+-----------
+E-Control Spritpreisrechner API
+https://api.e-control.at/sprit/1.0
+https://www.e-control.at/spritpreisrechner
+
+Required attribution string
+---------------------------
+This integration emits the following attribution on every sensor (via the
+`attribution` state attribute) and in every diagnostics download:
+
+    Datenquelle: E-Control
+
+If you build a Lovelace card or any other user-facing UI on top of this
+integration, please keep this attribution visible.
+
+Disclaimer
+----------
+This integration is not affiliated with or endorsed by E-Control Austria.
+All fuel price data is provided by the E-Control Spritpreisrechner API and
+is subject to E-Control's terms of use. The developer assumes no liability
+for the accuracy, completeness, or timeliness of the displayed prices.
+Use at your own risk.
+
+Diese Integration steht in keiner Verbindung zur E-Control Austria und
+wird von dieser nicht unterstützt. Alle Spritpreisdaten stammen von der
+E-Control Spritpreisrechner API und unterliegen deren Nutzungsbedingungen.
+Für Richtigkeit, Vollständigkeit und Aktualität wird keine Haftung
+übernommen. Nutzung auf eigene Verantwortung.

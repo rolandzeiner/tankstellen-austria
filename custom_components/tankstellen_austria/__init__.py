@@ -22,7 +22,8 @@ CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 _LOGGER = logging.getLogger(__name__)
 PLATFORMS: list[Platform] = [Platform.SENSOR]
 
-CARD_URL = "/tankstellen-austria/tankstellen-austria-card.js"
+URL_BASE = "/tankstellen-austria"
+CARD_URL = f"{URL_BASE}/tankstellen-austria-card.js"
 
 
 @websocket_api.websocket_command(  # type: ignore[attr-defined]
@@ -56,15 +57,17 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
 
 async def _async_register_card(hass: HomeAssistant) -> None:
     """Serve the card JS and add it to Lovelace resources."""
-    card_path = Path(__file__).parent / "www" / "tankstellen-austria-card.js"
+    www_dir = Path(__file__).parent / "www"
+    card_path = www_dir / "tankstellen-austria-card.js"
     if not card_path.is_file():
         _LOGGER.warning("Card JS not found at %s", card_path)
         return
 
-    # Serve the file over HTTP
+    # Mount the whole www/ directory so the JS bundle and static assets
+    # alongside it (e-control_logo.svg) all resolve under URL_BASE.
     try:
         await hass.http.async_register_static_paths(
-            [StaticPathConfig(CARD_URL, str(card_path), False)]
+            [StaticPathConfig(URL_BASE, str(www_dir), False)]
         )
     except Exception:  # noqa: BLE001
         _LOGGER.debug("Static path already registered or unavailable")
@@ -166,3 +169,41 @@ async def _async_reload_entry(hass: HomeAssistant, entry: TankstellenConfigEntry
 async def async_unload_entry(hass: HomeAssistant, entry: TankstellenConfigEntry) -> bool:
     """Unload a config entry."""
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+
+
+async def async_remove_entry(hass: HomeAssistant, entry: TankstellenConfigEntry) -> None:
+    """Drop the Lovelace resource when the last config entry is removed.
+
+    Card registration is component-level (one resource per HA install, not
+    per entry), so this only runs when no other entries of this integration
+    remain. Reload goes through async_unload_entry, not here, so the card
+    stays registered across reloads.
+    """
+    remaining = [
+        e
+        for e in hass.config_entries.async_entries(DOMAIN)
+        if e.entry_id != entry.entry_id
+    ]
+    if remaining:
+        return
+
+    lovelace = hass.data.get("lovelace")
+    if lovelace is None:
+        return
+    mode = getattr(lovelace, "mode", None) or getattr(
+        getattr(lovelace, "config", None), "mode", None
+    )
+    if mode is not None and mode != "storage":
+        return
+    resources = getattr(lovelace, "resources", None)
+    if resources is None:
+        return
+
+    try:
+        await resources.async_load()
+        for item in list(resources.async_items()):
+            if item.get("url", "").split("?")[0] == CARD_URL:
+                await resources.async_delete_item(item["id"])
+                _LOGGER.info("Removed Lovelace resource for %s", CARD_URL)
+    except Exception as err:  # noqa: BLE001
+        _LOGGER.debug("Could not unregister Lovelace resource: %s", err)

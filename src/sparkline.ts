@@ -26,6 +26,7 @@ export interface SparklineOpts {
   showMedianLine: boolean;
   showHourEnvelope: boolean;
   showNoonMarkers: boolean;
+  showMinMax: boolean;
   hourEnvelope?: HourlyEnvelope | null;
   // Best-refuel analysis output. When provided and confident, the
   // sparkline draws the green dashed marker at the nearest point in the
@@ -40,6 +41,11 @@ export interface SparklineOpts {
     median_delta_below: string;
     median_delta_above: string;
     median_delta_equal: string;
+    // Full aria-label template for the SVG, with `{min}`, `{max}`,
+    // `{median}` placeholders. The `_simple` variant is used when the
+    // median-line overlay is disabled.
+    sparkline_aria_summary: string;
+    sparkline_aria_simple: string;
   };
 }
 
@@ -100,16 +106,18 @@ function resolveVisibleMarkerIdx(
 
 function sliceLast7Days(all: HistoryPoint[]): HistoryPoint[] {
   const cutoff = Date.now() - SEVEN_DAYS_MS;
-  let data = all.filter((d) => d.time >= cutoff);
-  if (data.length < 2) {
-    // With significant_changes_only the most recent change may be older than
-    // 7 days (stable price). Prepend the last known prior point so the
-    // sparkline always renders.
-    const prior = all.filter((d) => d.time < cutoff);
-    const lastKnown = prior.length ? prior[prior.length - 1] : null;
-    if (lastKnown) data = [lastKnown, ...data];
-  }
-  return data;
+  const inside = all.filter((d) => d.time >= cutoff);
+  const prior = all.filter((d) => d.time < cutoff);
+  const lastKnown = prior.length ? prior[prior.length - 1] : null;
+  // Always prepend the most recent pre-window sample (if we have one)
+  // so the sparkline's left edge anchors at the *start* of the 7-day
+  // window with the correct pre-week value. Previously this only
+  // happened when `inside.length < 2` — which meant stable-price
+  // entities (e.g. Diesel whose last change was the prior Friday)
+  // rendered a line that visibly "started on Monday" because the
+  // prior-Friday row had been filtered out and no anchor prepended.
+  if (lastKnown) return [lastKnown, ...inside];
+  return inside;
 }
 
 function computeMedianDelta(values: number[]): MedianDelta | null {
@@ -148,8 +156,21 @@ export function buildSparkline(opts: SparklineOpts): SparklineResult {
     const all = opts.points;
     if (!all || all.length < 2) return empty;
 
-    const data = sliceLast7Days(all);
+    let data = sliceLast7Days(all);
     if (data.length < 2) return empty;
+
+    // Extend a flat "tail" to now when the last recorded sample is
+    // stale. Austrian fuel prices freeze for 1–2 days on weekends/
+    // holidays (no significant change → no recorder sample → no
+    // history row), so without this the hover tooltip stops at the
+    // last weekday and the noon markers never reach Sat/Sun. The
+    // synthetic point carries the last-known value, which is the
+    // entity's current state too — accurate, not invented.
+    const STALE_MS = 30 * 60 * 1000;
+    const last = data[data.length - 1];
+    if (last.time < Date.now() - STALE_MS) {
+      data = [...data, { time: Date.now(), value: last.value }];
+    }
 
     const values = data.map((d) => d.value);
     // Labels under the sparkline always describe the 7-day line — the data
@@ -258,17 +279,27 @@ export function buildSparkline(opts: SparklineOpts): SparklineResult {
     // `data` array, not the full history that `analysis` was derived
     // from — the indices don't correspond across the two arrays.
     const markerIdx = resolveVisibleMarkerIdx(data, opts.analysis);
+    // Vertical dashed line stays inside the SVG — a 1-px vertical line
+    // scales fine under preserveAspectRatio="none". The dot at the line/
+    // sparkline intersection is moved OUT of the SVG to an HTML overlay
+    // (rendered below as .sparkline-marker) so it stays a true circle on
+    // wide cards instead of being squashed into an oval by the SVG's
+    // non-uniform stretch.
     const marker: TemplateResult | typeof nothing =
       markerIdx >= 0 && markerIdx < svgPoints.length
         ? svg`
           <line x1=${svgPoints[markerIdx].x.toFixed(1)} y1="0"
                 x2=${svgPoints[markerIdx].x.toFixed(1)} y2=${HEIGHT}
                 stroke="var(--success-color,#4CAF50)" stroke-width="1"
-                stroke-dasharray="3,2" opacity="0.8"/>
-          <circle cx=${svgPoints[markerIdx].x.toFixed(1)}
-                  cy=${svgPoints[markerIdx].y.toFixed(1)} r="3.5"
-                  fill="var(--success-color,#4CAF50)"
-                  stroke="var(--card-background-color,#fff)" stroke-width="1.5"/>`
+                stroke-dasharray="3,2" opacity="0.8"/>`
+        : nothing;
+    const markerDot: TemplateResult | typeof nothing =
+      markerIdx >= 0 && markerIdx < svgPoints.length
+        ? html`<div
+            class="sparkline-marker"
+            style=${`left:${((svgPoints[markerIdx].x / WIDTH) * 100).toFixed(2)}%;top:${((svgPoints[markerIdx].y / HEIGHT) * 100).toFixed(2)}%;`}
+            aria-hidden="true"
+          ></div>`
         : nothing;
 
     const hoverPoints = data.map((d, i) => ({
@@ -300,15 +331,35 @@ export function buildSparkline(opts: SparklineOpts): SparklineResult {
         })()
       : nothing;
 
+    const sortedValues = [...values].sort((a, b) => a - b);
+    const midIdx = (sortedValues.length - 1) / 2;
+    const medianValue =
+      sortedValues.length > 0
+        ? (sortedValues[Math.floor(midIdx)] + sortedValues[Math.ceil(midIdx)]) /
+          2
+        : 0;
+    const ariaLabel = (
+      opts.showMedianLine
+        ? opts.translations.sparkline_aria_summary
+        : opts.translations.sparkline_aria_simple
+    )
+      .replace("{min}", formatPriceShort(dataMin))
+      .replace("{max}", formatPriceShort(dataMax))
+      .replace("{median}", formatPriceShort(medianValue));
+
     const template = html`
+      <div class="sparkline-svg-wrap">
       <svg
         class="sparkline"
         viewBox="0 0 ${WIDTH} ${HEIGHT}"
         preserveAspectRatio="none"
+        role="img"
+        aria-label=${ariaLabel}
         data-points=${JSON.stringify(hoverPoints)}
         data-width=${WIDTH}
         data-height=${HEIGHT}
       >
+        <title>${ariaLabel}</title>
         <defs>
           <linearGradient id=${gradId} x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stop-color="var(--primary-color)" stop-opacity="0.3" />
@@ -334,30 +385,30 @@ export function buildSparkline(opts: SparklineOpts): SparklineResult {
           stroke="var(--primary-text-color)" stroke-width="0.6"
           stroke-dasharray="2,2" opacity="0" pointer-events="none"
         />
-        <circle
-          class="sparkline-hover-dot"
-          cx="0" cy="0" r="3"
-          fill="var(--primary-color)"
-          stroke="var(--card-background-color,#fff)" stroke-width="1.5"
-          opacity="0" pointer-events="none"
-        />
       </svg>
+      ${markerDot}
+      <div class="sparkline-hover-dot" style="opacity:0" aria-hidden="true"></div>
+      </div>
       <div class="sparkline-tooltip" hidden>
         <span class="sparkline-tooltip-time"></span>
         <span class="sparkline-tooltip-price"></span>
       </div>
       <div class="sparkline-labels">
-        <span>
-          <span class="sparkline-minmax-label">${opts.translations.min_label}</span>
-          ${formatPriceShort(dataMin)}
-        </span>
+        ${opts.showMinMax
+          ? html`<span>
+              <span class="sparkline-minmax-label">${opts.translations.min_label}</span>
+              ${formatPriceShort(dataMin)}
+            </span>`
+          : nothing}
         <span class="sparkline-period">
           ${opts.translations.last_7_days}${deltaTmpl === nothing ? nothing : html` · ${deltaTmpl}`}
         </span>
-        <span>
-          <span class="sparkline-minmax-label">${opts.translations.max_label}</span>
-          ${formatPriceShort(dataMax)}
-        </span>
+        ${opts.showMinMax
+          ? html`<span>
+              <span class="sparkline-minmax-label">${opts.translations.max_label}</span>
+              ${formatPriceShort(dataMax)}
+            </span>`
+          : nothing}
       </div>
     `;
 
@@ -390,28 +441,53 @@ export function attachSparklineHover(
 ): () => void {
   const noop = (): void => undefined;
   try {
-    const svgEl = container.querySelector<SVGSVGElement>("svg.sparkline");
-    const tooltip = container.querySelector<HTMLElement>(".sparkline-tooltip");
-    if (!svgEl || !tooltip) return noop;
-
-    const line = svgEl.querySelector<SVGLineElement>(".sparkline-hover-line");
-    const dot = svgEl.querySelector<SVGCircleElement>(".sparkline-hover-dot");
-    const timeEl = tooltip.querySelector<HTMLElement>(".sparkline-tooltip-time");
-    const priceEl = tooltip.querySelector<HTMLElement>(".sparkline-tooltip-price");
-    if (!line || !dot || !timeEl || !priceEl) return noop;
-
     type Pt = { t: number; v: number; x: number; y: number };
-    let pts: Pt[];
-    try {
-      pts = JSON.parse(svgEl.dataset.points || "[]") as Pt[];
-    } catch {
-      pts = [];
-    }
-    if (!pts.length) return noop;
+    type Ctx = {
+      svgEl: SVGSVGElement;
+      line: SVGLineElement;
+      dot: HTMLElement;
+      tooltip: HTMLElement;
+      timeEl: HTMLElement;
+      priceEl: HTMLElement;
+      pts: Pt[];
+      vbWidth: number;
+      vbHeight: number;
+    };
 
-    const vbWidth = Number(svgEl.dataset.width) || 280;
+    // Re-resolve every DOM ref + the points array on every event call.
+    // Closure-captured refs can go stale: Lit may swap inner nodes on
+    // re-render, history fetch updates dataset.points, and a transient
+    // empty-history blip used to leave the listeners pointing at dead
+    // refs. Re-resolving here makes the hover survive any such churn.
+    const lookup = (): Ctx | null => {
+      const svgEl = container.querySelector<SVGSVGElement>("svg.sparkline");
+      const tooltip = container.querySelector<HTMLElement>(".sparkline-tooltip");
+      if (!svgEl || !tooltip) return null;
+      const line = svgEl.querySelector<SVGLineElement>(".sparkline-hover-line");
+      // Hover dot lives OUTSIDE the SVG as an HTML overlay (sibling of
+      // svg.sparkline inside .sparkline-svg-wrap). Same reason as the
+      // cheapest-refill marker — preserveAspectRatio="none" on the SVG
+      // squashes any inner <circle> into an oval on wide cards.
+      const dot = container.querySelector<HTMLElement>(".sparkline-hover-dot");
+      const timeEl = tooltip.querySelector<HTMLElement>(".sparkline-tooltip-time");
+      const priceEl = tooltip.querySelector<HTMLElement>(".sparkline-tooltip-price");
+      if (!line || !dot || !timeEl || !priceEl) return null;
+      let pts: Pt[];
+      try {
+        pts = JSON.parse(svgEl.dataset.points || "[]") as Pt[];
+      } catch {
+        pts = [];
+      }
+      if (!pts.length) return null;
+      const vbWidth = Number(svgEl.dataset.width) || 280;
+      const vbHeight = Number(svgEl.dataset.height) || 64;
+      return { svgEl, line, dot, tooltip, timeEl, priceEl, pts, vbWidth, vbHeight };
+    };
 
     const show = (clientX: number): void => {
+      const ctx = lookup();
+      if (!ctx) return;
+      const { svgEl, line, dot, tooltip, timeEl, priceEl, pts, vbWidth, vbHeight } = ctx;
       const rect = svgEl.getBoundingClientRect();
       if (rect.width === 0) return;
       const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
@@ -428,9 +504,11 @@ export function attachSparklineHover(
       line.setAttribute("x1", String(best.x));
       line.setAttribute("x2", String(best.x));
       line.setAttribute("opacity", "0.5");
-      dot.setAttribute("cx", String(best.x));
-      dot.setAttribute("cy", String(best.y));
-      dot.setAttribute("opacity", "1");
+      // HTML overlay — position via percentage so the dot tracks the
+      // data point regardless of the SVG's actual rendered width.
+      dot.style.left = `${(best.x / vbWidth) * 100}%`;
+      dot.style.top = `${(best.y / vbHeight) * 100}%`;
+      dot.style.opacity = "1";
 
       timeEl.textContent = opts.formatTime(best.t);
       priceEl.textContent = opts.formatPrice(best.v);
@@ -446,30 +524,32 @@ export function attachSparklineHover(
     };
 
     const hide = (): void => {
-      line.setAttribute("opacity", "0");
-      dot.setAttribute("opacity", "0");
-      tooltip.hidden = true;
+      const ctx = lookup();
+      if (!ctx) return;
+      ctx.line.setAttribute("opacity", "0");
+      ctx.dot.style.opacity = "0";
+      ctx.tooltip.hidden = true;
     };
 
-    // Attach to the SVG element directly — HA's Lovelace DOM swallows
-    // mousemove bubbling between svg and container in practice.
-    const onMove = (e: MouseEvent): void => show(e.clientX);
-    const onTouch = (e: TouchEvent): void => {
-      if (e.touches[0]) show(e.touches[0].clientX);
-    };
-
-    svgEl.addEventListener("mousemove", onMove);
-    svgEl.addEventListener("mouseleave", hide);
-    svgEl.addEventListener("touchstart", onTouch, { passive: true });
-    svgEl.addEventListener("touchmove", onTouch, { passive: true });
-    svgEl.addEventListener("touchend", hide);
+    // Listen on the container, not the inner svgEl. The container is
+    // the .sparkline-container element rendered by the card's template
+    // — it survives Lit re-renders that swap the inner SVG, so the
+    // listeners can't be left dangling on a detached node. Pointer
+    // events handle mouse + pen + touch uniformly.
+    //
+    // AbortController-based cleanup so the parent card's
+    // _reattachSparklineHover() can call cleanup-then-attach
+    // idempotently — the second attach gets its own controller and
+    // listener pair, no double-binding.
+    const ac = new AbortController();
+    const { signal } = ac;
+    const onPointerMove = (e: PointerEvent): void => show(e.clientX);
+    container.addEventListener("pointermove", onPointerMove, { signal });
+    container.addEventListener("pointerleave", hide, { signal });
+    container.addEventListener("pointercancel", hide, { signal });
 
     return (): void => {
-      svgEl.removeEventListener("mousemove", onMove);
-      svgEl.removeEventListener("mouseleave", hide);
-      svgEl.removeEventListener("touchstart", onTouch);
-      svgEl.removeEventListener("touchmove", onTouch);
-      svgEl.removeEventListener("touchend", hide);
+      ac.abort();
     };
   } catch (err) {
     // eslint-disable-next-line no-console

@@ -108,8 +108,14 @@ async def test_sensor_state_is_cheapest_price(hass: HomeAssistant) -> None:
     assert float(state.state) == pytest.approx(1.459)
 
 
-async def test_sensor_state_unavailable_when_no_data(hass: HomeAssistant) -> None:
-    """Sensor is unavailable when coordinator returns no stations."""
+async def test_sensor_state_unknown_when_no_stations(hass: HomeAssistant) -> None:
+    """When the coordinator returns an empty station list, sensor.state == 'unknown'.
+
+    HA renders ``native_value is None`` as the literal state ``"unknown"``
+    — distinct from ``"unavailable"`` (which would require the coordinator
+    itself to be down). This test guards the empty-list branch in
+    ``TankstellenSensor.native_value``.
+    """
     entry = MockConfigEntry(domain=DOMAIN, data=BASE_ENTRY_DATA, options={}, title="Test")
     entry.add_to_hass(hass)
 
@@ -240,6 +246,90 @@ async def test_sensor_payment_methods_parsed(hass: HomeAssistant) -> None:
     assert pm["debit_card"] is True
     assert pm["credit_card"] is False
     assert pm["others"] == ["Austrocard", "UTA"]
+
+
+# ---------------------------------------------------------------------------
+# Defensive payload parsing — _extract_price + warn-once drift logging
+# ---------------------------------------------------------------------------
+
+
+def test_extract_price_handles_malformed_payloads() -> None:
+    """``_extract_price`` returns None for every shape we've seen drift to.
+
+    The card and sensor both blow up if an unexpected shape slips through,
+    so the helper is the single place we tolerate API drift. Any new
+    shape added here must keep ``native_value`` returning ``None`` rather
+    than raising.
+    """
+    from custom_components.tankstellen_austria.sensor import _extract_price
+
+    assert _extract_price(None) is None
+    assert _extract_price("not a dict") is None
+    assert _extract_price({}) is None
+    assert _extract_price({"prices": None}) is None
+    assert _extract_price({"prices": []}) is None
+    assert _extract_price({"prices": "scalar"}) is None
+    assert _extract_price({"prices": ["not-a-dict"]}) is None
+    assert _extract_price({"prices": [{}]}) is None
+    assert _extract_price({"prices": [{"amount": None}]}) is None
+    assert _extract_price({"prices": [{"amount": "abc"}]}) is None
+    # Happy path still works.
+    assert _extract_price({"prices": [{"amount": 1.5}]}) == 1.5
+    # Numeric-string amount is coerced — the API has been seen to send "1,499"-
+    # style values in some locales, but plain numeric strings should still parse.
+    assert _extract_price({"prices": [{"amount": "1.5"}]}) == 1.5
+
+
+async def test_sensor_warns_once_on_price_drift(
+    hass: HomeAssistant, caplog: pytest.LogCaptureFixture
+) -> None:
+    """First malformed payload emits WARNING; subsequent ones drop to DEBUG.
+
+    Without this guard, an upstream shape change could either flood the
+    log with WARNINGs (one per refresh) or stay completely silent. The
+    warn-once-then-debug pattern is the integration's contract.
+    """
+    bad_station = {
+        "id": 99,
+        "name": "Bad Payload",
+        "open": True,
+        "location": {},
+        "prices": [{"amount": "not-a-number"}],
+        "openingHours": [],
+    }
+    entry = MockConfigEntry(domain=DOMAIN, data=BASE_ENTRY_DATA, options={}, title="Test")
+    entry.add_to_hass(hass)
+
+    with patch(
+        "custom_components.tankstellen_austria.coordinator.TankstellenCoordinator._fetch",
+        new_callable=AsyncMock,
+        return_value=[bad_station],
+    ):
+        await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+        # Re-read native_value once more to fire a second access.
+        coordinator = entry.runtime_data
+        from custom_components.tankstellen_austria.sensor import TankstellenSensor
+
+        sensor = next(
+            e for e in hass.data["entity_components"]["sensor"].entities  # type: ignore[attr-defined]
+            if isinstance(e, TankstellenSensor)
+        )
+        caplog.clear()
+        with caplog.at_level("DEBUG"):
+            _ = sensor.native_value
+            _ = sensor.native_value
+
+        warnings = [r for r in caplog.records if r.levelname == "WARNING"]
+        debugs = [r for r in caplog.records if r.levelname == "DEBUG"]
+        # First attempt happened during setup → already warned. Both
+        # subsequent reads must NOT emit WARNING (they may emit DEBUG).
+        assert len(warnings) == 0
+        assert any("unexpected API payload shape" in r.message for r in debugs)
+        # Coordinator presence is a sanity check — keeps the test
+        # readable and asserts setup actually wired up runtime_data.
+        assert coordinator is not None
 
 
 async def test_sensor_payment_methods_missing(hass: HomeAssistant) -> None:

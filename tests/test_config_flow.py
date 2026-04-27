@@ -129,6 +129,9 @@ async def test_options_flow_updates(hass: HomeAssistant, mock_fetch) -> None:
     assert entry.options[CONF_FUEL_TYPES] == ["DIE"]
     assert entry.options[CONF_SCAN_INTERVAL] == 60
     assert entry.options[CONF_INCLUDE_CLOSED] is False
+    # Drain the reload task spawned by the update listener so its
+    # coordinator first-refresh completes before fixture teardown.
+    await hass.async_block_till_done()
 
 
 async def test_form_cannot_connect(hass: HomeAssistant) -> None:
@@ -286,6 +289,9 @@ async def test_reconfigure_updates_entry_data_and_keeps_unique_id(
     assert refreshed.data[CONF_FUEL_TYPES] == ["DIE"]
     assert refreshed.data[CONF_SCAN_INTERVAL] == 60
     assert refreshed.data[CONF_INCLUDE_CLOSED] is False
+    # Drain the reload task spawned by async_update_reload_and_abort so
+    # its coordinator first-refresh completes before fixture teardown.
+    await hass.async_block_till_done()
 
 
 async def test_reconfigure_cannot_connect(hass: HomeAssistant, mock_fetch) -> None:

@@ -67,6 +67,15 @@ import { cardStyles } from "./styles";
 // element, avoiding a race where HA creates an unregistered element.
 import "./editor";
 
+// E-Control attribution string (§3 attribution practice). Hard-coded as a
+// fallback so the footer stays correct even when a user-built template
+// sensor strips the upstream `attribution` attribute. Mirrors the
+// Ladestellen Austria card.
+const ATTRIBUTION_REQUIRED = "Datenquelle: E-Control";
+
+// Static path mounted by custom_components/tankstellen_austria/__init__.py.
+const E_CONTROL_LOGO_URL = "/tankstellen-austria/e-control_logo.svg";
+
 // Styled console banner for version-mismatch debugging in HA's console.
 console.info(
   `%c  Tankstellen Austria Card  %c  ${localize("common.version")} ${CARD_VERSION}  `,
@@ -108,10 +117,12 @@ export class TankstellenAustriaCard extends LitElement {
     return {
       entities: entities.length ? [entities[0]] : [],
       max_stations: 5,
+      show_index: true,
       show_map_links: true,
       show_opening_hours: true,
       show_payment_methods: true,
       show_history: true,
+      show_minmax: true,
       show_best_refuel: true,
       payment_filter: [],
       payment_highlight_mode: true,
@@ -129,6 +140,7 @@ export class TankstellenAustriaCard extends LitElement {
   @state() private _versionMismatch: string | null = null;
   @state() private _lastManualRefresh = 0;
   @state() private _noNewData = false;
+  @state() private _historyError = false;
   // Incremented by the cooldown interval so the countdown re-renders each
   // second while a refresh is on cooldown. Reactive, but never read —
   // shouldUpdate gates on it via `changed.has("_cooldownTick")`.
@@ -148,6 +160,20 @@ export class TankstellenAustriaCard extends LitElement {
     return 6;
   }
 
+  public getGridOptions(): {
+    columns: number | "full";
+    rows: number | "auto";
+    min_columns: number;
+    min_rows: number;
+  } {
+    return {
+      columns: 12,
+      rows: "auto",
+      min_columns: 6,
+      min_rows: 4,
+    };
+  }
+
   // Fingerprint-based gate. The default `hasConfigOrEntityChanged` only
   // watches a single `config.entity`, which this multi-entity card doesn't
   // have. Re-render on: config change, UI state change, history arrival,
@@ -161,6 +187,7 @@ export class TankstellenAustriaCard extends LitElement {
       changed.has("_activeTab") ||
       changed.has("_expandedStations") ||
       changed.has("_history") ||
+      changed.has("_historyError") ||
       changed.has("_versionMismatch") ||
       changed.has("_lastManualRefresh") ||
       changed.has("_noNewData") ||
@@ -252,9 +279,11 @@ export class TankstellenAustriaCard extends LitElement {
           this._history = { ...this._history, [e.entity_id]: points };
         }),
       );
+      this._historyError = false;
     } catch (err) {
       // eslint-disable-next-line no-console
       console.warn("[Tankstellen Austria] history refresh failed", err);
+      this._historyError = true;
     }
   }
 
@@ -304,7 +333,14 @@ export class TankstellenAustriaCard extends LitElement {
 
   protected render(): TemplateResult {
     if (!this.hass || !this._config) {
-      return html`<ha-card></ha-card>`;
+      return html`
+        <ha-card>
+          <div class="empty" role="status" aria-live="polite">
+            ${this._t("loading")}
+          </div>
+          ${this._renderFooter(undefined)}
+        </ha-card>
+      `;
     }
 
     const entities = this._resolveEntities();
@@ -316,35 +352,124 @@ export class TankstellenAustriaCard extends LitElement {
         <ha-card>
           ${this._renderVersionBanner()}
           <div class="empty">${this._t("no_data")}</div>
+          ${this._renderFooter(undefined)}
         </ha-card>
       `;
     }
 
     const active = entities[activeTab] ?? entities[0];
+    const attribution = active.attributes.attribution;
 
     return html`
       <ha-card>
-        ${this._renderVersionBanner()}
         ${this._renderTabs(entities, activeTab)}
-        ${this._renderHeader(active)}
-        ${this._renderCars(active)}
-        ${this._renderStationList(active, activeTab)}
+        <div class="wrap">
+          ${this._renderVersionBanner()}
+          ${this._historyError
+            ? html`<ha-alert alert-type="warning" role="alert">
+                ${this._t("history_fetch_error")}
+              </ha-alert>`
+            : nothing}
+          <section
+            class="station-section"
+            style="--tankst-accent: var(--primary-color);"
+          >
+            ${this._renderHeader(active)}
+            ${this._renderHero(active)}
+            ${this._renderSparklineBlock(active)}
+            ${this._renderCars(active)}
+          </section>
+          ${this._renderStationList(active, activeTab)}
+        </div>
+        ${this._renderFooter(attribution)}
       </ha-card>
+    `;
+  }
+
+  // E-Control attribution + brand-link footer. Mirrors the Ladestellen
+  // Austria card. When logo_adapt_to_theme is on, the SVG renders as a
+  // theme-following silhouette; otherwise it stays in its native colour.
+  // Suppressed entirely when hide_attribution is true.
+  private _renderFooter(
+    attribution: string | undefined,
+  ): TemplateResult | typeof nothing {
+    if (this._config?.hide_attribution === true) return nothing;
+    const adaptive = this._config?.logo_adapt_to_theme === true;
+    const darkMode = Boolean(
+      (this.hass?.themes as { darkMode?: boolean } | undefined)?.darkMode,
+    );
+    const logoClasses = adaptive
+      ? `brand-logo adaptive ${darkMode ? "adaptive-dark" : "adaptive-light"}`
+      : "brand-logo";
+    const text =
+      attribution && attribution.includes("E-Control")
+        ? attribution
+        : ATTRIBUTION_REQUIRED;
+    return html`
+      <div class="footer">
+        <a
+          class="brand-link"
+          href="https://www.e-control.at/"
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="E-Control"
+          @click=${(ev: Event) => ev.stopPropagation()}
+        >
+          <img
+            class=${logoClasses}
+            src=${E_CONTROL_LOGO_URL}
+            alt="E-Control"
+          />
+        </a>
+        <span class="attribution-text">${text}</span>
+      </div>
     `;
   }
 
   private _renderVersionBanner(): TemplateResult | typeof nothing {
     if (!this._versionMismatch) return nothing;
+    // If the user already clicked reload in this session and the version
+    // we just saw from the backend is still ahead of CARD_VERSION, the
+    // reload didn't pick up the new bundle (likely a stuck SW/CDN cache).
+    // Switch the banner to a stuck-state message so the user isn't
+    // trapped in a reload → banner → reload loop.
+    const reloadTried =
+      typeof sessionStorage !== "undefined" &&
+      sessionStorage.getItem(
+        `tsa-reload-attempted-${this._versionMismatch}`,
+      ) === "1";
+    if (reloadTried) {
+      return html`
+        <div class="version-notice" role="alert" aria-live="assertive">
+          <span>${this._t("version_reload_stuck")}</span>
+          <button
+            class="version-reload-btn"
+            type="button"
+            @click=${this._onDismissVersionBanner}
+          >
+            ${this._t("version_dismiss")}
+          </button>
+        </div>
+      `;
+    }
     const msg = this._t("version_update", { v: this._versionMismatch });
     return html`
-      <div class="version-notice">
+      <div class="version-notice" role="alert" aria-live="assertive">
         <span>${msg}</span>
-        <button class="version-reload-btn" @click=${this._onVersionReload}>
+        <button
+          class="version-reload-btn"
+          type="button"
+          @click=${this._onVersionReload}
+        >
           ${this._t("version_reload")}
         </button>
       </div>
     `;
   }
+
+  private _onDismissVersionBanner = (): void => {
+    this._versionMismatch = null;
+  };
 
   private _renderTabs(
     entities: TankstellenEntity[],
@@ -353,7 +478,7 @@ export class TankstellenAustriaCard extends LitElement {
     if (entities.length <= 1) return nothing;
     const customLabels: Record<string, string> = this._config.tab_labels ?? {};
     return html`
-      <div class="tabs">
+      <div class="tabs" role="tablist">
         ${entities.map((e, i) => {
           const custom = customLabels[e.entity_id];
           let label: string;
@@ -371,10 +496,17 @@ export class TankstellenAustriaCard extends LitElement {
               if (trackerName) label += ` · ${trackerName}`;
             }
           }
+          const selected = i === activeTab;
           return html`
             <button
-              class=${classMap({ tab: true, active: i === activeTab })}
+              type="button"
+              role="tab"
+              class=${classMap({ tab: true, active: selected })}
+              aria-selected=${selected ? "true" : "false"}
+              tabindex=${selected ? "0" : "-1"}
               @click=${() => this._onTabClick(i)}
+              @keydown=${(ev: KeyboardEvent) =>
+                this._onTabKeydown(ev, i, entities.length)}
             >
               ${label}
             </button>
@@ -387,56 +519,72 @@ export class TankstellenAustriaCard extends LitElement {
   private _renderHeader(
     active: TankstellenEntity,
   ): TemplateResult | typeof nothing {
-    const stations: Station[] = active.attributes.stations ?? [];
-    if (!stations.length) return nothing;
-
+    if (this._config?.hide_header === true) return nothing;
     const fuelType = active.attributes.fuel_type ?? "";
     const fuelTypeName =
       active.attributes.fuel_type_name || getFuelName(fuelType, this._ctx());
-    const avgPrice = active.attributes.average_price;
-    const cheapest = stations[0]?.price;
     const isDynamic = active.attributes.dynamic_mode === true;
-    const showHistory = this._config.show_history !== false;
+
+    let subtitle: string | null = null;
+    if (isDynamic) {
+      const trackerId = active.attributes.dynamic_entity;
+      const trackerName = trackerId
+        ? this.hass.states[trackerId]?.attributes?.friendly_name ||
+          trackerId.split(".")[1]
+        : null;
+      subtitle = trackerName ?? null;
+    }
 
     return html`
-      <div class="card-header">
-        <div class="header-top">
-          <div class="fuel-label">
-            <ha-icon icon="mdi:gas-station" class="fuel-icon"></ha-icon>
-            <span>${fuelTypeName}</span>
-          </div>
-          ${isDynamic
-            ? this._renderDynamicHeader(active)
-            : html`
-                <div class="header-prices">
-                  <div class="header-price-item">
-                    <span class="header-price-label">${this._t("cheapest")}</span>
-                    <span class="header-price-value">${formatPrice(cheapest)}</span>
-                  </div>
-                  ${avgPrice != null
-                    ? html`
-                        <div class="header-price-item">
-                          <span class="header-price-label">${this._t("average")}</span>
-                          <span class="header-price-value avg">${formatPrice(avgPrice)}</span>
-                        </div>
-                      `
-                    : nothing}
-                </div>
-              `}
+      <header class="header">
+        <div class="icon-tile" aria-hidden="true">
+          <ha-icon icon="mdi:gas-station"></ha-icon>
         </div>
-        ${showHistory && !isDynamic ? this._renderSparkline(active) : nothing}
+        <div class="header-text">
+          <h2 class="title">${fuelTypeName}</h2>
+          ${subtitle
+            ? html`<p class="subtitle">${subtitle}</p>`
+            : nothing}
+        </div>
+        ${isDynamic
+          ? html`
+              <div class="header-actions">
+                ${this._renderRefreshButton()}
+                ${this._renderDynamicChips(active)}
+              </div>
+            `
+          : nothing}
+      </header>
+    `;
+  }
+
+  private _renderDynamicChips(
+    active: TankstellenEntity,
+  ): TemplateResult | typeof nothing {
+    const hasLastUpdated = !!active.last_updated;
+    if (!hasLastUpdated && !this._noNewData) return nothing;
+    return html`
+      <div class="chip-row" aria-live="polite">
+        ${hasLastUpdated
+          ? html`<span class="chip muted">
+              <ha-icon icon="mdi:clock-outline" aria-hidden="true"></ha-icon>
+              <ha-relative-time
+                .hass=${this.hass}
+                .datetime=${new Date(active.last_updated as string)}
+              ></ha-relative-time>
+            </span>`
+          : nothing}
+        ${this._noNewData
+          ? html`<span class="chip warn" role="status">
+              <ha-icon icon="mdi:alert-circle-outline" aria-hidden="true"></ha-icon>
+              ${this._t("no_new_data")}
+            </span>`
+          : nothing}
       </div>
     `;
   }
 
-  private _renderDynamicHeader(active: TankstellenEntity): TemplateResult {
-    const lastUpdated = active.last_updated
-      ? new Date(active.last_updated).toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-        })
-      : "";
-
+  private _renderRefreshButton(): TemplateResult {
     const remainingMs =
       DYNAMIC_MANUAL_COOLDOWN_MS - (Date.now() - this._lastManualRefresh);
     const cooling = remainingMs > 0;
@@ -448,24 +596,63 @@ export class TankstellenAustriaCard extends LitElement {
       : "";
 
     return html`
-      <div class="dynamic-meta">
-        <div class="dynamic-meta-inner">
-          ${lastUpdated
-            ? html`<span class="last-updated">${this._t("last_updated")} ${lastUpdated}</span>`
-            : nothing}
-          ${this._noNewData
-            ? html`<span class="no-new-data">${this._t("no_new_data")}</span>`
-            : nothing}
-        </div>
-      </div>
       <button
-        class=${classMap({ "refresh-btn": true, cooling })}
+        class=${classMap({ "btn-primary": true, cooling })}
+        type="button"
+        aria-label=${this._t("refresh")}
+        aria-disabled=${cooling ? "true" : "false"}
         @click=${this._onRefresh}
       >
-        <ha-icon icon="mdi:refresh" class="refresh-icon"></ha-icon>
-        ${cooling ? countdownText : this._t("refresh")}
+        <ha-icon icon="mdi:refresh" aria-hidden="true"></ha-icon>
+        <span>${cooling ? countdownText : this._t("refresh")}</span>
       </button>
     `;
+  }
+
+  private _renderHero(
+    active: TankstellenEntity,
+  ): TemplateResult | typeof nothing {
+    const stations: Station[] = active.attributes.stations ?? [];
+    if (!stations.length) return nothing;
+
+    const isDynamic = active.attributes.dynamic_mode === true;
+    const cheapest = stations[0]?.price;
+    const avgPrice = active.attributes.average_price;
+
+    // Dynamic mode: no hero metric (last-updated + no_new_data chips
+    // live next to the refresh button in the header).
+    if (isDynamic) return nothing;
+
+    // User-suppressed hero (hide_header_price toggle).
+    if (this._config.hide_header_price === true) return nothing;
+
+    // Static-mode hero: stacked metric (cheapest large, "/ avg" small,
+    // UPPERCASE label below).
+    if (cheapest == null) return nothing;
+    return html`
+      <div class="hero">
+        <div class="metric">
+          <div class="metric-value">
+            <span class="metric-num">${formatPrice(cheapest)}</span>
+            ${avgPrice != null
+              ? html`<span class="metric-of"
+                  >/ ${formatPrice(avgPrice)} ${this._t("average")}</span
+                >`
+              : nothing}
+          </div>
+          <div class="metric-label">${this._t("cheapest")}</div>
+        </div>
+      </div>
+    `;
+  }
+
+  private _renderSparklineBlock(
+    active: TankstellenEntity,
+  ): TemplateResult | typeof nothing {
+    const isDynamic = active.attributes.dynamic_mode === true;
+    if (isDynamic) return nothing;
+    if (this._config.show_history === false) return nothing;
+    return this._renderSparkline(active);
   }
 
   private _renderSparkline(
@@ -478,6 +665,7 @@ export class TankstellenAustriaCard extends LitElement {
     const showMedianLine = this._config.show_median_line === true;
     const showHourEnvelope = this._config.show_hour_envelope === true;
     const showNoonMarkers = this._config.show_noon_markers === true;
+    const showMinMax = this._config.show_minmax !== false;
     const envelope: HourlyEnvelope | null = showHourEnvelope
       ? buildHourlyEnvelope(points)
       : null;
@@ -490,6 +678,7 @@ export class TankstellenAustriaCard extends LitElement {
       showMedianLine,
       showHourEnvelope,
       showNoonMarkers,
+      showMinMax,
       hourEnvelope: envelope,
       analysis,
       translations: {
@@ -499,6 +688,8 @@ export class TankstellenAustriaCard extends LitElement {
         median_delta_below: this._t("median_delta_below"),
         median_delta_above: this._t("median_delta_above"),
         median_delta_equal: this._t("median_delta_equal"),
+        sparkline_aria_summary: this._t("sparkline_aria_summary"),
+        sparkline_aria_simple: this._t("sparkline_aria_simple"),
       },
     });
     if (result.template === nothing) return nothing;
@@ -507,7 +698,16 @@ export class TankstellenAustriaCard extends LitElement {
       <div
         class="sparkline-container"
         data-entity=${entityId}
+        role="button"
+        tabindex="0"
+        aria-label=${this._t("sparkline_open_more_info")}
         @click=${() => this._onSparklineClick(entityId)}
+        @keydown=${(ev: KeyboardEvent) => {
+          if (ev.key === "Enter" || ev.key === " ") {
+            ev.preventDefault();
+            this._onSparklineClick(entityId);
+          }
+        }}
       >
         ${result.template}
         ${this._renderRecommendation(analysis)}
@@ -522,7 +722,7 @@ export class TankstellenAustriaCard extends LitElement {
     if (!analysis.hasEnoughData) {
       return html`
         <div class="refuel-hint">
-          <ha-icon icon="mdi:information-outline" class="refuel-icon"></ha-icon>
+          <ha-icon icon="mdi:information-outline" class="refuel-icon" aria-hidden="true"></ha-icon>
           ${this._t("not_enough_data_hint")}
         </div>
       `;
@@ -544,7 +744,7 @@ export class TankstellenAustriaCard extends LitElement {
     if (!c) {
       return html`
         <div class="refuel-recommendation">
-          <ha-icon icon="mdi:lightbulb-outline" class="refuel-icon"></ha-icon>
+          <ha-icon icon="mdi:lightbulb-outline" class="refuel-icon" aria-hidden="true"></ha-icon>
           <span class="refuel-text">${text}</span>
         </div>
       `;
@@ -563,11 +763,22 @@ export class TankstellenAustriaCard extends LitElement {
     const tooltip = escHtml(tooltipLines.join("\n"));
     const badgeClass = `refuel-confidence refuel-confidence-${c.level}`;
 
+    const badgeAriaLabel = [
+      `${this._t("confidence_title")}: ${levelLabel}`,
+      `${this._t("confidence_span")}: ${c.span_days} ${this._t("confidence_days")}`,
+      `${this._t("confidence_coverage")}: ${c.coverage_pct}%`,
+      `${this._t("confidence_gap")}: ${c.gap_cents.toFixed(1)} ${this._t("confidence_cents")}`,
+    ].join(". ");
+
     return html`
       <div class="refuel-recommendation">
-        <ha-icon icon="mdi:lightbulb-outline" class="refuel-icon"></ha-icon>
+        <ha-icon icon="mdi:lightbulb-outline" class="refuel-icon" aria-hidden="true"></ha-icon>
         <span class="refuel-text">${text}</span>
-        <span class=${badgeClass} title=${tooltip}>${levelLabel}</span>
+        <span
+          class=${badgeClass}
+          title=${tooltip}
+          aria-label=${badgeAriaLabel}
+        >${levelLabel}</span>
       </div>
     `;
   }
@@ -636,7 +847,7 @@ export class TankstellenAustriaCard extends LitElement {
       return html`
         <div class="car-fillup-row">
           <span class="car-fillup-name">
-            <ha-icon icon=${car.icon || "mdi:car"} class="car-icon"></ha-icon>
+            <ha-icon icon=${car.icon || "mdi:car"} class="car-icon" aria-hidden="true"></ha-icon>
             ${car.name}
             <span class="car-fillup-liters">${car.tank_size} L</span>
           </span>
@@ -661,7 +872,7 @@ export class TankstellenAustriaCard extends LitElement {
     return html`
       <div class="car-fillup-row">
         <span class="car-fillup-name">
-          <ha-icon icon=${car.icon || "mdi:car"} class="car-icon"></ha-icon>
+          <ha-icon icon=${car.icon || "mdi:car"} class="car-icon" aria-hidden="true"></ha-icon>
           ${car.name}
           <span class="car-fillup-liters">${consumptionStr} l/100 km</span>
         </span>
@@ -717,6 +928,7 @@ export class TankstellenAustriaCard extends LitElement {
     paymentFilter: readonly string[],
     highlightMode: boolean,
   ): TemplateResult {
+    const showIndex = this._config.show_index !== false;
     const showMapLinks = this._config.show_map_links !== false;
     const showHours = this._config.show_opening_hours !== false;
     const showPayment = this._config.show_payment_methods !== false;
@@ -743,52 +955,93 @@ export class TankstellenAustriaCard extends LitElement {
     const hasPaymentBlock = showPayment && hasPaymentMethods(s.payment_methods);
     const hasDetail = hasHoursBlock || hasPaymentBlock;
 
+    const rowLabel = [
+      s.name || "–",
+      loc.city ?? "",
+      formatPrice(s.price),
+    ]
+      .filter(Boolean)
+      .join(", ");
+    const detailId = hasDetail ? `tsa-station-detail-${activeTab}-${idx}` : undefined;
+    const hasName = !!s.name;
+    const cityText = loc.city ?? "";
+    const addressText = loc.address ?? "";
     return html`
       <div class=${classMap({ station: true, "pm-highlight": highlighted })}>
         <div
           class="station-main"
+          role=${hasDetail ? "button" : "group"}
+          tabindex=${hasDetail ? "0" : "-1"}
+          aria-expanded=${hasDetail ? (isExpanded ? "true" : "false") : nothing}
+          aria-controls=${detailId ?? nothing}
+          aria-label=${rowLabel}
           @click=${() => this._onStationClick(key)}
+          @keydown=${(ev: KeyboardEvent) =>
+            this._onStationKeydown(ev, key, hasDetail)}
         >
-          <div class="rank">${idx + 1}</div>
+          ${showIndex
+            ? html`<div class="index-tile" aria-hidden="true">${idx + 1}</div>`
+            : nothing}
           <div class="info">
             <div class="name">
-              ${s.name || "–"}
+              ${hasName
+                ? html`<span lang="de">${s.name}</span>`
+                : "–"}
               ${isClosed
-                ? html`<span class="badge closed">${this._t("closed")}</span>`
+                ? html`<span class="flag closed">${this._t("closed")}</span>`
                 : isClosingSoonFlag
-                  ? html`<span class="badge closing-soon">${this._t("closing_soon")}</span>`
+                  ? html`<span class="flag closing-soon"
+                      >${this._t("closing_soon")}</span
+                    >`
                   : nothing}
               ${matchChips.map(
-                (m) => html`<span class="pm-match-chip">${m}</span>`,
+                (m) => html`<span class="chip match">${m}</span>`,
               )}
             </div>
             <div class="address">
-              ${loc.postalCode ?? ""} ${loc.city ?? ""},
-              ${loc.address ?? ""}
+              ${loc.postalCode ?? ""}${cityText
+                ? html` <span lang="de">${cityText}</span>`
+                : nothing},
+              ${addressText
+                ? html`<span lang="de">${addressText}</span>`
+                : nothing}
             </div>
           </div>
           <div class="price">${formatPrice(s.price)}</div>
           ${showMapLinks
             ? html`
                 <a
-                  class="map-link"
+                  class="icon-action map"
                   href=${mapsUrl(loc, s.name ?? "")}
                   target="_blank"
                   rel="noopener noreferrer"
+                  aria-label=${`${this._t("map")}: ${s.name ?? ""}`}
                   title=${this._t("map")}
                   @click=${this._onMapLinkClick}
                 >
                   <ha-icon
-                    icon=${/\d/.test(loc.address ?? "") ? "mdi:map-marker" : "mdi:magnify"}
-                    class="map-icon"
+                    icon=${/\d/.test(loc.address ?? "")
+                      ? "mdi:map-marker"
+                      : "mdi:magnify"}
+                    aria-hidden="true"
                   ></ha-icon>
                 </a>
               `
             : nothing}
+          ${hasDetail
+            ? html`<ha-icon
+                class="expander-chevron"
+                icon="mdi:chevron-down"
+                aria-hidden="true"
+              ></ha-icon>`
+            : nothing}
         </div>
         ${hasDetail
           ? html`
-              <div class=${classMap({ "station-detail": true, expanded: isExpanded })}>
+              <div
+                id=${detailId!}
+                class=${classMap({ "station-detail": true, expanded: isExpanded })}
+              >
                 <div class="detail-cols">
                   ${hasHoursBlock
                     ? html`<div class="detail-col">${this._renderHours(s.opening_hours ?? [])}</div>`
@@ -837,7 +1090,7 @@ export class TankstellenAustriaCard extends LitElement {
     if (pm.cash) {
       badges.push(html`
         <span class="pm-badge">
-          <ha-icon icon="mdi:cash" class="pm-icon"></ha-icon>
+          <ha-icon icon="mdi:cash" class="pm-icon" aria-hidden="true"></ha-icon>
           ${this._t("cash")}
         </span>
       `);
@@ -845,7 +1098,7 @@ export class TankstellenAustriaCard extends LitElement {
     if (pm.debit_card) {
       badges.push(html`
         <span class="pm-badge">
-          <ha-icon icon="mdi:credit-card" class="pm-icon"></ha-icon>
+          <ha-icon icon="mdi:credit-card" class="pm-icon" aria-hidden="true"></ha-icon>
           ${this._t("debit_card")}
         </span>
       `);
@@ -853,7 +1106,7 @@ export class TankstellenAustriaCard extends LitElement {
     if (pm.credit_card) {
       badges.push(html`
         <span class="pm-badge">
-          <ha-icon icon="mdi:credit-card" class="pm-icon"></ha-icon>
+          <ha-icon icon="mdi:credit-card" class="pm-icon" aria-hidden="true"></ha-icon>
           ${this._t("credit_card")}
         </span>
       `);
@@ -879,11 +1132,53 @@ export class TankstellenAustriaCard extends LitElement {
     this._expandedStations = new Set();
   }
 
+  // WAI-ARIA tab pattern: arrow keys move focus and activate; Home/End
+  // jump to the first/last tab. After switching we focus the newly-active
+  // tab so keyboard users see the focus ring follow their selection.
+  private _onTabKeydown(ev: KeyboardEvent, index: number, count: number): void {
+    let next = index;
+    switch (ev.key) {
+      case "ArrowRight":
+        next = (index + 1) % count;
+        break;
+      case "ArrowLeft":
+        next = (index - 1 + count) % count;
+        break;
+      case "Home":
+        next = 0;
+        break;
+      case "End":
+        next = count - 1;
+        break;
+      default:
+        return;
+    }
+    ev.preventDefault();
+    this._onTabClick(next);
+    this.updateComplete.then(() => {
+      const tabs = this.shadowRoot?.querySelectorAll<HTMLButtonElement>(
+        '.tabs [role="tab"]',
+      );
+      tabs?.[next]?.focus();
+    });
+  }
+
   private _onStationClick(key: string): void {
     const next = new Set(this._expandedStations);
     if (next.has(key)) next.delete(key);
     else next.add(key);
     this._expandedStations = next;
+  }
+
+  private _onStationKeydown(
+    ev: KeyboardEvent,
+    key: string,
+    hasDetail: boolean,
+  ): void {
+    if (!hasDetail) return;
+    if (ev.key !== "Enter" && ev.key !== " ") return;
+    ev.preventDefault();
+    this._onStationClick(key);
   }
 
   private _onMapLinkClick(e: Event): void {
@@ -942,22 +1237,47 @@ export class TankstellenAustriaCard extends LitElement {
       }
     }, 3000);
 
-    // Per-second re-render so the countdown stays live.
+    // Per-second re-render so the countdown stays live. Skipped when the
+    // user prefers reduced motion — WCAG 2.2.2 (animation > 5s needs a way
+    // to pause); a single wake-up at the end of the cooldown is enough.
     if (this._cooldownInterval !== undefined) {
       clearInterval(this._cooldownInterval);
     }
-    this._cooldownInterval = window.setInterval(() => {
-      if (Date.now() - this._lastManualRefresh >= DYNAMIC_MANUAL_COOLDOWN_MS) {
-        if (this._cooldownInterval !== undefined) {
-          clearInterval(this._cooldownInterval);
-          this._cooldownInterval = undefined;
+    const reduceMotion =
+      typeof window !== "undefined" &&
+      typeof window.matchMedia === "function" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduceMotion) {
+      window.setTimeout(() => {
+        this._cooldownTick = (this._cooldownTick + 1) % 1_000_000;
+      }, DYNAMIC_MANUAL_COOLDOWN_MS);
+    } else {
+      this._cooldownInterval = window.setInterval(() => {
+        if (Date.now() - this._lastManualRefresh >= DYNAMIC_MANUAL_COOLDOWN_MS) {
+          if (this._cooldownInterval !== undefined) {
+            clearInterval(this._cooldownInterval);
+            this._cooldownInterval = undefined;
+          }
         }
-      }
-      this._cooldownTick = (this._cooldownTick + 1) % 1_000_000;
-    }, 1000);
+        this._cooldownTick = (this._cooldownTick + 1) % 1_000_000;
+      }, 1000);
+    }
   }
 
   private async _onVersionReload(): Promise<void> {
+    // Flag this target version as "user tried reload" before the page
+    // unloads, so on re-render the banner flips to the stuck-state
+    // variant instead of a second reload button.
+    if (this._versionMismatch) {
+      try {
+        sessionStorage.setItem(
+          `tsa-reload-attempted-${this._versionMismatch}`,
+          "1",
+        );
+      } catch {
+        // sessionStorage can be disabled in private browsing — fall through.
+      }
+    }
     try {
       if (typeof window !== "undefined" && "caches" in window) {
         const keys = await caches.keys();

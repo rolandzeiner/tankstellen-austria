@@ -1,10 +1,11 @@
 """Shared pytest fixtures for Tankstellen Austria tests."""
 from pathlib import Path
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
+import aiohttp
 import pytest
 
-pytest_plugins = "pytest_homeassistant_custom_component"
+pytest_plugins = ["pytest_homeassistant_custom_component"]
 
 # Test fixtures use the coordinates of the Friedhof der Namenlosen in Vienna.
 MOCK_STATION = {
@@ -25,9 +26,18 @@ def auto_enable_custom_integrations(enable_custom_integrations):
 
 @pytest.fixture(autouse=True)
 def mock_aiohttp_session():
-    """Mock the aiohttp session to prevent pycares DNS from starting its background thread."""
+    """Replace the aiohttp session factory with a typed MagicMock.
+
+    Prevents pycares DNS from starting its background thread for every
+    test. Returning a ``MagicMock(spec=aiohttp.ClientSession)`` rather
+    than a bare MagicMock makes attribute typos surface during testing
+    instead of producing more MagicMocks silently.
+    """
+    fake_session = MagicMock(spec=aiohttp.ClientSession)
+    fake_session.get = AsyncMock()
     with patch(
         "custom_components.tankstellen_austria.coordinator.async_get_clientsession",
+        return_value=fake_session,
     ):
         yield
 

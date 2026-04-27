@@ -37,8 +37,17 @@ BASE_DATA = {
 
 
 async def test_diagnostics_redacts_lat_lng(hass: HomeAssistant) -> None:
-    """Home coordinates are redacted from the diagnostics output."""
-    entry = MockConfigEntry(domain=DOMAIN, data=BASE_DATA, options={}, title="Home")
+    """Home coordinates are redacted in both ``data`` and ``options``.
+
+    Asserting both maps catches a regression where TO_REDACT only fires
+    for one of them (e.g. someone forgets to thread the redact through
+    ``options``). Also asserts non-coordinate fields stay untouched so
+    a future overzealous redact set fails this test.
+    """
+    options_with_coords = {CONF_LATITUDE: 47.0, CONF_LONGITUDE: 15.0}
+    entry = MockConfigEntry(
+        domain=DOMAIN, data=BASE_DATA, options=options_with_coords, title="Home"
+    )
     entry.add_to_hass(hass)
 
     with patch(
@@ -53,7 +62,12 @@ async def test_diagnostics_redacts_lat_lng(hass: HomeAssistant) -> None:
 
     assert diag["entry"]["data"][CONF_LATITUDE] == "**REDACTED**"
     assert diag["entry"]["data"][CONF_LONGITUDE] == "**REDACTED**"
+    assert diag["entry"]["options"][CONF_LATITUDE] == "**REDACTED**"
+    assert diag["entry"]["options"][CONF_LONGITUDE] == "**REDACTED**"
+    # Non-coordinate fields must not be redacted.
     assert diag["entry"]["title"] == "Home"
+    assert diag["entry"]["data"][CONF_FUEL_TYPES] == ["DIE", "SUP"]
+    assert diag["entry"]["data"][CONF_INCLUDE_CLOSED] is True
 
 
 async def test_diagnostics_includes_coordinator_state(hass: HomeAssistant) -> None:

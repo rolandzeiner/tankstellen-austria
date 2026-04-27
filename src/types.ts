@@ -33,6 +33,7 @@ export interface TankstellenAustriaCardConfig extends LovelaceCardConfig {
 
   max_stations?: number; // 0..5
 
+  show_index?: boolean;
   show_map_links?: boolean;
   show_opening_hours?: boolean;
   show_payment_methods?: boolean;
@@ -41,6 +42,7 @@ export interface TankstellenAustriaCardConfig extends LovelaceCardConfig {
   show_median_line?: boolean;
   show_hour_envelope?: boolean;
   show_noon_markers?: boolean;
+  show_minmax?: boolean;
 
   payment_filter?: string[];
   payment_highlight_mode?: boolean;
@@ -51,6 +53,27 @@ export interface TankstellenAustriaCardConfig extends LovelaceCardConfig {
   show_car_fillup?: boolean;
   show_car_consumption?: boolean;
   cars?: CarConfig[];
+
+  // Hide the hero metric block (cheapest + "/ avg" + UPPERCASE label)
+  // from the header strip. Defaults to false: the hero is visible.
+  // Useful when stations list is the focus and the prices below are
+  // sufficient.
+  hide_header_price?: boolean;
+
+  // Brand-coloured E-Control logo by default. When true, the logo
+  // renders as a theme-adaptive silhouette (black on light themes,
+  // white on dark themes) — same vocabulary as the Ladestellen card.
+  logo_adapt_to_theme?: boolean;
+
+  // Hide the card header (icon-tile + station name + subtitle +
+  // refresh / icon-action cluster). Defaults to false: the header
+  // is visible by default. Useful for stripped-down dashboards.
+  hide_header?: boolean;
+
+  // Hide the attribution footer (logo + "Datenquelle: E-Control"
+  // line). Defaults to false: the footer is visible by default,
+  // matching E-Control §3 attribution practice.
+  hide_attribution?: boolean;
 
   tap_action?: ActionConfig;
   hold_action?: ActionConfig;
@@ -97,6 +120,7 @@ export interface TankstellenEntityAttributes {
   average_price?: number;
   dynamic_mode?: boolean;
   dynamic_entity?: string;
+  attribution?: string;
 }
 
 export interface TankstellenEntity {

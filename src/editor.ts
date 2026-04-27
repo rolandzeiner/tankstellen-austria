@@ -106,6 +106,27 @@ export class TankstellenAustriaCardEditor
         ${this._renderDisplaySection()}
         ${this._renderPaymentSection(apiPmKeys)}
         ${this._renderCarsSection()}
+        ${this._renderBrandingSection()}
+      </div>
+    `;
+  }
+
+  private _renderBrandingSection(): TemplateResult {
+    const adaptLogo = this._config.logo_adapt_to_theme === true;
+    const hideAttr = this._config.hide_attribution === true;
+    return html`
+      <div class="editor-section">
+        <div class="section-header">${this._et("section_branding")}</div>
+        ${this._renderToggle(
+          "logo_adapt_to_theme",
+          this._et("logo_adapt_to_theme"),
+          adaptLogo,
+        )}
+        ${this._renderToggle(
+          "hide_attribution",
+          this._et("hide_attribution"),
+          hideAttr,
+        )}
       </div>
     `;
   }
@@ -151,6 +172,8 @@ export class TankstellenAustriaCardEditor
     return html`
       <button
         class=${classMap({ "entity-chip": true, selected: isSelected })}
+        type="button"
+        aria-pressed=${isSelected ? "true" : "false"}
         @click=${() => this._toggleEntity(eid)}
       >
         <span class="fuel-name">${ftName}</span>
@@ -188,12 +211,15 @@ export class TankstellenAustriaCardEditor
             if (trackerName) defaultLabel += ` · ${trackerName}`;
           }
           const current = typeof labels[eid] === "string" ? labels[eid] : "";
+          const inputId = `tablbl-${eid.replace(/[^a-z0-9_-]/gi, "-")}`;
           return html`
             <div class="tab-label-row">
-              <span class="tab-label-default" title=${defaultLabel}>${defaultLabel}</span>
+              <label class="tab-label-default" for=${inputId} title=${defaultLabel}>${defaultLabel}</label>
               <input
+                id=${inputId}
                 class="tab-label-input"
                 type="text"
+                autocomplete="off"
                 maxlength="50"
                 placeholder=${defaultLabel}
                 .value=${current}
@@ -213,6 +239,9 @@ export class TankstellenAustriaCardEditor
   }
 
   private _renderDisplaySection(): TemplateResult {
+    const hideHeader = this._config.hide_header === true;
+    const hideHeaderPrice = this._config.hide_header_price === true;
+    const showIndex = this._config.show_index !== false;
     const showMap = this._config.show_map_links !== false;
     const showHours = this._config.show_opening_hours !== false;
     const showPayment = this._config.show_payment_methods !== false;
@@ -221,6 +250,7 @@ export class TankstellenAustriaCardEditor
     const showMedianLine = this._config.show_median_line === true;
     const showHourEnvelope = this._config.show_hour_envelope === true;
     const showNoonMarkers = this._config.show_noon_markers === true;
+    const showMinMax = this._config.show_minmax !== false;
     const showCars = this._config.show_cars === true;
 
     const maxStations = this._config.max_stations ?? 5;
@@ -228,6 +258,20 @@ export class TankstellenAustriaCardEditor
     return html`
       <div class="editor-section">
         <div class="section-header">${this._et("section_display")}</div>
+        ${this._renderToggle(
+          "hide_header",
+          this._et("hide_header"),
+          hideHeader,
+        )}
+        <div class="divider"></div>
+        ${this._renderToggle(
+          "hide_header_price",
+          this._et("hide_header_price"),
+          hideHeaderPrice,
+        )}
+        <div class="divider"></div>
+        ${this._renderToggle("show_index", this._et("show_index"), showIndex)}
+        <div class="divider"></div>
         ${this._renderToggle("show_map_links", this._et("show_map_links"), showMap)}
         <div class="divider"></div>
         ${this._renderToggle("show_opening_hours", this._et("show_opening_hours"), showHours)}
@@ -240,6 +284,7 @@ export class TankstellenAustriaCardEditor
               ${this._renderToggle("show_median_line", this._et("show_median_line"), showMedianLine, true)}
               ${this._renderToggle("show_hour_envelope", this._et("show_hour_envelope"), showHourEnvelope, true)}
               ${this._renderToggle("show_noon_markers", this._et("show_noon_markers"), showNoonMarkers, true)}
+              ${this._renderToggle("show_minmax", this._et("show_minmax"), showMinMax, true)}
               ${this._renderToggle("show_best_refuel", this._et("show_best_refuel"), showBestRefuel, true)}
               ${showBestRefuel ? this._renderRecorderHint() : nothing}
             `
@@ -276,10 +321,12 @@ export class TankstellenAustriaCardEditor
     checked: boolean,
     sub = false,
   ): TemplateResult {
+    const switchId = `toggle-${String(field)}`;
     return html`
       <div class=${classMap({ "toggle-row": true, "toggle-row-sub": sub })}>
-        <label>${label}</label>
+        <label for=${switchId}>${label}</label>
         <ha-switch
+          id=${switchId}
           .checked=${checked}
           @change=${(e: Event) => this._onBooleanToggle(field, e)}
         ></ha-switch>
@@ -297,9 +344,10 @@ export class TankstellenAustriaCardEditor
         <button
           class="recorder-copy-btn"
           type="button"
+          aria-label=${this._et("copy_sensor_id")}
           @click=${() => this._onCopyRecorderSnippet(snippet)}
         >
-          <ha-icon icon="mdi:content-copy"></ha-icon>
+          <ha-icon icon="mdi:content-copy" aria-hidden="true"></ha-icon>
           <span class="recorder-copy-label">${label}</span>
         </button>
       </div>
@@ -331,15 +379,17 @@ export class TankstellenAustriaCardEditor
           <ha-textfield
             id="pm-custom-input"
             label=${this._et("payment_filter_custom_placeholder")}
+            autocomplete="off"
             @keydown=${this._onCustomPmKeydown}
             @keyup=${this._stop}
             @keypress=${this._stop}
           ></ha-textfield>
           <ha-icon-button
-            title="+"
+            .label=${this._et("payment_filter_add_custom")}
+            title=${this._et("payment_filter_add_custom")}
             @click=${this._onAddCustomPm}
           >
-            <ha-icon icon="mdi:plus-circle"></ha-icon>
+            <ha-icon icon="mdi:plus-circle" aria-hidden="true"></ha-icon>
           </ha-icon-button>
         </div>
         <div class="editor-hint">${this._et("payment_filter_custom_hint")}</div>
@@ -380,6 +430,8 @@ export class TankstellenAustriaCardEditor
           active: isActive,
           confirm: isPending,
         })}
+        type="button"
+        aria-pressed=${isActive ? "true" : "false"}
         @click=${() => this._togglePaymentChip(key, isCustom)}
       >
         ${isPending ? `✕ ${label}?` : label}
@@ -409,7 +461,11 @@ export class TankstellenAustriaCardEditor
           : nothing}
         <div class="divider"></div>
         ${cars.map((car, idx) => this._renderCarRow(car, idx))}
-        <button class="car-add-btn" @click=${this._onAddCar}>
+        <button
+          class="car-add-btn"
+          type="button"
+          @click=${this._onAddCar}
+        >
           ${this._et("add_car")}
         </button>
       </div>
@@ -419,19 +475,32 @@ export class TankstellenAustriaCardEditor
   private _renderCarRow(car: CarConfig, idx: number): TemplateResult {
     const iconExpanded = this._expandedCarIcon === idx;
     const currentIcon = car.icon || "mdi:car";
+    const pickerId = `tsa-car-icon-picker-${idx}`;
+    const tankInvalid =
+      car.tank_size != null && (car.tank_size < 1 || car.tank_size > 200);
+    const consumptionInvalid =
+      car.consumption != null && (car.consumption < 0 || car.consumption > 30);
+    const tankErrorId = `tsa-car-tank-err-${idx}`;
+    const consumptionErrorId = `tsa-car-consumption-err-${idx}`;
     return html`
       <div class="car-editor-group">
         <div class="car-editor-row">
           <button
             class=${classMap({ "car-icon-btn": true, active: iconExpanded })}
-            title="Choose icon"
+            type="button"
+            aria-label=${this._et("car_choose_icon")}
+            aria-expanded=${iconExpanded ? "true" : "false"}
+            aria-controls=${pickerId}
+            title=${this._et("car_choose_icon")}
             @click=${(e: Event) => this._onToggleIconPicker(e, idx)}
           >
-            <ha-icon icon=${currentIcon}></ha-icon>
+            <ha-icon icon=${currentIcon} aria-hidden="true"></ha-icon>
           </button>
           <input
             class="car-input car-name-input"
             type="text"
+            autocomplete="off"
+            aria-label=${this._et("car_name_placeholder")}
             placeholder=${this._et("car_name_placeholder")}
             .value=${car.name ?? ""}
             @click=${this._stop}
@@ -443,6 +512,7 @@ export class TankstellenAustriaCardEditor
           />
           <select
             class="car-select"
+            aria-label=${this._et("car_fuel_type")}
             @click=${this._stop}
             @pointerdown=${this._stop}
             @change=${(e: Event) => this._onCarFieldChange(idx, "fuel_type", e)}
@@ -460,6 +530,10 @@ export class TankstellenAustriaCardEditor
             type="number"
             min="1"
             max="200"
+            autocomplete="off"
+            aria-label=${this._et("car_tank_placeholder")}
+            aria-invalid=${tankInvalid ? "true" : "false"}
+            aria-describedby=${tankInvalid ? tankErrorId : nothing}
             placeholder=${this._et("car_tank_placeholder")}
             .value=${car.tank_size != null ? String(car.tank_size) : ""}
             @click=${this._stop}
@@ -475,6 +549,10 @@ export class TankstellenAustriaCardEditor
             min="0"
             max="30"
             step="0.1"
+            autocomplete="off"
+            aria-label=${this._et("car_consumption_placeholder")}
+            aria-invalid=${consumptionInvalid ? "true" : "false"}
+            aria-describedby=${consumptionInvalid ? consumptionErrorId : nothing}
             placeholder=${this._et("car_consumption_placeholder")}
             .value=${car.consumption != null ? String(car.consumption) : ""}
             @click=${this._stop}
@@ -486,14 +564,29 @@ export class TankstellenAustriaCardEditor
           />
           <button
             class="car-delete-btn"
+            type="button"
+            aria-label=${this._et("car_delete")}
+            title=${this._et("car_delete")}
             @click=${(e: Event) => this._onDeleteCar(e, idx)}
           >
-            <ha-icon icon="mdi:delete-outline"></ha-icon>
+            <ha-icon icon="mdi:delete-outline" aria-hidden="true"></ha-icon>
           </button>
         </div>
+        ${tankInvalid
+          ? html`<ha-alert
+              id=${tankErrorId}
+              alert-type="error"
+            >${this._et("tank_size_range_error")}</ha-alert>`
+          : nothing}
+        ${consumptionInvalid
+          ? html`<ha-alert
+              id=${consumptionErrorId}
+              alert-type="error"
+            >${this._et("consumption_range_error")}</ha-alert>`
+          : nothing}
         ${iconExpanded
           ? html`
-              <div class="car-icon-picker">
+              <div id=${pickerId} class="car-icon-picker">
                 ${CAR_ICONS.map(
                   (icon) => html`
                     <button
@@ -501,10 +594,13 @@ export class TankstellenAustriaCardEditor
                         "car-icon-option": true,
                         active: currentIcon === icon,
                       })}
+                      type="button"
+                      aria-label=${icon.replace("mdi:", "")}
+                      aria-pressed=${currentIcon === icon ? "true" : "false"}
                       title=${icon.replace("mdi:", "")}
                       @click=${(e: Event) => this._onPickCarIcon(e, idx, icon)}
                     >
-                      <ha-icon icon=${icon}></ha-icon>
+                      <ha-icon icon=${icon} aria-hidden="true"></ha-icon>
                     </button>
                   `,
                 )}
@@ -671,7 +767,11 @@ export class TankstellenAustriaCardEditor
       } else {
         const num = parseFloat(trimmed);
         if (Number.isFinite(num) && num > 0) {
-          next.consumption = Math.min(30, Math.round(num * 10) / 10);
+          // Store user's value as typed (rounded to 0.1). Values outside
+          // 0..30 surface through the aria-invalid + ha-alert pair in
+          // _renderCarRow; clamping here would hide the error from the
+          // user and break 3.3.1 / 3.3.3.
+          next.consumption = Math.round(num * 10) / 10;
         } else {
           delete next.consumption;
         }

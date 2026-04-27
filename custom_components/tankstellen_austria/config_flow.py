@@ -202,6 +202,8 @@ def _compute_unique_id(dynamic_entity: str | None, lat: float, lng: float) -> st
 class TankstellenConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Tankstellen Austria."""
 
+    # Bump + add async_migrate_entry when entry.data shape changes.
+    # Tracks the config-entry schema, NOT the integration release version.
     VERSION = 1
 
     @staticmethod

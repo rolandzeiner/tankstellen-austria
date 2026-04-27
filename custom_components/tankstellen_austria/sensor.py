@@ -34,7 +34,34 @@ def _parse_payment_methods(raw: dict[str, Any] | None) -> dict[str, Any]:
     }
 
 
+# Coordinator drives all updates in a single fan-out; per-platform parallelism
+# limit is unnecessary and would only constrain HA's state-write throughput.
 PARALLEL_UPDATES = 0
+
+
+def _extract_price(station: Any) -> float | None:
+    """Pull the first-price amount from a station dict, defensively.
+
+    The E-Control payload is mostly stable but the card and sensor both
+    blow up if an unexpected shape slips through (prices is None, the
+    first entry isn't a dict, amount is a string that can't cast). We
+    log once and return None rather than propagate.
+    """
+    if not isinstance(station, dict):
+        return None
+    prices = station.get("prices")
+    if not isinstance(prices, list) or not prices:
+        return None
+    first = prices[0]
+    if not isinstance(first, dict):
+        return None
+    amount = first.get("amount")
+    if amount is None:
+        return None
+    try:
+        return float(amount)
+    except (TypeError, ValueError):
+        return None
 
 
 async def async_setup_entry(
@@ -72,6 +99,7 @@ class TankstellenSensor(CoordinatorEntity[TankstellenCoordinator], SensorEntity)
         super().__init__(coordinator)
         self._fuel_type = fuel_type
         self._entry = entry
+        self._price_drift_warned = False
         self._attr_unique_id = f"{entry.entry_id}_{fuel_type}"
         self._attr_translation_key = f"fuel_{fuel_type.lower()}"
         self._attr_device_info = DeviceInfo(
@@ -88,17 +116,24 @@ class TankstellenSensor(CoordinatorEntity[TankstellenCoordinator], SensorEntity)
         stations = self._stations
         if not stations:
             return None
-        try:
-            amount = stations[0]["prices"][0]["amount"]
-        except (KeyError, IndexError) as err:
-            _LOGGER.debug(
-                "No price for %s: API payload missing expected field (%s: %s)",
-                self.entity_id or self._fuel_type,
-                type(err).__name__,
-                err,
-            )
-            return None
-        return float(amount) if amount is not None else None
+        price = _extract_price(stations[0])
+        if price is None:
+            # First time we see a malformed payload for this entity, surface
+            # it at WARNING so API drift gets noticed; subsequent occurrences
+            # drop to DEBUG so logs don't fill up if the drift persists.
+            if not self._price_drift_warned:
+                self._price_drift_warned = True
+                _LOGGER.warning(
+                    "No price for %s: unexpected API payload shape — "
+                    "suppressing further warnings for this entity",
+                    self.entity_id or self._fuel_type,
+                )
+            else:
+                _LOGGER.debug(
+                    "No price for %s: unexpected API payload shape",
+                    self.entity_id or self._fuel_type,
+                )
+        return price
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
@@ -106,9 +141,9 @@ class TankstellenSensor(CoordinatorEntity[TankstellenCoordinator], SensorEntity)
         stations = self._stations
         attr_stations: list[dict[str, Any]] = []
         for s in stations:
-            price = None
-            if s.get("prices"):
-                price = s["prices"][0].get("amount")
+            if not isinstance(s, dict):
+                continue
+            price = _extract_price(s)
             attr_stations.append({
                 "id": s.get("id"),
                 "name": s.get("name"),

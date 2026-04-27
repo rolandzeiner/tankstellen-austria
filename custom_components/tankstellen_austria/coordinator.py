@@ -13,6 +13,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import Event, HomeAssistant, State, callback
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.debounce import Debouncer
 from homeassistant.helpers.event import (
     EventStateChangedData,
     async_call_later,
@@ -88,6 +89,15 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]
             name=DOMAIN,
             config_entry=entry,
             update_interval=interval,
+            # Absorb request storms (options-flow save, manual reload,
+            # dashboard edit-mode flip) so the E-Control API isn't hit
+            # multiple times in quick succession during routine UI activity.
+            request_refresh_debouncer=Debouncer(
+                hass,
+                _LOGGER,
+                cooldown=15,
+                immediate=False,
+            ),
         )
 
     # ------------------------------------------------------------------
@@ -157,10 +167,15 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]
             if lat is not None and lng is not None:
                 self._clear_tracker_issue()
                 return float(lat), float(lng)
-        # Fallback: HA instance location. Raise a Repairs issue the first time
-        # we fall back so the user knows their tracker-based setup has silently
-        # degraded to fixed.
+        # Fallback: HA instance location. Log every fallback at DEBUG so the
+        # trail is visible even after the Repairs issue is dismissed; raise
+        # the issue itself on the first occurrence (idempotent inside
+        # _raise_tracker_issue).
         if self._dynamic_entity:
+            _LOGGER.debug(
+                "device_tracker %s missing coordinates — using HA home location",
+                self._dynamic_entity,
+            )
             self._raise_tracker_issue()
         return self.hass.config.latitude, self.hass.config.longitude
 
@@ -253,16 +268,32 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]
             lng = self._longitude
 
         was_available = self.last_update_success
+
+        # Fan out per fuel type in parallel — they are independent requests
+        # against the same host. Sequentially awaiting each adds up (3 fuel
+        # types × 30 s timeout = 90 s wall-clock worst case). gather() with
+        # return_exceptions captures per-type failures so the partial-failure
+        # branch below still works; the loop re-raises any non-Exception
+        # BaseException (CancelledError etc.) to preserve cancellation
+        # semantics.
+        fetched = await asyncio.gather(
+            *(self._fetch(ft, lat, lng) for ft in self._fuel_types),
+            return_exceptions=True,
+        )
         results: dict[str, list[dict[str, Any]]] = {}
         errors: dict[str, Exception] = {}
-        for fuel_type in self._fuel_types:
-            try:
-                results[fuel_type] = await self._fetch(fuel_type, lat, lng)
-            except Exception as err:  # noqa: BLE001 - capture per-type, decide below
-                errors[fuel_type] = err
+        for fuel_type, outcome in zip(self._fuel_types, fetched, strict=True):
+            if isinstance(outcome, BaseException) and not isinstance(
+                outcome, Exception
+            ):
+                raise outcome
+            if isinstance(outcome, Exception):
+                errors[fuel_type] = outcome
                 _LOGGER.warning(
-                    "Fetch failed for fuel type %s: %s", fuel_type, err
+                    "Fetch failed for fuel type %s: %s", fuel_type, outcome
                 )
+            else:
+                results[fuel_type] = outcome
 
         if errors and not results:
             # All fuel types failed — coordinator goes unavailable.
@@ -321,7 +352,10 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]
         """Fire a refresh after the no-data retry delay."""
         self._no_data_retry_cancel = None
         _LOGGER.info("Retrying fetch after no-data response")
-        self.hass.async_create_task(self.async_refresh())
+        # async_request_refresh debounces against any concurrent refresh
+        # (e.g. a card-side manual refresh that landed during the retry
+        # window) so we don't double-fire.
+        self.hass.async_create_task(self.async_request_refresh())
 
     async def _fetch(
         self, fuel_type: str, lat: float, lng: float
