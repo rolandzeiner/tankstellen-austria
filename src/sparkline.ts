@@ -441,35 +441,53 @@ export function attachSparklineHover(
 ): () => void {
   const noop = (): void => undefined;
   try {
-    const svgEl = container.querySelector<SVGSVGElement>("svg.sparkline");
-    const tooltip = container.querySelector<HTMLElement>(".sparkline-tooltip");
-    if (!svgEl || !tooltip) return noop;
-
-    const line = svgEl.querySelector<SVGLineElement>(".sparkline-hover-line");
-    // Hover dot lives OUTSIDE the SVG as an HTML overlay (sibling of
-    // svg.sparkline inside .sparkline-svg-wrap). Same reason as the
-    // cheapest-refill marker — preserveAspectRatio="none" on the SVG
-    // squashes any inner <circle> into an oval on wide cards. As an
-    // HTML element with border-radius: 50%, the dot stays a true
-    // circle at any width.
-    const dot = container.querySelector<HTMLElement>(".sparkline-hover-dot");
-    const timeEl = tooltip.querySelector<HTMLElement>(".sparkline-tooltip-time");
-    const priceEl = tooltip.querySelector<HTMLElement>(".sparkline-tooltip-price");
-    if (!line || !dot || !timeEl || !priceEl) return noop;
-
     type Pt = { t: number; v: number; x: number; y: number };
-    let pts: Pt[];
-    try {
-      pts = JSON.parse(svgEl.dataset.points || "[]") as Pt[];
-    } catch {
-      pts = [];
-    }
-    if (!pts.length) return noop;
+    type Ctx = {
+      svgEl: SVGSVGElement;
+      line: SVGLineElement;
+      dot: HTMLElement;
+      tooltip: HTMLElement;
+      timeEl: HTMLElement;
+      priceEl: HTMLElement;
+      pts: Pt[];
+      vbWidth: number;
+      vbHeight: number;
+    };
 
-    const vbWidth = Number(svgEl.dataset.width) || 280;
-    const vbHeight = Number(svgEl.dataset.height) || 64;
+    // Re-resolve every DOM ref + the points array on every event call.
+    // Closure-captured refs can go stale: Lit may swap inner nodes on
+    // re-render, history fetch updates dataset.points, and a transient
+    // empty-history blip used to leave the listeners pointing at dead
+    // refs. Re-resolving here makes the hover survive any such churn.
+    const lookup = (): Ctx | null => {
+      const svgEl = container.querySelector<SVGSVGElement>("svg.sparkline");
+      const tooltip = container.querySelector<HTMLElement>(".sparkline-tooltip");
+      if (!svgEl || !tooltip) return null;
+      const line = svgEl.querySelector<SVGLineElement>(".sparkline-hover-line");
+      // Hover dot lives OUTSIDE the SVG as an HTML overlay (sibling of
+      // svg.sparkline inside .sparkline-svg-wrap). Same reason as the
+      // cheapest-refill marker — preserveAspectRatio="none" on the SVG
+      // squashes any inner <circle> into an oval on wide cards.
+      const dot = container.querySelector<HTMLElement>(".sparkline-hover-dot");
+      const timeEl = tooltip.querySelector<HTMLElement>(".sparkline-tooltip-time");
+      const priceEl = tooltip.querySelector<HTMLElement>(".sparkline-tooltip-price");
+      if (!line || !dot || !timeEl || !priceEl) return null;
+      let pts: Pt[];
+      try {
+        pts = JSON.parse(svgEl.dataset.points || "[]") as Pt[];
+      } catch {
+        pts = [];
+      }
+      if (!pts.length) return null;
+      const vbWidth = Number(svgEl.dataset.width) || 280;
+      const vbHeight = Number(svgEl.dataset.height) || 64;
+      return { svgEl, line, dot, tooltip, timeEl, priceEl, pts, vbWidth, vbHeight };
+    };
 
     const show = (clientX: number): void => {
+      const ctx = lookup();
+      if (!ctx) return;
+      const { svgEl, line, dot, tooltip, timeEl, priceEl, pts, vbWidth, vbHeight } = ctx;
       const rect = svgEl.getBoundingClientRect();
       if (rect.width === 0) return;
       const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
@@ -506,30 +524,32 @@ export function attachSparklineHover(
     };
 
     const hide = (): void => {
-      line.setAttribute("opacity", "0");
-      dot.style.opacity = "0";
-      tooltip.hidden = true;
+      const ctx = lookup();
+      if (!ctx) return;
+      ctx.line.setAttribute("opacity", "0");
+      ctx.dot.style.opacity = "0";
+      ctx.tooltip.hidden = true;
     };
 
-    // Attach to the SVG element directly — HA's Lovelace DOM swallows
-    // mousemove bubbling between svg and container in practice.
-    const onMove = (e: MouseEvent): void => show(e.clientX);
-    const onTouch = (e: TouchEvent): void => {
-      if (e.touches[0]) show(e.touches[0].clientX);
-    };
-
-    svgEl.addEventListener("mousemove", onMove);
-    svgEl.addEventListener("mouseleave", hide);
-    svgEl.addEventListener("touchstart", onTouch, { passive: true });
-    svgEl.addEventListener("touchmove", onTouch, { passive: true });
-    svgEl.addEventListener("touchend", hide);
+    // Listen on the container, not the inner svgEl. The container is
+    // the .sparkline-container element rendered by the card's template
+    // — it survives Lit re-renders that swap the inner SVG, so the
+    // listeners can't be left dangling on a detached node. Pointer
+    // events handle mouse + pen + touch uniformly.
+    //
+    // AbortController-based cleanup so the parent card's
+    // _reattachSparklineHover() can call cleanup-then-attach
+    // idempotently — the second attach gets its own controller and
+    // listener pair, no double-binding.
+    const ac = new AbortController();
+    const { signal } = ac;
+    const onPointerMove = (e: PointerEvent): void => show(e.clientX);
+    container.addEventListener("pointermove", onPointerMove, { signal });
+    container.addEventListener("pointerleave", hide, { signal });
+    container.addEventListener("pointercancel", hide, { signal });
 
     return (): void => {
-      svgEl.removeEventListener("mousemove", onMove);
-      svgEl.removeEventListener("mouseleave", hide);
-      svgEl.removeEventListener("touchstart", onTouch);
-      svgEl.removeEventListener("touchmove", onTouch);
-      svgEl.removeEventListener("touchend", hide);
+      ac.abort();
     };
   } catch (err) {
     // eslint-disable-next-line no-console
