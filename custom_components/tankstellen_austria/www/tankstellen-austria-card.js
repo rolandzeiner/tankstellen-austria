@@ -1353,12 +1353,11 @@ function e(e,t,i,n){var r,a=arguments.length,s=a<3?t:null===n?n=Object.getOwnPro
         ${this._renderCarsSection()}
         ${this._renderBrandingSection()}
       </div>
-    `}_renderBrandingSection(){const e=!0===this._config.logo_adapt_to_theme,t=!0===this._config.hide_header,i=!0===this._config.hide_attribution;return V`
+    `}_renderBrandingSection(){const e=!0===this._config.logo_adapt_to_theme,t=!0===this._config.hide_attribution;return V`
       <div class="editor-section">
         <div class="section-header">${this._et("section_branding")}</div>
         ${this._renderToggle("logo_adapt_to_theme",this._et("logo_adapt_to_theme"),e)}
-        ${this._renderToggle("hide_header",this._et("hide_header"),t)}
-        ${this._renderToggle("hide_attribution",this._et("hide_attribution"),i)}
+        ${this._renderToggle("hide_attribution",this._et("hide_attribution"),t)}
       </div>
     `}_collectApiPaymentKeys(){const e=new Set(["cash","debit_card","credit_card"]);if(!this.hass)return e;for(const t of this._config.entities??[]){const i=this.hass.states[t]?.attributes?.stations??[];for(const t of i)for(const i of t.payment_methods?.others??[])e.add(i)}return e}_renderSensorsSection(e,t){return V`
       <div class="editor-section">
@@ -1403,30 +1402,32 @@ function e(e,t,i,n){var r,a=arguments.length,s=a<3?t:null===n?n=Object.getOwnPro
           `})}
         <div class="editor-hint">${this._et("tab_labels_hint")}</div>
       </div>
-    `}_renderDisplaySection(){const e=!0===this._config.hide_header_price,t=!1!==this._config.show_index,i=!1!==this._config.show_map_links,n=!1!==this._config.show_opening_hours,r=!1!==this._config.show_payment_methods,a=!1!==this._config.show_history,s=!1!==this._config.show_best_refuel,o=!0===this._config.show_median_line,l=!0===this._config.show_hour_envelope,c=!0===this._config.show_noon_markers,d=!1!==this._config.show_minmax,h=!0===this._config.show_cars,p=this._config.max_stations??5;return V`
+    `}_renderDisplaySection(){const e=!0===this._config.hide_header,t=!0===this._config.hide_header_price,i=!1!==this._config.show_index,n=!1!==this._config.show_map_links,r=!1!==this._config.show_opening_hours,a=!1!==this._config.show_payment_methods,s=!1!==this._config.show_history,o=!1!==this._config.show_best_refuel,l=!0===this._config.show_median_line,c=!0===this._config.show_hour_envelope,d=!0===this._config.show_noon_markers,h=!1!==this._config.show_minmax,p=!0===this._config.show_cars,u=this._config.max_stations??5;return V`
       <div class="editor-section">
         <div class="section-header">${this._et("section_display")}</div>
-        ${this._renderToggle("hide_header_price",this._et("hide_header_price"),e)}
+        ${this._renderToggle("hide_header",this._et("hide_header"),e)}
         <div class="divider"></div>
-        ${this._renderToggle("show_index",this._et("show_index"),t)}
+        ${this._renderToggle("hide_header_price",this._et("hide_header_price"),t)}
         <div class="divider"></div>
-        ${this._renderToggle("show_map_links",this._et("show_map_links"),i)}
+        ${this._renderToggle("show_index",this._et("show_index"),i)}
         <div class="divider"></div>
-        ${this._renderToggle("show_opening_hours",this._et("show_opening_hours"),n)}
+        ${this._renderToggle("show_map_links",this._et("show_map_links"),n)}
         <div class="divider"></div>
-        ${this._renderToggle("show_payment_methods",this._et("show_payment_methods"),r)}
+        ${this._renderToggle("show_opening_hours",this._et("show_opening_hours"),r)}
         <div class="divider"></div>
-        ${this._renderToggle("show_history",this._et("show_history"),a)}
-        ${a?V`
-              ${this._renderToggle("show_median_line",this._et("show_median_line"),o,!0)}
-              ${this._renderToggle("show_hour_envelope",this._et("show_hour_envelope"),l,!0)}
-              ${this._renderToggle("show_noon_markers",this._et("show_noon_markers"),c,!0)}
-              ${this._renderToggle("show_minmax",this._et("show_minmax"),d,!0)}
-              ${this._renderToggle("show_best_refuel",this._et("show_best_refuel"),s,!0)}
-              ${s?this._renderRecorderHint():G}
+        ${this._renderToggle("show_payment_methods",this._et("show_payment_methods"),a)}
+        <div class="divider"></div>
+        ${this._renderToggle("show_history",this._et("show_history"),s)}
+        ${s?V`
+              ${this._renderToggle("show_median_line",this._et("show_median_line"),l,!0)}
+              ${this._renderToggle("show_hour_envelope",this._et("show_hour_envelope"),c,!0)}
+              ${this._renderToggle("show_noon_markers",this._et("show_noon_markers"),d,!0)}
+              ${this._renderToggle("show_minmax",this._et("show_minmax"),h,!0)}
+              ${this._renderToggle("show_best_refuel",this._et("show_best_refuel"),o,!0)}
+              ${o?this._renderRecorderHint():G}
             `:G}
         <div class="divider"></div>
-        ${this._renderToggle("show_cars",this._et("show_cars"),h)}
+        ${this._renderToggle("show_cars",this._et("show_cars"),p)}
         <div class="divider"></div>
         <div class="toggle-row" style="padding-top:4px">
           <label for="slider-stations">${this._et("max_stations")}</label>
@@ -1438,14 +1439,14 @@ function e(e,t,i,n){var r,a=arguments.length,s=a<3?t:null===n?n=Object.getOwnPro
             min="0"
             max="5"
             step="1"
-            .value=${String(p)}
+            .value=${String(u)}
             @input=${this._onSliderInput}
             @change=${this._onSliderChange}
             @keydown=${this._stop}
             @keyup=${this._stop}
             @keypress=${this._stop}
           />
-          <span class="slider-value">${p}</span>
+          <span class="slider-value">${u}</span>
         </div>
       </div>
     `}_renderToggle(e,t,i,n=!1){const r=`toggle-${String(e)}`;return V`

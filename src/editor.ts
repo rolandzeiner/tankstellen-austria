@@ -113,7 +113,6 @@ export class TankstellenAustriaCardEditor
 
   private _renderBrandingSection(): TemplateResult {
     const adaptLogo = this._config.logo_adapt_to_theme === true;
-    const hideHeader = this._config.hide_header === true;
     const hideAttr = this._config.hide_attribution === true;
     return html`
       <div class="editor-section">
@@ -122,11 +121,6 @@ export class TankstellenAustriaCardEditor
           "logo_adapt_to_theme",
           this._et("logo_adapt_to_theme"),
           adaptLogo,
-        )}
-        ${this._renderToggle(
-          "hide_header",
-          this._et("hide_header"),
-          hideHeader,
         )}
         ${this._renderToggle(
           "hide_attribution",
@@ -245,6 +239,7 @@ export class TankstellenAustriaCardEditor
   }
 
   private _renderDisplaySection(): TemplateResult {
+    const hideHeader = this._config.hide_header === true;
     const hideHeaderPrice = this._config.hide_header_price === true;
     const showIndex = this._config.show_index !== false;
     const showMap = this._config.show_map_links !== false;
@@ -263,6 +258,12 @@ export class TankstellenAustriaCardEditor
     return html`
       <div class="editor-section">
         <div class="section-header">${this._et("section_display")}</div>
+        ${this._renderToggle(
+          "hide_header",
+          this._et("hide_header"),
+          hideHeader,
+        )}
+        <div class="divider"></div>
         ${this._renderToggle(
           "hide_header_price",
           this._et("hide_header_price"),
