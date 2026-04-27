@@ -372,7 +372,7 @@ export class TankstellenAustriaCard extends LitElement {
             : nothing}
           <section
             class="station-section"
-            style="--nb-accent: var(--primary-color);"
+            style="--tankst-accent: var(--primary-color);"
           >
             ${this._renderHeader(active)}
             ${this._renderHero(active)}

@@ -9,15 +9,35 @@ import { css } from "lit";
 // whole card.
 export const cardStyles = css`
   :host {
+    /* color-scheme enables light-dark() and steers forced-colors palette
+       selection (WCAG 1.4.11). HA's active theme drives the resolution. */
+    color-scheme: light dark;
     display: block;
-    --nb-accent: var(--primary-color);
-    --nb-radius-sm: 6px;
-    --nb-radius-md: 10px;
-    --nb-radius-lg: var(--ha-card-border-radius, 12px);
-    --nb-pad-x: 16px;
-    --nb-pad-y: 14px;
-    --nb-row-gap: 12px;
-    --nb-tile-size: 40px;
+
+    /* Brand accent — domain-specific, no HA equivalent. */
+    --tankst-accent: var(--primary-color);
+
+    /* Semantic state tokens layered over HA's official semantic palette
+       so theme authors can recolour the whole portfolio in one place;
+       hard-coded fallbacks for older HA versions. NOTE: editorStyles
+       :host also needs these — duplicated there. See ha-portfolio-design
+       § 4 "Multi-card integrations — every shadow scope needs the
+       tokens" for why. */
+    --tankst-rt:      var(--ha-color-success, #4caf50);
+    --tankst-warning: var(--ha-color-warning, #ffa000);
+    --tankst-error:   var(--ha-color-error,   #db4437);
+    --tankst-info:    var(--ha-color-info,    #1565c0);
+
+    /* Spacing / radius / sizing — layered over the HA Design System
+       so the card moves with HA when tokens evolve. Hard-coded values
+       are the fallback for older HA versions. */
+    --tankst-radius-sm: var(--ha-radius-sm, 6px);
+    --tankst-radius-md: var(--ha-radius-md, 10px);
+    --tankst-radius-lg: var(--ha-card-border-radius, var(--ha-radius-lg, 12px));
+    --tankst-pad-x:     var(--ha-spacing-4, 16px);
+    --tankst-pad-y:     var(--ha-spacing-3, 14px);
+    --tankst-row-gap:   var(--ha-spacing-3, 12px);
+    --tankst-tile-size: 40px;
   }
   ha-card {
     overflow: hidden;
@@ -28,10 +48,10 @@ export const cardStyles = css`
     container-name: tscard;
   }
   .wrap {
-    padding: var(--nb-pad-y) var(--nb-pad-x);
+    padding: var(--tankst-pad-y) var(--tankst-pad-x);
     display: flex;
     flex-direction: column;
-    gap: var(--nb-row-gap);
+    gap: var(--tankst-row-gap);
   }
   .empty {
     padding: 24px 0;
@@ -46,17 +66,17 @@ export const cardStyles = css`
     align-items: center;
     justify-content: space-between;
     gap: 10px;
-    background: var(--warning-color, #ffa000);
+    background: var(--tankst-warning);
     color: #fff;
     padding: 10px 14px;
-    margin: calc(var(--nb-pad-y) * -1) calc(var(--nb-pad-x) * -1) 0;
+    margin: calc(var(--tankst-pad-y) * -1) calc(var(--tankst-pad-x) * -1) 0;
     font-size: 0.8125rem;
     font-weight: 500;
   }
   .version-reload-btn {
     flex-shrink: 0;
     background: #fff;
-    color: var(--warning-color, #ffa000);
+    color: var(--tankst-warning);
     border: none;
     border-radius: 999px;
     padding: 6px 14px;
@@ -102,9 +122,9 @@ export const cardStyles = css`
     overflow: hidden;
     text-overflow: ellipsis;
     transition:
-      color 0.18s ease,
-      box-shadow 0.18s ease,
-      background-color 0.18s ease;
+      color var(--ha-transition-duration-fast, 160ms) var(--ha-transition-easing-standard, ease),
+      box-shadow var(--ha-transition-duration-fast, 160ms) var(--ha-transition-easing-standard, ease),
+      background-color var(--ha-transition-duration-fast, 160ms) var(--ha-transition-easing-standard, ease);
     font-family: inherit;
   }
   .tab:hover {
@@ -113,7 +133,7 @@ export const cardStyles = css`
   }
   .tab.active {
     color: var(--primary-color);
-    font-weight: 700;
+    font-weight: var(--ha-font-weight-bold, 600);
     box-shadow: inset 0 -2px 0 var(--primary-color);
   }
 
@@ -121,7 +141,7 @@ export const cardStyles = css`
   .station-section {
     display: flex;
     flex-direction: column;
-    gap: var(--nb-row-gap);
+    gap: var(--tankst-row-gap);
   }
   .header {
     display: flex;
@@ -132,15 +152,15 @@ export const cardStyles = css`
     /* Modern HA tile-card vocabulary: rounded square, accent-tinted
        background, accent-coloured icon. Replaces the old inline
        fuel-icon and gives the card immediate visual identity. */
-    width: var(--nb-tile-size);
-    height: var(--nb-tile-size);
-    border-radius: var(--nb-radius-md);
+    width: var(--tankst-tile-size);
+    height: var(--tankst-tile-size);
+    border-radius: var(--tankst-radius-md);
     flex-shrink: 0;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    background: color-mix(in srgb, var(--nb-accent) 18%, transparent);
-    color: var(--nb-accent);
+    background: color-mix(in srgb, var(--tankst-accent) 18%, transparent);
+    color: var(--tankst-accent);
     --mdc-icon-size: 22px;
   }
   .header-text {
@@ -200,8 +220,8 @@ export const cardStyles = css`
     border: none;
     cursor: pointer;
     transition:
-      background-color 0.18s ease,
-      color 0.18s ease;
+      background-color var(--ha-transition-duration-fast, 160ms) var(--ha-transition-easing-standard, ease),
+      color var(--ha-transition-duration-fast, 160ms) var(--ha-transition-easing-standard, ease);
     --mdc-icon-size: 20px;
     font-family: inherit;
   }
@@ -232,7 +252,7 @@ export const cardStyles = css`
   }
   .metric-num {
     font-size: 2.25rem;
-    font-weight: 700;
+    font-weight: var(--ha-font-weight-bold, 600);
     color: var(--primary-text-color);
     font-variant-numeric: tabular-nums;
     letter-spacing: -0.5px;
@@ -279,14 +299,14 @@ export const cardStyles = css`
     color: var(--secondary-text-color);
   }
   .chip.warn {
-    background: color-mix(in srgb, var(--warning-color, #ffa000) 16%, transparent);
-    color: var(--warning-color, #ffa000);
+    background: color-mix(in srgb, var(--tankst-warning) 16%, transparent);
+    color: var(--tankst-warning);
   }
   .chip.match {
     /* Payment-method match highlight chip (filter mode + highlight
        toggle). Same accent vocabulary as the hero metric. */
-    background: color-mix(in srgb, var(--success-color, #4caf50) 16%, transparent);
-    color: var(--success-color, #4caf50);
+    background: color-mix(in srgb, var(--tankst-rt) 16%, transparent);
+    color: var(--tankst-rt);
   }
 
   /* ── Status flags (closed / closing-soon) ───────────────────────── */
@@ -303,12 +323,12 @@ export const cardStyles = css`
     flex-shrink: 0;
   }
   .flag.closed {
-    background: color-mix(in srgb, var(--error-color, #db4437) 16%, transparent);
-    color: var(--error-color, #db4437);
+    background: color-mix(in srgb, var(--tankst-error) 16%, transparent);
+    color: var(--tankst-error);
   }
   .flag.closing-soon {
-    background: color-mix(in srgb, var(--warning-color, #ff9800) 16%, transparent);
-    color: var(--warning-color, #ff9800);
+    background: color-mix(in srgb, var(--tankst-warning) 16%, transparent);
+    color: var(--tankst-warning);
   }
 
   /* ── Filled CTA (dynamic-mode refresh) ──────────────────────────── */
@@ -321,7 +341,7 @@ export const cardStyles = css`
     height: 32px;
     border: none;
     border-radius: 999px;
-    background: var(--nb-accent);
+    background: var(--tankst-accent);
     color: var(--text-primary-color, #fff);
     font-size: 0.75rem;
     font-weight: 600;
@@ -329,9 +349,9 @@ export const cardStyles = css`
     text-decoration: none;
     box-shadow: 0 1px 2px color-mix(in srgb, #000 12%, transparent);
     transition:
-      filter 0.18s ease,
-      transform 0.18s ease,
-      opacity 0.18s ease;
+      filter var(--ha-transition-duration-fast, 160ms) var(--ha-transition-easing-standard, ease),
+      transform var(--ha-transition-duration-fast, 160ms) var(--ha-transition-easing-standard, ease),
+      opacity var(--ha-transition-duration-fast, 160ms) var(--ha-transition-easing-standard, ease);
     flex-shrink: 0;
     font-family: inherit;
     font-variant-numeric: tabular-nums;
@@ -369,7 +389,7 @@ export const cardStyles = css`
     padding: 3px 7px;
     background: var(--card-background-color, #fff);
     border: 1px solid var(--divider-color);
-    border-radius: var(--nb-radius-sm);
+    border-radius: var(--tankst-radius-sm);
     box-shadow: 0 2px 6px color-mix(in srgb, #000 12%, transparent);
     font-size: 0.75rem;
     white-space: nowrap;
@@ -407,10 +427,10 @@ export const cardStyles = css`
     opacity: 0.9;
   }
   .median-delta-good {
-    color: var(--success-color, #4caf50);
+    color: var(--tankst-rt);
   }
   .median-delta-bad {
-    color: var(--warning-color, #ff9800);
+    color: var(--tankst-warning);
   }
   .median-delta-neutral {
     color: var(--secondary-text-color);
@@ -423,7 +443,7 @@ export const cardStyles = css`
     gap: 6px;
     font-size: 0.75rem;
     font-weight: 500;
-    color: var(--success-color, #4caf50);
+    color: var(--tankst-rt);
     line-height: 1.3;
   }
   .refuel-hint {
@@ -454,12 +474,12 @@ export const cardStyles = css`
     white-space: nowrap;
   }
   .refuel-confidence-high {
-    background: color-mix(in srgb, var(--success-color, #4caf50) 18%, transparent);
-    color: var(--success-color, #4caf50);
+    background: color-mix(in srgb, var(--tankst-rt) 18%, transparent);
+    color: var(--tankst-rt);
   }
   .refuel-confidence-medium {
-    background: color-mix(in srgb, var(--warning-color, #ffa726) 18%, transparent);
-    color: var(--warning-color, #ffa726);
+    background: color-mix(in srgb, var(--tankst-warning) 18%, transparent);
+    color: var(--tankst-warning);
   }
   .refuel-confidence-low {
     background: color-mix(in srgb, var(--secondary-text-color, #888) 15%, transparent);
@@ -471,7 +491,7 @@ export const cardStyles = css`
     display: flex;
     flex-direction: column;
     gap: 6px;
-    padding-top: var(--nb-row-gap);
+    padding-top: var(--tankst-row-gap);
     border-top: 1px solid var(--divider-color, rgba(127, 127, 127, 0.15));
   }
   .car-fillup-row {
@@ -503,7 +523,7 @@ export const cardStyles = css`
   }
   .car-fillup-cost {
     font-size: 0.9375rem;
-    font-weight: 700;
+    font-weight: var(--ha-font-weight-bold, 600);
     color: var(--primary-text-color);
     font-variant-numeric: tabular-nums;
     flex-shrink: 0;
@@ -534,7 +554,7 @@ export const cardStyles = css`
        edges (full-bleed list look) while the rest of the section
        content stays inside .wrap's padding. Keeps the gap-rhythm above
        intact. */
-    margin: 0 calc(var(--nb-pad-x) * -1) calc(var(--nb-pad-y) * -1);
+    margin: 0 calc(var(--tankst-pad-x) * -1) calc(var(--tankst-pad-y) * -1);
     border-top: 1px solid var(--divider-color, rgba(127, 127, 127, 0.15));
   }
   .station {
@@ -544,19 +564,19 @@ export const cardStyles = css`
     border-bottom: none;
   }
   .station.pm-highlight {
-    box-shadow: inset 3px 0 0 var(--success-color, #4caf50);
-    background: color-mix(in srgb, var(--success-color, #4caf50) 6%, transparent);
+    box-shadow: inset 3px 0 0 var(--tankst-rt);
+    background: color-mix(in srgb, var(--tankst-rt) 6%, transparent);
   }
   .station.pm-highlight .station-main:hover {
-    background: color-mix(in srgb, var(--success-color, #4caf50) 12%, transparent);
+    background: color-mix(in srgb, var(--tankst-rt) 12%, transparent);
   }
   .station-main {
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 12px var(--nb-pad-x);
+    padding: 12px var(--tankst-pad-x);
     cursor: pointer;
-    transition: background-color 0.18s ease;
+    transition: background-color var(--ha-transition-duration-fast, 160ms) var(--ha-transition-easing-standard, ease);
   }
   .station-main:hover {
     background: color-mix(in srgb, var(--primary-color) 6%, transparent);
@@ -566,15 +586,15 @@ export const cardStyles = css`
        .icon-tile but smaller and label-bearing. */
     width: 28px;
     height: 28px;
-    border-radius: var(--nb-radius-sm);
+    border-radius: var(--tankst-radius-sm);
     flex-shrink: 0;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    background: color-mix(in srgb, var(--nb-accent) 18%, transparent);
-    color: var(--nb-accent);
+    background: color-mix(in srgb, var(--tankst-accent) 18%, transparent);
+    color: var(--tankst-accent);
     font-size: 0.8125rem;
-    font-weight: 700;
+    font-weight: var(--ha-font-weight-bold, 600);
     font-variant-numeric: tabular-nums;
   }
   .info {
@@ -600,7 +620,7 @@ export const cardStyles = css`
     text-overflow: ellipsis;
   }
   .price {
-    font-weight: 700;
+    font-weight: var(--ha-font-weight-bold, 600);
     font-size: 1.125rem;
     color: var(--primary-text-color);
     font-variant-numeric: tabular-nums;
@@ -617,7 +637,7 @@ export const cardStyles = css`
   .expander-chevron {
     --mdc-icon-size: 20px;
     color: var(--secondary-text-color);
-    transition: transform 0.18s ease;
+    transition: transform var(--ha-transition-duration-fast, 160ms) var(--ha-transition-easing-standard, ease);
     flex-shrink: 0;
   }
   .station-main[aria-expanded="true"] .expander-chevron {
@@ -635,7 +655,7 @@ export const cardStyles = css`
     transition:
       grid-template-rows 0.3s ease,
       padding 0.3s ease;
-    padding: 0 var(--nb-pad-x) 0 calc(var(--nb-pad-x) + 28px + 12px);
+    padding: 0 var(--tankst-pad-x) 0 calc(var(--tankst-pad-x) + 28px + 12px);
   }
   .station-detail > * {
     overflow: hidden;
@@ -643,7 +663,7 @@ export const cardStyles = css`
   }
   .station-detail.expanded {
     grid-template-rows: 1fr;
-    padding: 0 var(--nb-pad-x) 12px calc(var(--nb-pad-x) + 28px + 12px);
+    padding: 0 var(--tankst-pad-x) 12px calc(var(--tankst-pad-x) + 28px + 12px);
   }
   .detail-cols {
     display: flex;
@@ -714,7 +734,7 @@ export const cardStyles = css`
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    padding: 10px var(--nb-pad-x);
+    padding: 10px var(--tankst-pad-x);
     border-top: 1px solid var(--divider-color);
   }
   .brand-link {
@@ -751,9 +771,9 @@ export const cardStyles = css`
   /* Compact: narrow phone columns, side-by-side panels. */
   @container tscard (inline-size < 360px) {
     :host {
-      --nb-pad-x: 14px;
-      --nb-pad-y: 12px;
-      --nb-tile-size: 36px;
+      --tankst-pad-x: 14px;
+      --tankst-pad-y: 12px;
+      --tankst-tile-size: 36px;
     }
     .metric-num {
       font-size: 2rem;
@@ -780,9 +800,9 @@ export const cardStyles = css`
   /* Wide: sidebar / panel mode / 2-column section view. */
   @container tscard (inline-size > 480px) {
     :host {
-      --nb-pad-x: 20px;
-      --nb-pad-y: 16px;
-      --nb-tile-size: 44px;
+      --tankst-pad-x: 20px;
+      --tankst-pad-y: 16px;
+      --tankst-tile-size: 44px;
     }
     .metric-num {
       font-size: 2.5rem;
@@ -842,7 +862,19 @@ export const cardStyles = css`
 // Editor-side styles. Port of the vanilla editor's <style> block.
 export const editorStyles = css`
   :host {
+    /* color-scheme enables light-dark() and steers forced-colors palette
+       selection. The editor is its own Lit element with its own shadow
+       root — CSS custom properties don't bleed across shadow boundaries,
+       so the semantic tokens below are duplicated from the cardStyles
+       :host. Keep both blocks in sync. See ha-portfolio-design § 4
+       "Multi-card integrations — every shadow scope needs the tokens". */
+    color-scheme: light dark;
     display: block;
+
+    --tankst-rt:      var(--ha-color-success, #4caf50);
+    --tankst-warning: var(--ha-color-warning, #ffa000);
+    --tankst-error:   var(--ha-color-error,   #db4437);
+    --tankst-info:    var(--ha-color-info,    #1565c0);
   }
   .editor {
     padding: 16px;
@@ -886,7 +918,7 @@ export const editorStyles = css`
     border-radius: 16px;
     font-size: 0.875rem;
     cursor: pointer;
-    transition: all 0.15s;
+    transition: all var(--ha-transition-duration-fast, 160ms) var(--ha-transition-easing-standard, ease);
     border: 1px solid var(--divider-color);
     background: var(--card-background-color, #fff);
     color: var(--primary-text-color);
@@ -1044,7 +1076,7 @@ export const editorStyles = css`
     border: 1px solid var(--divider-color);
     background: var(--card-background-color, #fff);
     color: var(--primary-text-color);
-    transition: all 0.15s;
+    transition: all var(--ha-transition-duration-fast, 160ms) var(--ha-transition-easing-standard, ease);
     font-family: inherit;
   }
   .pm-filter-chip.active {
@@ -1056,9 +1088,9 @@ export const editorStyles = css`
     opacity: 0.85;
   }
   .pm-filter-chip.confirm {
-    background: var(--error-color, #db4437);
+    background: var(--tankst-error);
     color: #fff;
-    border-color: var(--error-color, #db4437);
+    border-color: var(--tankst-error);
   }
   .pm-custom-row {
     display: flex;
@@ -1126,7 +1158,7 @@ export const editorStyles = css`
   .car-delete-btn {
     background: none;
     border: none;
-    color: var(--error-color, #db4437);
+    color: var(--tankst-error);
     cursor: pointer;
     padding: 4px;
     border-radius: 6px;
@@ -1149,7 +1181,7 @@ export const editorStyles = css`
     padding: 8px 14px;
     width: 100%;
     font-family: inherit;
-    transition: background 0.15s;
+    transition: background var(--ha-transition-duration-fast, 160ms) var(--ha-transition-easing-standard, ease);
   }
   .car-add-btn:hover {
     background: rgba(0, 0, 0, 0.04);
@@ -1165,7 +1197,7 @@ export const editorStyles = css`
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
-    transition: background 0.15s, border-color 0.15s;
+    transition: background var(--ha-transition-duration-fast, 160ms) var(--ha-transition-easing-standard, ease), border-color var(--ha-transition-duration-fast, 160ms) var(--ha-transition-easing-standard, ease);
     --mdc-icon-size: 20px;
   }
   .car-icon-btn.active {
@@ -1196,7 +1228,7 @@ export const editorStyles = css`
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: all 0.15s;
+    transition: all var(--ha-transition-duration-fast, 160ms) var(--ha-transition-easing-standard, ease);
     --mdc-icon-size: 20px;
   }
   .car-icon-option:hover {
