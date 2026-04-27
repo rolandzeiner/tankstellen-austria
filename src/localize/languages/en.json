@@ -109,6 +109,7 @@
     "hide_header_price": "Hide cheapest / average price in header",
     "section_branding": "Branding & attribution",
     "logo_adapt_to_theme": "Adapt E-Control logo color to theme",
+    "hide_header": "Hide header",
     "hide_attribution": "Hide attribution footer"
   }
 }

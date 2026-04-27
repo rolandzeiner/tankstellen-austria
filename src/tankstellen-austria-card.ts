@@ -518,7 +518,8 @@ export class TankstellenAustriaCard extends LitElement {
 
   private _renderHeader(
     active: TankstellenEntity,
-  ): TemplateResult {
+  ): TemplateResult | typeof nothing {
+    if (this._config?.hide_header === true) return nothing;
     const fuelType = active.attributes.fuel_type ?? "";
     const fuelTypeName =
       active.attributes.fuel_type_name || getFuelName(fuelType, this._ctx());

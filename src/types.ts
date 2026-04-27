@@ -65,6 +65,11 @@ export interface TankstellenAustriaCardConfig extends LovelaceCardConfig {
   // white on dark themes) — same vocabulary as the Ladestellen card.
   logo_adapt_to_theme?: boolean;
 
+  // Hide the card header (icon-tile + station name + subtitle +
+  // refresh / icon-action cluster). Defaults to false: the header
+  // is visible by default. Useful for stripped-down dashboards.
+  hide_header?: boolean;
+
   // Hide the attribution footer (logo + "Datenquelle: E-Control"
   // line). Defaults to false: the footer is visible by default,
   // matching E-Control §3 attribution practice.

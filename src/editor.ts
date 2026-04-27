@@ -113,6 +113,7 @@ export class TankstellenAustriaCardEditor
 
   private _renderBrandingSection(): TemplateResult {
     const adaptLogo = this._config.logo_adapt_to_theme === true;
+    const hideHeader = this._config.hide_header === true;
     const hideAttr = this._config.hide_attribution === true;
     return html`
       <div class="editor-section">
@@ -121,6 +122,11 @@ export class TankstellenAustriaCardEditor
           "logo_adapt_to_theme",
           this._et("logo_adapt_to_theme"),
           adaptLogo,
+        )}
+        ${this._renderToggle(
+          "hide_header",
+          this._et("hide_header"),
+          hideHeader,
         )}
         ${this._renderToggle(
           "hide_attribution",
