@@ -13,6 +13,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import Event, HomeAssistant, State, callback
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.debounce import Debouncer
 from homeassistant.helpers.event import (
     EventStateChangedData,
     async_call_later,
@@ -88,6 +89,15 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]
             name=DOMAIN,
             config_entry=entry,
             update_interval=interval,
+            # Absorb request storms (options-flow save, manual reload,
+            # dashboard edit-mode flip) so the E-Control API isn't hit
+            # multiple times in quick succession during routine UI activity.
+            request_refresh_debouncer=Debouncer(
+                hass,
+                _LOGGER,
+                cooldown=15,
+                immediate=False,
+            ),
         )
 
     # ------------------------------------------------------------------
