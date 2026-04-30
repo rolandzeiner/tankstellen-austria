@@ -60,6 +60,16 @@ import {
   type BestRefuelResult,
 } from "./analytics/best-refuel";
 import { cardStyles } from "./styles";
+import {
+  checkCardVersionWS,
+  renderVersionBanner,
+  reloadAfterCacheWipe,
+} from "./shared-render";
+import {
+  E_CONTROL_HOMEPAGE,
+  E_CONTROL_LOGO_URL,
+  safeHttpsUri,
+} from "./utils";
 
 // Eager-register the editor element. With `inlineDynamicImports: true` the
 // editor code is already in this bundle — importing it at the top guarantees
@@ -72,9 +82,6 @@ import "./editor";
 // sensor strips the upstream `attribution` attribute. Mirrors the
 // Ladestellen Austria card.
 const ATTRIBUTION_REQUIRED = "Datenquelle: E-Control";
-
-// Static path mounted by custom_components/tankstellen_austria/__init__.py.
-const E_CONTROL_LOGO_URL = "/tankstellen-austria/e-control_logo.svg";
 
 // Styled console banner for version-mismatch debugging in HA's console.
 console.info(
@@ -288,17 +295,12 @@ export class TankstellenAustriaCard extends LitElement {
   }
 
   private async _checkCardVersion(): Promise<void> {
-    if (!this.hass?.callWS) return;
-    try {
-      const r = await this.hass.callWS<{ version?: string }>({
-        type: "tankstellen_austria/card_version",
-      });
-      if (r?.version && r.version !== CARD_VERSION) {
-        this._versionMismatch = r.version;
-      }
-    } catch {
-      // Backend may not support this WS command yet — silent.
-    }
+    const mismatch = await checkCardVersionWS(
+      this.hass,
+      "tankstellen_austria/card_version",
+      CARD_VERSION,
+    );
+    if (mismatch) this._versionMismatch = mismatch;
   }
 
   private _reattachSparklineHover(): void {
@@ -410,7 +412,7 @@ export class TankstellenAustriaCard extends LitElement {
       <div class="footer">
         <a
           class="brand-link"
-          href="https://www.e-control.at/"
+          href=${safeHttpsUri(E_CONTROL_HOMEPAGE)}
           target="_blank"
           rel="noopener noreferrer"
           aria-label="E-Control"
@@ -428,44 +430,24 @@ export class TankstellenAustriaCard extends LitElement {
   }
 
   private _renderVersionBanner(): TemplateResult | typeof nothing {
-    if (!this._versionMismatch) return nothing;
     // If the user already clicked reload in this session and the version
     // we just saw from the backend is still ahead of CARD_VERSION, the
     // reload didn't pick up the new bundle (likely a stuck SW/CDN cache).
     // Switch the banner to a stuck-state message so the user isn't
     // trapped in a reload → banner → reload loop.
-    const reloadTried =
+    const stuck =
+      this._versionMismatch !== null &&
       typeof sessionStorage !== "undefined" &&
       sessionStorage.getItem(
         `tsa-reload-attempted-${this._versionMismatch}`,
       ) === "1";
-    if (reloadTried) {
-      return html`
-        <div class="version-notice" role="alert" aria-live="assertive">
-          <span>${this._t("version_reload_stuck")}</span>
-          <button
-            class="version-reload-btn"
-            type="button"
-            @click=${this._onDismissVersionBanner}
-          >
-            ${this._t("version_dismiss")}
-          </button>
-        </div>
-      `;
-    }
-    const msg = this._t("version_update", { v: this._versionMismatch });
-    return html`
-      <div class="version-notice" role="alert" aria-live="assertive">
-        <span>${msg}</span>
-        <button
-          class="version-reload-btn"
-          type="button"
-          @click=${this._onVersionReload}
-        >
-          ${this._t("version_reload")}
-        </button>
-      </div>
-    `;
+    return renderVersionBanner({
+      mismatchVersion: this._versionMismatch,
+      stuck,
+      t: (key, repl) => this._t(key, repl),
+      onReload: this._onVersionReload,
+      onDismiss: this._onDismissVersionBanner,
+    });
   }
 
   private _onDismissVersionBanner = (): void => {
@@ -1004,7 +986,7 @@ export class TankstellenAustriaCard extends LitElement {
             ? html`
                 <a
                   class="icon-action map"
-                  href=${mapsUrl(loc, s.name ?? "")}
+                  href=${safeHttpsUri(mapsUrl(loc, s.name ?? ""))}
                   target="_blank"
                   rel="noopener noreferrer"
                   aria-label=${`${this._t("map")}: ${s.name ?? ""}`}
@@ -1256,7 +1238,7 @@ export class TankstellenAustriaCard extends LitElement {
     }
   }
 
-  private async _onVersionReload(): Promise<void> {
+  private _onVersionReload = async (): Promise<void> => {
     // Flag this target version as "user tried reload" before the page
     // unloads, so on re-render the banner flips to the stuck-state
     // variant instead of a second reload button.
@@ -1270,16 +1252,8 @@ export class TankstellenAustriaCard extends LitElement {
         // sessionStorage can be disabled in private browsing — fall through.
       }
     }
-    try {
-      if (typeof window !== "undefined" && "caches" in window) {
-        const keys = await caches.keys();
-        await Promise.all(keys.map((k) => caches.delete(k)));
-      }
-    } catch {
-      // caches API requires HTTPS in some contexts; fall through to reload.
-    }
-    location.reload();
-  }
+    await reloadAfterCacheWipe();
+  };
 
   static styles: CSSResultGroup = cardStyles;
 }
