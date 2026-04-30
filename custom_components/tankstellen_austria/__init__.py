@@ -6,9 +6,13 @@ from pathlib import Path
 from typing import Any
 
 import voluptuous as vol
-from homeassistant.components import websocket_api
 from homeassistant.components.http import StaticPathConfig
-from homeassistant.components.websocket_api import ActiveConnection  # type: ignore[attr-defined]
+from homeassistant.components.websocket_api import async_register_command
+from homeassistant.components.websocket_api.connection import ActiveConnection
+from homeassistant.components.websocket_api.decorators import (
+    async_response,
+    websocket_command,
+)
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED, Platform
 from homeassistant.core import CoreState, Event, HomeAssistant
 from homeassistant.helpers import config_validation as cv
@@ -26,10 +30,10 @@ URL_BASE = "/tankstellen-austria"
 CARD_URL = f"{URL_BASE}/tankstellen-austria-card.js"
 
 
-@websocket_api.websocket_command(  # type: ignore[attr-defined]
+@websocket_command(
     {vol.Required("type"): "tankstellen_austria/card_version"}
 )
-@websocket_api.async_response  # type: ignore[attr-defined]
+@async_response
 async def _websocket_card_version(
     hass: HomeAssistant,
     connection: ActiveConnection,
@@ -42,7 +46,13 @@ async def _websocket_card_version(
 async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
     """Register the card JS and WebSocket command once when the domain is loaded."""
     hass.data.setdefault(DOMAIN, {})
-    websocket_api.async_register_command(hass, _websocket_card_version)
+    # WS commands registered here survive integration removal — HA's
+    # websocket_api has no public deregister hook. Pragmatic given the
+    # API surface, harmless in practice (a stray handler that no caller
+    # invokes once the bundle is gone). Behaviour on duplicate
+    # registration is HA-core internal; we never reach that branch
+    # since `async_setup` only runs once per HA startup.
+    async_register_command(hass, _websocket_card_version)
 
     async def _register_frontend(_event: Event | None = None) -> None:
         await _async_register_card(hass)

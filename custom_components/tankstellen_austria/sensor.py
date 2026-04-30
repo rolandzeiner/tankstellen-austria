@@ -14,7 +14,7 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import CONF_FUEL_TYPES, DOMAIN, FUEL_TYPES
+from .const import ATTRIBUTION, CONF_FUEL_TYPES, DOMAIN, FUEL_TYPES
 from .coordinator import TankstellenConfigEntry, TankstellenCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -85,6 +85,7 @@ async def async_setup_entry(
 class TankstellenSensor(CoordinatorEntity[TankstellenCoordinator], SensorEntity):
     """Sensor for one fuel type – state is cheapest price, attrs hold all stations."""
 
+    _attr_attribution = ATTRIBUTION
     _attr_device_class = SensorDeviceClass.MONETARY
     _attr_native_unit_of_measurement = "€/l"
     _attr_has_entity_name = True

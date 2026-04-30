@@ -35,23 +35,29 @@ DYNAMIC_SAFETY_INTERVAL_HOURS = 6      # fallback timer when no movement detecte
 # Key inside hass.data[DOMAIN] for cross-entry rate limiting
 DOMAIN_LAST_API_CALL_KEY = "last_api_call"
 
-CARD_VERSION = "1.8.0"
-
 # Integration version — read from manifest.json at module import so the
-# string can never drift from HACS's authoritative source. Kept separate
-# from CARD_VERSION so the served JS bundle and the Python integration
-# can be released independently without breaking the frontend WS version
-# check. The manifest read is sync at import time (~one filesystem stat
-# of a 600-byte file), runs once, and is required for HACS anyway.
+# string can never drift from HACS's authoritative source. The manifest
+# read is sync at import time (~one filesystem stat of a 600-byte file),
+# runs once, and is required for HACS anyway.
 INTEGRATION_VERSION: Final = json.loads(
     (Path(__file__).parent / "manifest.json").read_text(encoding="utf-8")
 )["version"]
+
+# Aliased to INTEGRATION_VERSION so a manifest-only bump propagates
+# automatically — the parity test against `src/const.ts CARD_VERSION`
+# catches one-sided card bumps in CI before they ship.
+CARD_VERSION = INTEGRATION_VERSION
 
 # Canonical HTTP User-Agent for upstream API calls. RFC-9110 format:
 # `<product>/<version> <product>/<version>` with a single space between
 # tokens — parsers treat the string as one opaque identifier if the first
 # slash is missing.
 USER_AGENT: Final = f"HomeAssistant/{_HA_VERSION} {DOMAIN}/{INTEGRATION_VERSION}"
+
+# E-Control attribution string (Spritpreisrechner §3 attribution
+# practice). Surfaced on every entity via `_attr_attribution` and in the
+# card footer so the upstream data source is always visible to the user.
+ATTRIBUTION: Final = "Datenquelle: E-Control"
 
 # Retry delay when the API returns no station data (e.g. mid-update window)
 NO_DATA_RETRY_MINUTES = 10
