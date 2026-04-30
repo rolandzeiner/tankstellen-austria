@@ -33,8 +33,6 @@ rules:
     status: done
   runtime-data:
     status: done
-  source-code-standards:
-    status: done
   test-before-configure:
     status: done
     comment: Config flow makes a trial API fetch before creating the entry and shows cannot_connect on failure.
