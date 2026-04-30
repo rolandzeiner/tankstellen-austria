@@ -130,3 +130,83 @@ export interface TankstellenEntity {
   attributes: TankstellenEntityAttributes;
   last_updated?: string;
 }
+
+// ---------------------------------------------------------------------------
+// <ha-form> schema types
+// ---------------------------------------------------------------------------
+//
+// These mirror the HA core editor types so the form editor stays
+// strictly typed. `expandable` + `flatten: true` is non-negotiable —
+// without `flatten`, ha-form scopes inner-schema values under
+// `data[name]` and the card's flat-key reads silently default. The
+// HaFormExpandableSchema interface declares `flatten?: boolean`
+// explicitly so a future maintainer can't add an expandable that
+// quietly nests its values.
+
+export type HASelector =
+  | {
+      entity: {
+        domain?: string | string[];
+        integration?: string;
+        multiple?: boolean;
+      };
+    }
+  | { boolean: Record<string, never> }
+  | { text: { type?: "text" | "password" | "url" | "email"; multiline?: boolean } }
+  | {
+      number: {
+        min?: number;
+        max?: number;
+        step?: number;
+        mode?: "box" | "slider";
+        unit_of_measurement?: string;
+      };
+    }
+  | {
+      select: {
+        mode?: "dropdown" | "list";
+        multiple?: boolean;
+        custom_value?: boolean;
+        options: ReadonlyArray<{ value: string; label: string }>;
+      };
+    };
+
+export interface HaFormBaseSchema {
+  name: string;
+  required?: boolean;
+}
+
+export interface HaFormSelectorSchema extends HaFormBaseSchema {
+  selector: HASelector;
+}
+
+export interface HaFormExpandableSchema {
+  type: "expandable";
+  name: string;
+  title?: string;
+  /** When true, ha-form keeps the inner schema's values flat in
+   *  `data` (i.e. `data.show_history` rather than
+   *  `data.display.show_history`). Required for cards whose render()
+   *  reads flat config keys — forgetting it silently leaves every
+   *  flag at its default. */
+  flatten?: boolean;
+  schema: ReadonlyArray<HaFormSchema>;
+}
+
+export type HaFormSchema = HaFormSelectorSchema | HaFormExpandableSchema;
+
+// `<ha-form>` element shape — mirror the props the editor sets so
+// `tsc --noEmit` validates the template at compile time.
+interface HaFormElement extends HTMLElement {
+  hass?: import("custom-card-helpers").HomeAssistant;
+  data?: Record<string, unknown>;
+  schema?: ReadonlyArray<HaFormSchema>;
+  computeLabel?: (field: { name: string }) => string;
+  computeHelper?: (field: { name: string }) => string | undefined;
+}
+
+declare global {
+  interface HTMLElementTagNameMap {
+    "ha-form": HaFormElement;
+  }
+}

@@ -1,3 +1,35 @@
+// Schema-driven Lovelace editor for the Tankstellen Austria card.
+//
+// Design notes
+// ------------
+// * The static sections (entity picker, display toggles, history sub-
+//   options, cars sub-options, payment highlight, branding) use
+//   ``<ha-form>`` exclusively — schema-driven so ha-form picks up the
+//   active theme, supports the standard label/helper localisation
+//   chain, and keeps a11y / forced-colors / focus-visible behaviour in
+//   lockstep with HA core.
+//
+// * **Editor `_config` lifecycle gotcha** — custom-card editors do
+//   NOT receive a re-`setConfig()` after dispatching `config-changed`.
+//   The form-handler must therefore set ``this._config = next`` *before*
+//   firing the event; otherwise the next render reads stale state and
+//   the form reverts to the pre-change value.
+//
+// * **`expandable` + `flatten: true`** — without ``flatten``, ha-form
+//   scopes inner-schema values under ``data[name]`` and the card's
+//   flat-key reads silently default. Every expandable in this file
+//   ships ``flatten: true``; the ``HaFormExpandableSchema`` interface
+//   in ``types.ts`` declares the field explicitly so a future
+//   maintainer can't add a nested expandable by accident.
+//
+// * **Bespoke below ha-form** — three sections stay hand-rolled because
+//   their row lists are data-driven (the schema would have to be
+//   regenerated on every keystroke):
+//     - Tab labels: one row per resolved entity
+//     - Payment-filter chips: live keys from sensor + custom add
+//     - Cars roster: Add / Delete / per-row inputs / icon picker
+//   Same pattern wiener-linien-austria uses for its per-line section.
+
 import {
   LitElement,
   html,
@@ -16,10 +48,10 @@ import {
 import type {
   CarConfig,
   FuelType,
+  HaFormSchema,
   TankstellenAustriaCardConfig,
 } from "./types";
 import { CAR_ICONS } from "./const";
-import { findTankstellenEntities } from "./utils/entities";
 import {
   getFuelName,
   translate,
@@ -91,106 +123,239 @@ export class TankstellenAustriaCardEditor
     fireEvent(this, "config-changed", { config: { ...this._config } });
   }
 
-  protected render(): TemplateResult {
-    // Only gate on _config (minimal-init above). HA pickers conditionally
-    // render inside each section, gated on hass.
-    const available = findTankstellenEntities(this.hass);
-    const selected = this._config.entities ?? [];
+  // ------------------------------------------------------------------
+  // ha-form schema
+  // ------------------------------------------------------------------
 
-    const apiPmKeys = this._collectApiPaymentKeys();
+  /** Build the ha-form schema. Called per render so option labels pick
+   *  up the current `hass.language` and conditionally-shown sub-options
+   *  appear/disappear based on the parent toggle. */
+  private _schema(): ReadonlyArray<HaFormSchema> {
+    const showHistory = this._config.show_history !== false;
+    const showCars = this._config.show_cars === true;
+    const showPayment = this._config.show_payment_methods !== false;
+    const paymentFilter = this._config.payment_filter ?? [];
+
+    const schema: HaFormSchema[] = [
+      {
+        // Filter to tankstellen-austria sensors only — picking an
+        // unrelated `sensor.*` would render an empty card.
+        // `multiple: true` enables multi-fuel-type picking. Output is
+        // a flat string[] which matches the storage shape (no
+        // translation needed, unlike the nextbike Array<{entity}> form).
+        name: "entities",
+        selector: {
+          entity: {
+            domain: "sensor",
+            integration: "tankstellen_austria",
+            multiple: true,
+          },
+        },
+      },
+      {
+        // `flatten: true` is non-negotiable. Without it every toggle
+        // below would write to `data.display.<name>` and the card's
+        // flat config-key reads would silently default. The
+        // HaFormExpandableSchema interface in types.ts declares
+        // `flatten?: boolean` explicitly so this can't be forgotten.
+        type: "expandable",
+        name: "display",
+        title: this._et("section_display"),
+        flatten: true,
+        schema: [
+          {
+            name: "max_stations",
+            selector: {
+              number: { min: 0, max: 5, step: 1, mode: "slider" },
+            },
+          },
+          { name: "hide_header", selector: { boolean: {} } },
+          { name: "hide_header_price", selector: { boolean: {} } },
+          { name: "show_index", selector: { boolean: {} } },
+          { name: "show_map_links", selector: { boolean: {} } },
+          { name: "show_opening_hours", selector: { boolean: {} } },
+          { name: "show_payment_methods", selector: { boolean: {} } },
+          { name: "show_history", selector: { boolean: {} } },
+        ],
+      },
+    ];
+
+    if (showHistory) {
+      schema.push({
+        type: "expandable",
+        name: "history_options",
+        title: this._et("section_history"),
+        flatten: true,
+        schema: [
+          { name: "show_median_line", selector: { boolean: {} } },
+          { name: "show_hour_envelope", selector: { boolean: {} } },
+          { name: "show_noon_markers", selector: { boolean: {} } },
+          { name: "show_minmax", selector: { boolean: {} } },
+          { name: "show_best_refuel", selector: { boolean: {} } },
+        ],
+      });
+    }
+
+    {
+      const carsSubSchema: HaFormSchema[] = [
+        { name: "show_cars", selector: { boolean: {} } },
+      ];
+      if (showCars) {
+        carsSubSchema.push(
+          { name: "show_car_fillup", selector: { boolean: {} } },
+          { name: "show_car_consumption", selector: { boolean: {} } },
+        );
+      }
+      schema.push({
+        type: "expandable",
+        name: "cars_options",
+        title: this._et("section_cars"),
+        flatten: true,
+        schema: carsSubSchema,
+      });
+    }
+
+    if (showPayment && paymentFilter.length > 0) {
+      // Highlight-mode is only meaningful when at least one filter chip
+      // is active — gating the expandable entirely is clearer than
+      // showing a disabled toggle.
+      schema.push({
+        type: "expandable",
+        name: "payment_options",
+        title: this._et("section_payment_filter"),
+        flatten: true,
+        schema: [
+          { name: "payment_highlight_mode", selector: { boolean: {} } },
+        ],
+      });
+    }
+
+    schema.push({
+      type: "expandable",
+      name: "branding",
+      title: this._et("section_branding"),
+      flatten: true,
+      schema: [
+        { name: "logo_adapt_to_theme", selector: { boolean: {} } },
+        { name: "hide_attribution", selector: { boolean: {} } },
+      ],
+    });
+
+    return schema;
+  }
+
+  /** Field-label resolver. Three-step chain:
+   *  1. HA core's own translations for common field names ("entities",
+   *     "name", "icon"). `hass.localize` returns "" on miss, not the
+   *     lookup key, so a falsy check is the correct miss signal.
+   *  2. The card's editor-namespaced bundle (`editor.<field>`).
+   *  3. Last resort: raw field name (still functional, dev sees the gap). */
+  private _computeLabel = (field: { name: string }): string => {
+    const haKey = `ui.panel.lovelace.editor.card.generic.${field.name}`;
+    const ha = this.hass?.localize?.(haKey);
+    if (ha) return ha;
+    const localised = this._et(field.name);
+    if (localised !== `editor.${field.name}`) return localised;
+    return field.name;
+  };
+
+  /** Helper-text resolver. Only surfaces a helper when an
+   *  `editor.<field>_helper` key actually exists in the bundle —
+   *  otherwise ha-form's empty helper line eats vertical space. */
+  private _computeHelper = (
+    field: { name: string },
+  ): string | undefined => {
+    const key = `${field.name}_helper`;
+    const localised = this._et(key);
+    return localised === `editor.${key}` ? undefined : localised;
+  };
+
+  /** ha-form's value-changed handler. CRITICAL: set `this._config`
+   *  BEFORE `fireEvent` — custom-card editors don't receive a
+   *  re-setConfig after config-changed, so a fireEvent-only path
+   *  leaves _config stale and the next render reverts the form to
+   *  pre-change state. */
+  private _onFormChanged = (
+    ev: CustomEvent<{ value: Record<string, unknown> }>,
+  ): void => {
+    const value = ev.detail.value;
+    // Spread on top of existing config so bespoke-section keys
+    // (tab_labels, payment_filter, cars) survive form-only changes.
+    const next: TankstellenAustriaCardConfig = {
+      ...this._config,
+      ...(value as Partial<TankstellenAustriaCardConfig>),
+    };
+    this._config = next;
+    fireEvent(this, "config-changed", { config: next });
+  };
+
+  // ------------------------------------------------------------------
+  // Render
+  // ------------------------------------------------------------------
+
+  protected render(): TemplateResult {
+    if (!this.hass) {
+      // ha-form needs hass to translate field labels; render nothing
+      // until it lands. setConfig already populated _config with a
+      // minimal value so we don't need to gate on it.
+      return html`<div class="editor"></div>`;
+    }
+
+    const showHistory = this._config.show_history !== false;
+    const showBestRefuel = this._config.show_best_refuel !== false;
+    const showRecorderHint = showHistory && showBestRefuel;
 
     return html`
       <div class="editor">
-        ${this._renderSensorsSection(available, selected)}
-        ${this._renderTabLabelsSection(available, selected)}
-        ${this._renderDisplaySection()}
-        ${this._renderPaymentSection(apiPmKeys)}
-        ${this._renderCarsSection()}
-        ${this._renderBrandingSection()}
+        <ha-form
+          .hass=${this.hass}
+          .data=${this._config as Record<string, unknown>}
+          .schema=${this._schema()}
+          .computeLabel=${this._computeLabel}
+          .computeHelper=${this._computeHelper}
+          @value-changed=${this._onFormChanged}
+        ></ha-form>
+
+        ${showRecorderHint ? this._renderRecorderHint() : nothing}
+        ${this._renderTabLabelsSection()}
+        ${this._renderPaymentChipsSection()}
+        ${this._renderCarsRosterSection()}
       </div>
     `;
   }
 
-  private _renderBrandingSection(): TemplateResult {
-    const adaptLogo = this._config.logo_adapt_to_theme === true;
-    const hideAttr = this._config.hide_attribution === true;
+  private _renderRecorderHint(): TemplateResult {
+    const snippet = `recorder:\n  purge_keep_days: 30`;
+    const label = this._copiedPulse ? this._et("copied") : this._et("copy");
     return html`
-      <div class="editor-section">
-        <div class="section-header">${this._et("section_branding")}</div>
-        ${this._renderToggle(
-          "logo_adapt_to_theme",
-          this._et("logo_adapt_to_theme"),
-          adaptLogo,
-        )}
-        ${this._renderToggle(
-          "hide_attribution",
-          this._et("hide_attribution"),
-          hideAttr,
-        )}
+      <div class="recorder-hint">
+        <div class="recorder-hint-text">${this._et("recorder_hint_intro")}</div>
+        <pre class="recorder-snippet"><code>${snippet}</code></pre>
+        <button
+          class="recorder-copy-btn"
+          type="button"
+          aria-label=${this._et("copy_sensor_id")}
+          @click=${() => this._onCopyRecorderSnippet(snippet)}
+        >
+          <ha-icon icon="mdi:content-copy" aria-hidden="true"></ha-icon>
+          <span class="recorder-copy-label">${label}</span>
+        </button>
       </div>
     `;
   }
 
-  private _collectApiPaymentKeys(): Set<string> {
-    const keys = new Set<string>(["cash", "debit_card", "credit_card"]);
-    if (!this.hass) return keys;
-    for (const eid of this._config.entities ?? []) {
-      const stations = (this.hass.states[eid]?.attributes?.stations ??
-        []) as Array<{ payment_methods?: { others?: string[] } }>;
-      for (const s of stations) {
-        for (const o of s.payment_methods?.others ?? []) keys.add(o);
-      }
-    }
-    return keys;
-  }
+  // -- Tab labels (bespoke: row list driven by entity selection) ------
 
-  // --- Section renderers ---
-
-  private _renderSensorsSection(
-    available: string[],
-    selected: string[],
-  ): TemplateResult {
-    return html`
-      <div class="editor-section">
-        <div class="section-header">${this._et("section_sensors")}</div>
-        <div class="entity-chips">
-          ${available.map((eid) => this._renderEntityChip(eid, selected))}
-        </div>
-        <div class="editor-hint">${this._et("entities_hint")}</div>
-      </div>
-    `;
-  }
-
-  private _renderEntityChip(
-    eid: string,
-    selected: string[],
-  ): TemplateResult {
-    const state = this.hass?.states[eid];
-    const ft = state?.attributes?.fuel_type ?? "";
-    const ftName = getFuelName(ft, this._ctx());
-    const isSelected = selected.includes(eid);
-    return html`
-      <button
-        class=${classMap({ "entity-chip": true, selected: isSelected })}
-        type="button"
-        aria-pressed=${isSelected ? "true" : "false"}
-        @click=${() => this._toggleEntity(eid)}
-      >
-        <span class="fuel-name">${ftName}</span>
-        <span class="entity-chip-suffix">${eid.split(".")[1] ?? eid}</span>
-      </button>
-    `;
-  }
-
-  private _renderTabLabelsSection(
-    available: string[],
-    selected: string[],
-  ): TemplateResult | typeof nothing {
+  private _renderTabLabelsSection(): TemplateResult | typeof nothing {
     if (!this.hass) return nothing;
-    const ids = selected.length ? selected : available;
+    const selected = this._config.entities ?? [];
+    const ids = selected;
     const resolvable = ids
       .map((eid) => ({ eid, state: this.hass!.states[eid] }))
-      .filter((x): x is { eid: string; state: NonNullable<typeof x.state> } => !!x.state);
+      .filter(
+        (x): x is { eid: string; state: NonNullable<typeof x.state> } =>
+          !!x.state,
+      );
     if (resolvable.length < 2) return nothing;
 
     const labels: Record<string, string> = this._config.tab_labels ?? {};
@@ -234,131 +399,27 @@ export class TankstellenAustriaCardEditor
     `;
   }
 
-  private _renderDisplaySection(): TemplateResult {
-    const hideHeader = this._config.hide_header === true;
-    const hideHeaderPrice = this._config.hide_header_price === true;
-    const showIndex = this._config.show_index !== false;
-    const showMap = this._config.show_map_links !== false;
-    const showHours = this._config.show_opening_hours !== false;
-    const showPayment = this._config.show_payment_methods !== false;
-    const showHistory = this._config.show_history !== false;
-    const showBestRefuel = this._config.show_best_refuel !== false;
-    const showMedianLine = this._config.show_median_line === true;
-    const showHourEnvelope = this._config.show_hour_envelope === true;
-    const showNoonMarkers = this._config.show_noon_markers === true;
-    const showMinMax = this._config.show_minmax !== false;
-    const showCars = this._config.show_cars === true;
+  // -- Payment chips (bespoke: derived from live sensor attrs) --------
 
-    const maxStations = this._config.max_stations ?? 5;
-
-    return html`
-      <div class="editor-section">
-        <div class="section-header">${this._et("section_display")}</div>
-        ${this._renderToggle(
-          "hide_header",
-          this._et("hide_header"),
-          hideHeader,
-        )}
-        <div class="divider"></div>
-        ${this._renderToggle(
-          "hide_header_price",
-          this._et("hide_header_price"),
-          hideHeaderPrice,
-        )}
-        <div class="divider"></div>
-        ${this._renderToggle("show_index", this._et("show_index"), showIndex)}
-        <div class="divider"></div>
-        ${this._renderToggle("show_map_links", this._et("show_map_links"), showMap)}
-        <div class="divider"></div>
-        ${this._renderToggle("show_opening_hours", this._et("show_opening_hours"), showHours)}
-        <div class="divider"></div>
-        ${this._renderToggle("show_payment_methods", this._et("show_payment_methods"), showPayment)}
-        <div class="divider"></div>
-        ${this._renderToggle("show_history", this._et("show_history"), showHistory)}
-        ${showHistory
-          ? html`
-              ${this._renderToggle("show_median_line", this._et("show_median_line"), showMedianLine, true)}
-              ${this._renderToggle("show_hour_envelope", this._et("show_hour_envelope"), showHourEnvelope, true)}
-              ${this._renderToggle("show_noon_markers", this._et("show_noon_markers"), showNoonMarkers, true)}
-              ${this._renderToggle("show_minmax", this._et("show_minmax"), showMinMax, true)}
-              ${this._renderToggle("show_best_refuel", this._et("show_best_refuel"), showBestRefuel, true)}
-              ${showBestRefuel ? this._renderRecorderHint() : nothing}
-            `
-          : nothing}
-        <div class="divider"></div>
-        ${this._renderToggle("show_cars", this._et("show_cars"), showCars)}
-        <div class="divider"></div>
-        <div class="toggle-row" style="padding-top:4px">
-          <label for="slider-stations">${this._et("max_stations")}</label>
-        </div>
-        <div class="slider-row">
-          <input
-            id="slider-stations"
-            type="range"
-            min="0"
-            max="5"
-            step="1"
-            .value=${String(maxStations)}
-            @input=${this._onSliderInput}
-            @change=${this._onSliderChange}
-            @keydown=${this._stop}
-            @keyup=${this._stop}
-            @keypress=${this._stop}
-          />
-          <span class="slider-value">${maxStations}</span>
-        </div>
-      </div>
-    `;
+  private _collectApiPaymentKeys(): Set<string> {
+    const keys = new Set<string>(["cash", "debit_card", "credit_card"]);
+    if (!this.hass) return keys;
+    for (const eid of this._config.entities ?? []) {
+      const stations = (this.hass.states[eid]?.attributes?.stations ??
+        []) as Array<{ payment_methods?: { others?: string[] } }>;
+      for (const s of stations) {
+        for (const o of s.payment_methods?.others ?? []) keys.add(o);
+      }
+    }
+    return keys;
   }
 
-  private _renderToggle(
-    field: keyof TankstellenAustriaCardConfig,
-    label: string,
-    checked: boolean,
-    sub = false,
-  ): TemplateResult {
-    const switchId = `toggle-${String(field)}`;
-    return html`
-      <div class=${classMap({ "toggle-row": true, "toggle-row-sub": sub })}>
-        <label for=${switchId}>${label}</label>
-        <ha-switch
-          id=${switchId}
-          .checked=${checked}
-          @change=${(e: Event) => this._onBooleanToggle(field, e)}
-        ></ha-switch>
-      </div>
-    `;
-  }
-
-  private _renderRecorderHint(): TemplateResult {
-    const snippet = `recorder:\n  purge_keep_days: 30`;
-    const label = this._copiedPulse ? this._et("copied") : this._et("copy");
-    return html`
-      <div class="recorder-hint">
-        <div class="recorder-hint-text">${this._et("recorder_hint_intro")}</div>
-        <pre class="recorder-snippet"><code>${snippet}</code></pre>
-        <button
-          class="recorder-copy-btn"
-          type="button"
-          aria-label=${this._et("copy_sensor_id")}
-          @click=${() => this._onCopyRecorderSnippet(snippet)}
-        >
-          <ha-icon icon="mdi:content-copy" aria-hidden="true"></ha-icon>
-          <span class="recorder-copy-label">${label}</span>
-        </button>
-      </div>
-    `;
-  }
-
-  private _renderPaymentSection(
-    apiPmKeys: Set<string>,
-  ): TemplateResult | typeof nothing {
+  private _renderPaymentChipsSection(): TemplateResult | typeof nothing {
     const showPayment = this._config.show_payment_methods !== false;
     if (!showPayment) return nothing;
 
+    const apiPmKeys = this._collectApiPaymentKeys();
     const paymentFilter = this._config.payment_filter ?? [];
-    const highlightMode = this._config.payment_highlight_mode === true;
-
     // User-typed filter values that aren't in live data still need chips.
     const allPmKeys = new Set<string>(apiPmKeys);
     for (const f of paymentFilter) allPmKeys.add(f);
@@ -389,16 +450,6 @@ export class TankstellenAustriaCardEditor
           </ha-icon-button>
         </div>
         <div class="editor-hint">${this._et("payment_filter_custom_hint")}</div>
-        ${paymentFilter.length
-          ? html`
-              <div class="divider"></div>
-              ${this._renderToggle(
-                "payment_highlight_mode",
-                this._et("payment_highlight_mode"),
-                highlightMode,
-              )}
-            `
-          : nothing}
       </div>
     `;
   }
@@ -435,7 +486,9 @@ export class TankstellenAustriaCardEditor
     `;
   }
 
-  private _renderCarsSection(): TemplateResult | typeof nothing {
+  // -- Cars roster (bespoke: data-driven row list with icon picker) ---
+
+  private _renderCarsRosterSection(): TemplateResult | typeof nothing {
     const showCars = this._config.show_cars === true;
     if (!showCars) return nothing;
 
@@ -446,22 +499,11 @@ export class TankstellenAustriaCardEditor
     return html`
       <div class="editor-section">
         <div class="section-header">${this._et("section_cars")}</div>
-        ${this._renderToggle("show_car_fillup", this._et("show_car_fillup"), showCarFillup)}
-        ${this._renderToggle(
-          "show_car_consumption",
-          this._et("show_car_consumption"),
-          showCarConsumption,
-        )}
         ${!showCarFillup && !showCarConsumption
           ? html`<div class="editor-hint">${this._et("cars_both_off_hint")}</div>`
           : nothing}
-        <div class="divider"></div>
         ${cars.map((car, idx) => this._renderCarRow(car, idx))}
-        <button
-          class="car-add-btn"
-          type="button"
-          @click=${this._onAddCar}
-        >
+        <button class="car-add-btn" type="button" @click=${this._onAddCar}>
           ${this._et("add_car")}
         </button>
       </div>
@@ -556,7 +598,8 @@ export class TankstellenAustriaCardEditor
             @keydown=${this._stop}
             @keyup=${this._stop}
             @keypress=${this._stop}
-            @change=${(e: Event) => this._onCarFieldChange(idx, "consumption", e)}
+            @change=${(e: Event) =>
+              this._onCarFieldChange(idx, "consumption", e)}
           />
           <button
             class="car-delete-btn"
@@ -607,46 +650,12 @@ export class TankstellenAustriaCardEditor
     `;
   }
 
-  // --- Event handlers ---
+  // ------------------------------------------------------------------
+  // Bespoke event handlers (tab labels, payment chips, cars roster)
+  // ------------------------------------------------------------------
 
   private _stop(e: Event): void {
     e.stopPropagation();
-  }
-
-  private _toggleEntity(eid: string): void {
-    const current = [...(this._config.entities ?? [])];
-    const next = current.includes(eid)
-      ? current.filter((e) => e !== eid)
-      : [...current, eid];
-    this._config = { ...this._config, entities: next };
-    this._fireChanged();
-  }
-
-  private _onBooleanToggle(
-    field: keyof TankstellenAustriaCardConfig,
-    e: Event,
-  ): void {
-    const target = e.target as HTMLInputElement & { checked?: boolean };
-    const checked = !!target.checked;
-    this._config = { ...this._config, [field]: checked };
-    this._fireChanged();
-  }
-
-  // Range slider: firing config-changed on every `input` event re-renders
-  // the editor mid-drag and makes the slider thumb feel sticky. Update only
-  // the visible label on input; commit on change (pointer release).
-  private _onSliderInput(e: Event): void {
-    const input = e.target as HTMLInputElement;
-    const label = input.nextElementSibling as HTMLElement | null;
-    if (label) label.textContent = input.value;
-  }
-
-  private _onSliderChange(e: Event): void {
-    const target = e.target as HTMLInputElement;
-    const value = parseInt(target.value, 10);
-    if (!Number.isFinite(value)) return;
-    this._config = { ...this._config, max_stations: value };
-    this._fireChanged();
   }
 
   private async _onCopyRecorderSnippet(snippet: string): Promise<void> {
