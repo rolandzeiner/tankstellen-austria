@@ -46,7 +46,14 @@ INTEGRATION_VERSION: Final = json.loads(
 # Aliased to INTEGRATION_VERSION so a manifest-only bump propagates
 # automatically — the parity test against `src/const.ts CARD_VERSION`
 # catches one-sided card bumps in CI before they ship.
-CARD_VERSION = INTEGRATION_VERSION
+CARD_VERSION: Final = INTEGRATION_VERSION
+
+# Static-path mount + Lovelace-resource URL. URL_BASE is the directory
+# we expose under HA's HTTP layer so the bundle and any sibling assets
+# (e.g. e-control_logo.svg) all resolve under the same prefix.
+URL_BASE: Final = "/tankstellen-austria"
+CARD_FILENAME: Final = "tankstellen-austria-card.js"
+CARD_URL: Final = f"{URL_BASE}/{CARD_FILENAME}"
 
 # Canonical HTTP User-Agent for upstream API calls. RFC-9110 format:
 # `<product>/<version> <product>/<version>` with a single space between
