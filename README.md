@@ -151,9 +151,11 @@ The weekday is appended to the tip only when its own signal is strong enough —
 
 ## Sensors
 
+Entity IDs follow HA's `_attr_has_entity_name` + `translation_key` pattern: the entry name is the device name, and each fuel-type sensor's name is translated. For an entry named "Home" with Diesel + Super 95 + CNG enabled, you get `sensor.home_diesel`, `sensor.home_super_95`, `sensor.home_cng_erdgas`.
+
 | Entity | State | Unit |
 |---|---|---|
-| `sensor.tankstellen_{name}_{fuel_type}` | Cheapest price | €/L |
+| `sensor.{entry_name}_{translated_fuel_type}` | Cheapest price | €/L |
 
 **Attributes** (used by the card and available for templates / automations):
 
@@ -161,11 +163,12 @@ The weekday is appended to the tip only when its own signal is strong enough —
 |---|---|
 | `fuel_type` | `DIE` / `SUP` / `GAS` |
 | `fuel_type_name` | Diesel / Super 95 / CNG Erdgas |
+| `station_display_name` | Locale-agnostic display name (matches the entry title) |
 | `station_count` | Number of stations with prices |
 | `average_price` | Average across the 5 cheapest |
 | `stations` | List: `id`, `name`, `price`, `open`, `location`, `opening_hours`, `payment_methods` |
 | `dynamic_mode` | `true` for entries that follow a tracker |
-| `dynamic_entity` | Tracked `device_tracker` entity (dynamic mode only) |
+| `dynamic_tracker_label` | Friendly name of the bound tracker (dynamic mode only — the entity_id is intentionally not exposed) |
 | `attribution` | `Datenquelle: E-Control` |
 
 `payment_methods` per station: `cash`, `debit_card`, `credit_card` (booleans), and `others` (list of API strings like `Austrocard`, `UTA`).

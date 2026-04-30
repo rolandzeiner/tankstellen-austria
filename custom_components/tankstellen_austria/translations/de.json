@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Tankstellen Österreich",
-        "description": "Konfiguriere die Spritpreisüberwachung für deine Umgebung.",
+        "description": "Konfiguriere die Spritpreisüberwachung für deine Umgebung. Datenquelle: E-Control Spritpreisrechner.",
         "data": {
           "name": "Name",
           "location": "Standort",
