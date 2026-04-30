@@ -260,7 +260,7 @@ export function buildSparkline(opts: SparklineOpts): SparklineResult {
         if (x == null) continue;
         noonLines.push(svg`
           <line x1=${x.toFixed(1)} y1="0" x2=${x.toFixed(1)} y2=${HEIGHT}
-                stroke="var(--secondary-text-color)" stroke-width="0.9"
+                stroke="var(--secondary-text-color)" stroke-width="0.5"
                 stroke-dasharray="2,3" opacity="0.55"/>
         `);
       }
@@ -293,7 +293,7 @@ export function buildSparkline(opts: SparklineOpts): SparklineResult {
       ? svg`
           <line x1=${markerPoint.x.toFixed(1)} y1="0"
                 x2=${markerPoint.x.toFixed(1)} y2=${HEIGHT}
-                stroke="var(--success-color,#4CAF50)" stroke-width="1"
+                stroke="var(--success-color,#4CAF50)" stroke-width="0.6"
                 stroke-dasharray="3,2" opacity="0.8"/>`
       : nothing;
     const markerDot: TemplateResult | typeof nothing = markerPoint
