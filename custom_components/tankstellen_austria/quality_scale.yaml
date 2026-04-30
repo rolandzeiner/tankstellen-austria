@@ -75,7 +75,7 @@ rules:
     comment: One device is registered per config entry with manufacturer, model, and configuration URL; each sensor is attached via DeviceInfo.
   diagnostics:
     status: done
-    comment: diagnostics.py exposes entry + coordinator state with latitude/longitude redaction.
+    comment: diagnostics.py surfaces top-level attribution + coordinator block (last_update_success, last_exception via repr(), update_interval, dynamic_mode, fuel_types, station_counts). TO_REDACT covers latitude/longitude/api_key/password/token/dynamic_entity; sentinel-redaction grep test guards against new fields slipping through unredacted.
   discovery:
     status: exempt
     comment: E-Control is a fixed cloud API with no discoverable component on the local network.
@@ -143,4 +143,4 @@ rules:
     comment: Coordinator and config flow both use homeassistant.helpers.aiohttp_client.async_get_clientsession.
   strict-typing:
     status: done
-    comment: py.typed marker present; full type hints across all modules; CI runs mypy --strict.
+    comment: py.typed marker present; full type hints across all modules; CI runs mypy --strict on Python 3.14. Card side runs tsc --noEmit with noUncheckedIndexedAccess + exactOptionalPropertyTypes enabled.
