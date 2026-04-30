@@ -1,9 +1,23 @@
 """Shared pytest fixtures for Tankstellen Austria tests."""
+from __future__ import annotations
+
 from pathlib import Path
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import aiohttp
 import pytest
+from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+from custom_components.tankstellen_austria.const import (
+    CONF_DYNAMIC_ENTITY,
+    CONF_FUEL_TYPES,
+    CONF_INCLUDE_CLOSED,
+    CONF_LATITUDE,
+    CONF_LONGITUDE,
+    CONF_SCAN_INTERVAL,
+    DOMAIN,
+)
 
 pytest_plugins = ["pytest_homeassistant_custom_component"]
 
@@ -14,8 +28,46 @@ MOCK_STATION = {
     "open": True,
     "location": {"latitude": 48.1478, "longitude": 16.5147},
     "prices": [{"amount": 1.459}],
+    "openingHours": [{"day": "MO-FR", "from": "06:00", "to": "22:00"}],
+    "paymentMethods": {
+        "cash": True,
+        "debitCard": True,
+        "creditCard": False,
+        "others": "Austrocard, UTA",
+    },
+}
+
+MOCK_STATION_2 = {
+    "id": 2,
+    "name": "Zweite Tankstelle",
+    "open": False,
+    "location": {"latitude": 48.15, "longitude": 16.52},
+    "prices": [{"amount": 1.519}],
     "openingHours": [],
 }
+
+# Hoisted base entry data — every test merges via {**BASE_ENTRY_DATA, ...}.
+# Single source of truth so a CONF_* rename can't leave stale duplicates.
+BASE_ENTRY_DATA: dict[str, Any] = {
+    CONF_LATITUDE: 48.1478,
+    CONF_LONGITUDE: 16.5147,
+    CONF_FUEL_TYPES: ["DIE"],
+    CONF_INCLUDE_CLOSED: True,
+    CONF_SCAN_INTERVAL: 30,
+    CONF_DYNAMIC_ENTITY: None,
+}
+
+
+def make_entry(
+    data: dict[str, Any] | None = None,
+    options: dict[str, Any] | None = None,
+    title: str = "Test",
+) -> MockConfigEntry:
+    """Build a MockConfigEntry with sensible Tankstellen defaults merged in."""
+    entry_data = {**BASE_ENTRY_DATA, **(data or {})}
+    return MockConfigEntry(
+        domain=DOMAIN, data=entry_data, options=options or {}, title=title
+    )
 
 
 @pytest.fixture(autouse=True)

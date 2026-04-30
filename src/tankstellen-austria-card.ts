@@ -489,12 +489,8 @@ export class TankstellenAustriaCard extends LitElement {
             const ft = e.attributes.fuel_type ?? "";
             label = getFuelName(ft, this._ctx());
             if (e.attributes.dynamic_mode === true) {
-              const trackerId = e.attributes.dynamic_entity;
-              const trackerName = trackerId
-                ? this.hass.states[trackerId]?.attributes?.friendly_name ||
-                  trackerId.split(".")[1]
-                : null;
-              if (trackerName) label += ` · ${trackerName}`;
+              const trackerLabel = e.attributes.dynamic_tracker_label;
+              if (trackerLabel) label += ` · ${trackerLabel}`;
             }
           }
           const selected = i === activeTab;
@@ -528,12 +524,7 @@ export class TankstellenAustriaCard extends LitElement {
 
     let subtitle: string | null = null;
     if (isDynamic) {
-      const trackerId = active.attributes.dynamic_entity;
-      const trackerName = trackerId
-        ? this.hass.states[trackerId]?.attributes?.friendly_name ||
-          trackerId.split(".")[1]
-        : null;
-      subtitle = trackerName ?? null;
+      subtitle = active.attributes.dynamic_tracker_label ?? null;
     }
 
     return html`

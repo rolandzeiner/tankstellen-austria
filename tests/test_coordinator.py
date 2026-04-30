@@ -13,8 +13,6 @@ from custom_components.tankstellen_austria.const import (
     CONF_DYNAMIC_ENTITY,
     CONF_FUEL_TYPES,
     CONF_INCLUDE_CLOSED,
-    CONF_LATITUDE,
-    CONF_LONGITUDE,
     CONF_SCAN_INTERVAL,
     DOMAIN,
     DOMAIN_LAST_API_CALL_KEY,
@@ -22,27 +20,13 @@ from custom_components.tankstellen_austria.const import (
 )
 from custom_components.tankstellen_austria.coordinator import TankstellenCoordinator
 
-MOCK_STATION = {
-    "id": 1,
-    "name": "Test Tankstelle",
-    "open": True,
-    "location": {"latitude": 48.1478, "longitude": 16.5147},
-    "prices": [{"amount": 1.459}],
-    "openingHours": [],
-}
-
-BASE_ENTRY_DATA = {
-    CONF_LATITUDE: 48.1478,
-    CONF_LONGITUDE: 16.5147,
-    CONF_FUEL_TYPES: ["DIE", "SUP"],
-    CONF_INCLUDE_CLOSED: True,
-    CONF_SCAN_INTERVAL: 30,
-    CONF_DYNAMIC_ENTITY: None,
-}
+from .conftest import BASE_ENTRY_DATA as _BASE_ENTRY_DATA, MOCK_STATION
 
 
 def _make_entry(data: dict | None = None) -> MockConfigEntry:
-    entry_data = {**BASE_ENTRY_DATA, **(data or {})}
+    # Coordinator tests historically default to two fuel types (DIE+SUP)
+    # to exercise the fan-out path; merge that on top of the shared base.
+    entry_data = {**_BASE_ENTRY_DATA, CONF_FUEL_TYPES: ["DIE", "SUP"], **(data or {})}
     return MockConfigEntry(domain=DOMAIN, data=entry_data, options={})
 
 

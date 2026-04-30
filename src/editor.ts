@@ -201,14 +201,10 @@ export class TankstellenAustriaCardEditor
           const ft = state.attributes?.fuel_type ?? "";
           let defaultLabel = getFuelName(ft, this._ctx());
           if (state.attributes?.dynamic_mode === true) {
-            const trackerId = state.attributes.dynamic_entity as
+            const trackerLabel = state.attributes.dynamic_tracker_label as
               | string
               | undefined;
-            const trackerName = trackerId
-              ? this.hass!.states[trackerId]?.attributes?.friendly_name ||
-                trackerId.split(".")[1]
-              : null;
-            if (trackerName) defaultLabel += ` · ${trackerName}`;
+            if (trackerLabel) defaultLabel += ` · ${trackerLabel}`;
           }
           const current = typeof labels[eid] === "string" ? labels[eid] : "";
           const inputId = `tablbl-${eid.replace(/[^a-z0-9_-]/gi, "-")}`;

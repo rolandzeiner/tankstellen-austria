@@ -4,56 +4,20 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
-from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.tankstellen_austria.const import (
+    ATTRIBUTION,
     CONF_DYNAMIC_ENTITY,
     CONF_FUEL_TYPES,
     CONF_INCLUDE_CLOSED,
-    CONF_LATITUDE,
-    CONF_LONGITUDE,
-    CONF_SCAN_INTERVAL,
-    DOMAIN,
 )
 
-MOCK_STATION = {
-    "id": 1,
-    "name": "Test Tankstelle",
-    "open": True,
-    "location": {"latitude": 48.1478, "longitude": 16.5147},
-    "prices": [{"amount": 1.459}],
-    "openingHours": [{"day": "MO-FR", "from": "06:00", "to": "22:00"}],
-    "paymentMethods": {
-        "cash": True,
-        "debitCard": True,
-        "creditCard": False,
-        "others": "Austrocard, UTA",
-    },
-}
-
-MOCK_STATION_2 = {
-    "id": 2,
-    "name": "Zweite Tankstelle",
-    "open": False,
-    "location": {"latitude": 48.15, "longitude": 16.52},
-    "prices": [{"amount": 1.519}],
-    "openingHours": [],
-}
-
-BASE_ENTRY_DATA = {
-    CONF_LATITUDE: 48.1478,
-    CONF_LONGITUDE: 16.5147,
-    CONF_FUEL_TYPES: ["DIE"],
-    CONF_INCLUDE_CLOSED: True,
-    CONF_SCAN_INTERVAL: 30,
-    CONF_DYNAMIC_ENTITY: None,
-}
+from .conftest import MOCK_STATION, MOCK_STATION_2, make_entry
 
 
 async def _setup_entry(hass: HomeAssistant, data: dict | None = None):
     """Set up a config entry and return (entry, coordinator)."""
-    entry_data = {**BASE_ENTRY_DATA, **(data or {})}
-    entry = MockConfigEntry(domain=DOMAIN, data=entry_data, options={}, title="Test")
+    entry = make_entry(data=data)
     entry.add_to_hass(hass)
 
     with patch(
@@ -74,12 +38,7 @@ async def _setup_entry(hass: HomeAssistant, data: dict | None = None):
 
 async def test_sensor_created_per_fuel_type(hass: HomeAssistant) -> None:
     """One sensor entity is created for each configured fuel type."""
-    entry = MockConfigEntry(
-        domain=DOMAIN,
-        data={**BASE_ENTRY_DATA, CONF_FUEL_TYPES: ["DIE", "SUP"]},
-        options={},
-        title="Test",
-    )
+    entry = make_entry(data={CONF_FUEL_TYPES: ["DIE", "SUP"]})
     entry.add_to_hass(hass)
 
     with patch(
@@ -116,7 +75,7 @@ async def test_sensor_state_unknown_when_no_stations(hass: HomeAssistant) -> Non
     itself to be down). This test guards the empty-list branch in
     ``TankstellenSensor.native_value``.
     """
-    entry = MockConfigEntry(domain=DOMAIN, data=BASE_ENTRY_DATA, options={}, title="Test")
+    entry = make_entry()
     entry.add_to_hass(hass)
 
     with patch(
@@ -138,17 +97,27 @@ async def test_sensor_state_unknown_when_no_stations(hass: HomeAssistant) -> Non
 
 
 async def test_sensor_attributes_structure(hass: HomeAssistant) -> None:
-    """Sensor attributes contain all expected keys."""
+    """Sensor attributes contain all expected keys.
+
+    Critical leak guard: ``dynamic_entity`` (a ``device_tracker.*`` id)
+    must NOT appear in entity attributes — the recorder + frontend would
+    then surface the user's bound tracker. The bool ``dynamic_mode`` is
+    fine; the entity_id is not.
+    """
     await _setup_entry(hass)
     state = hass.states.get("sensor.test_diesel")
     attrs = state.attributes
 
     assert attrs["fuel_type"] == "DIE"
     assert attrs["fuel_type_name"] == "Diesel"
+    assert attrs["station_display_name"] == "Test"
     assert attrs["station_count"] == 1
     assert attrs["average_price"] == pytest.approx(1.459)
     assert attrs["dynamic_mode"] is False
-    assert attrs["dynamic_entity"] is None
+    assert "dynamic_entity" not in attrs
+    # CoordinatorEntity surfaces _attr_attribution as the standard
+    # ATTR_ATTRIBUTION key on extra state attributes.
+    assert attrs.get("attribution") == ATTRIBUTION
 
 
 async def test_sensor_stations_attribute(hass: HomeAssistant) -> None:
@@ -170,7 +139,7 @@ async def test_sensor_stations_attribute(hass: HomeAssistant) -> None:
 
 async def test_sensor_average_price_multiple_stations(hass: HomeAssistant) -> None:
     """average_price is the mean of all station prices."""
-    entry = MockConfigEntry(domain=DOMAIN, data=BASE_ENTRY_DATA, options={}, title="Test")
+    entry = make_entry()
     entry.add_to_hass(hass)
 
     with patch(
@@ -209,13 +178,20 @@ async def test_sensor_include_closed_true_saved(hass: HomeAssistant) -> None:
 
 
 async def test_sensor_dynamic_mode_attributes(hass: HomeAssistant) -> None:
-    """Sensors expose dynamic_mode=True and dynamic_entity when in dynamic mode."""
-    entry = MockConfigEntry(
-        domain=DOMAIN,
-        data={**BASE_ENTRY_DATA, CONF_DYNAMIC_ENTITY: "device_tracker.phone"},
-        options={},
-        title="Test",
+    """Sensors expose dynamic_mode=True and a friendly tracker label.
+
+    The user-chosen friendly_name is fine to surface; the entity_id is
+    the leak we removed. Card consumes ``dynamic_tracker_label`` for
+    its tab subtitle without ever seeing the tracker entity_id.
+    """
+    # Pre-seed the tracker state so the sensor can resolve its
+    # friendly_name when building extra_state_attributes.
+    hass.states.async_set(
+        "device_tracker.phone",
+        "home",
+        {"friendly_name": "iPhone Alex"},
     )
+    entry = make_entry(data={CONF_DYNAMIC_ENTITY: "device_tracker.phone"})
     entry.add_to_hass(hass)
 
     with patch(
@@ -227,8 +203,10 @@ async def test_sensor_dynamic_mode_attributes(hass: HomeAssistant) -> None:
         await hass.async_block_till_done()
 
     state = hass.states.get("sensor.test_diesel")
-    assert state.attributes["dynamic_mode"] is True
-    assert state.attributes["dynamic_entity"] == "device_tracker.phone"
+    attrs = state.attributes
+    assert attrs["dynamic_mode"] is True
+    assert "dynamic_entity" not in attrs
+    assert attrs["dynamic_tracker_label"] == "iPhone Alex"
 
 
 # ---------------------------------------------------------------------------
@@ -297,7 +275,7 @@ async def test_sensor_warns_once_on_price_drift(
         "prices": [{"amount": "not-a-number"}],
         "openingHours": [],
     }
-    entry = MockConfigEntry(domain=DOMAIN, data=BASE_ENTRY_DATA, options={}, title="Test")
+    entry = make_entry()
     entry.add_to_hass(hass)
 
     with patch(
@@ -342,7 +320,7 @@ async def test_sensor_payment_methods_missing(hass: HomeAssistant) -> None:
         "prices": [{"amount": 1.499}],
         "openingHours": [],
     }
-    entry = MockConfigEntry(domain=DOMAIN, data=BASE_ENTRY_DATA, options={}, title="Test")
+    entry = make_entry()
     entry.add_to_hass(hass)
 
     with patch(

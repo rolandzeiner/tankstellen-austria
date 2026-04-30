@@ -23,38 +23,16 @@ from custom_components.tankstellen_austria import (
 )
 from custom_components.tankstellen_austria.const import (
     CARD_VERSION,
-    CONF_DYNAMIC_ENTITY,
-    CONF_FUEL_TYPES,
-    CONF_INCLUDE_CLOSED,
-    CONF_LATITUDE,
-    CONF_LONGITUDE,
-    CONF_SCAN_INTERVAL,
     DOMAIN,
 )
 
-MOCK_STATION = {
-    "id": 1,
-    "name": "Test Tankstelle",
-    "open": True,
-    "location": {"latitude": 48.1478, "longitude": 16.5147},
-    "prices": [{"amount": 1.459}],
-    "openingHours": [],
-}
-
-_BASE_DATA = {
-    CONF_LATITUDE: 48.1478,
-    CONF_LONGITUDE: 16.5147,
-    CONF_FUEL_TYPES: ["DIE"],
-    CONF_INCLUDE_CLOSED: True,
-    CONF_SCAN_INTERVAL: 30,
-    CONF_DYNAMIC_ENTITY: None,
-}
+from .conftest import BASE_ENTRY_DATA, MOCK_STATION
 
 
 def _make_entry() -> MockConfigEntry:
     return MockConfigEntry(
         domain=DOMAIN,
-        data=_BASE_DATA,
+        data=BASE_ENTRY_DATA,
         options={},
         title="Test",
         unique_id="48.148_16.515",
@@ -306,7 +284,7 @@ async def test_remove_entry_keeps_resource_when_other_entries_exist(
     entry.add_to_hass(hass)
     other = MockConfigEntry(
         domain=DOMAIN,
-        data=_BASE_DATA,
+        data=BASE_ENTRY_DATA,
         options={},
         title="Other",
         unique_id="48.200_16.400",

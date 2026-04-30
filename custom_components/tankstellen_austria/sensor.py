@@ -156,15 +156,35 @@ class TankstellenSensor(CoordinatorEntity[TankstellenCoordinator], SensorEntity)
             })
         prices = [s["price"] for s in attr_stations if s.get("price") is not None]
         avg_price = round(sum(prices) / len(prices), 3) if prices else None
-        return {
+
+        # Locale-agnostic display name from entry.title (user-chosen at
+        # config-flow time). Card consumes this instead of stripping a
+        # localised `friendly_name` regex.
+        attrs: dict[str, Any] = {
             "fuel_type": self._fuel_type,
             "fuel_type_name": FUEL_TYPES.get(self._fuel_type, self._fuel_type),
+            "station_display_name": self._entry.title,
             "station_count": len(attr_stations),
             "stations": attr_stations,
             "average_price": avg_price,
             "dynamic_mode": self.coordinator.dynamic_mode,
-            "dynamic_entity": self.coordinator.dynamic_entity,
         }
+        # Dynamic-mode UX preserved without leaking the device_tracker
+        # entity_id: publish the user-chosen friendly name only. The
+        # entity_id stays internal to the coordinator and inside the
+        # (redacted) diagnostics block.
+        if self.coordinator.dynamic_mode:
+            tracker_id = self.coordinator.dynamic_entity
+            label: str | None = None
+            if tracker_id:
+                tracker_state = self.hass.states.get(tracker_id)
+                if tracker_state is not None:
+                    raw = tracker_state.attributes.get("friendly_name")
+                    if isinstance(raw, str) and raw:
+                        label = raw
+            if label:
+                attrs["dynamic_tracker_label"] = label
+        return attrs
 
     @property
     def _stations(self) -> list[dict[str, Any]]:

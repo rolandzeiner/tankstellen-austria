@@ -111,10 +111,16 @@ export interface TankstellenEntityAttributes {
   friendly_name?: string;
   fuel_type?: FuelType | string;
   fuel_type_name?: string;
+  // Locale-agnostic display name from the integration entry title.
+  // Card consumes this instead of regex-stripping `friendly_name`.
+  station_display_name?: string;
   stations?: Station[];
   average_price?: number;
   dynamic_mode?: boolean;
-  dynamic_entity?: string;
+  // User-chosen friendly_name of the bound device_tracker (NOT its
+  // entity_id — the integration scrubs the entity_id for privacy).
+  // Used for the dynamic-mode tab subtitle and header chip.
+  dynamic_tracker_label?: string;
   attribution?: string;
 }
 
