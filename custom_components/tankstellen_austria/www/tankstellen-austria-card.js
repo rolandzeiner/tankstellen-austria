@@ -1714,22 +1714,22 @@ function e(e,t,i,n){var r,a=arguments.length,o=a<3?t:null===n?n=Object.getOwnPro
             </div>
           </div>
           <div class="price">${Ce(e.price)}</div>
-          ${o?V`
-                <a
-                  class="icon-action map"
-                  href=${gt(function(e,t){if(!e)return"#";if(/\d/.test(e.address??"")){const t=`${e.postalCode??""} ${e.city??""} ${e.address??""}`.trim();return`https://maps.google.com/?q=${encodeURIComponent(t)}`}const i=[t,e.address,e.postalCode,e.city].filter(e=>null!=e&&""!==e);return`https://www.google.com/search?q=${encodeURIComponent(i.join(" "))}`}(c,e.name??""))}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  aria-label=${`${this._t("map")}: ${e.name??""}`}
-                  title=${this._t("map")}
-                  @click=${this._onMapLinkClick}
-                >
-                  <ha-icon
-                    icon=${/\d/.test(c.address??"")?"mdi:map-marker":"mdi:magnify"}
-                    aria-hidden="true"
-                  ></ha-icon>
-                </a>
-              `:G}
+          ${(()=>{if(!o)return G;const t=gt(function(e,t){if(!e)return t?`https://www.google.com/search?q=${encodeURIComponent(t)}`:null;if(/\d/.test(e.address??"")){const t=`${e.postalCode??""} ${e.city??""} ${e.address??""}`.trim();return`https://maps.google.com/?q=${encodeURIComponent(t)}`}const i=[t,e.address,e.postalCode,e.city].filter(e=>null!=e&&""!==e);return 0===i.length?null:`https://www.google.com/search?q=${encodeURIComponent(i.join(" "))}`}(c,e.name??""));return t?V`
+              <a
+                class="icon-action map"
+                href=${t}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label=${`${this._t("map")}: ${e.name??""}`}
+                title=${this._t("map")}
+                @click=${this._onMapLinkClick}
+              >
+                <ha-icon
+                  icon=${/\d/.test(c.address??"")?"mdi:map-marker":"mdi:magnify"}
+                  aria-hidden="true"
+                ></ha-icon>
+              </a>
+            `:G})()}
           ${v?V`<ha-icon
                 class="expander-chevron"
                 icon="mdi:chevron-down"

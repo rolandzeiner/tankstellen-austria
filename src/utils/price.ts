@@ -11,7 +11,11 @@ export function formatPriceShort(price: number | null | undefined): string {
 }
 
 // Build a Google Maps URL for a station, falling back to a web search when
-// the API address lacks a street number (many rural stations).
+// the API address lacks a street number (many rural stations). Returns
+// null when the inputs would yield nothing useful — caller should render
+// the link as `nothing` rather than an empty <a href> (which the
+// safeHttpsUri allowlist would otherwise collapse to "" → page reload
+// on click).
 export interface StationLocation {
   address?: string;
   postalCode?: string | number;
@@ -23,8 +27,11 @@ export interface StationLocation {
 export function mapsUrl(
   loc: StationLocation | null | undefined,
   stationName: string,
-): string {
-  if (!loc) return "#";
+): string | null {
+  if (!loc) {
+    if (!stationName) return null;
+    return `https://www.google.com/search?q=${encodeURIComponent(stationName)}`;
+  }
   const hasStreetNumber = /\d/.test(loc.address ?? "");
   if (hasStreetNumber) {
     const query = `${loc.postalCode ?? ""} ${loc.city ?? ""} ${loc.address ?? ""}`.trim();
@@ -33,5 +40,6 @@ export function mapsUrl(
   const parts = [stationName, loc.address, loc.postalCode, loc.city].filter(
     (p): p is string | number => p != null && p !== "",
   );
+  if (parts.length === 0) return null;
   return `https://www.google.com/search?q=${encodeURIComponent(parts.join(" "))}`;
 }

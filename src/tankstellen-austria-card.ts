@@ -983,26 +983,33 @@ export class TankstellenAustriaCard extends LitElement {
             </div>
           </div>
           <div class="price">${formatPrice(s.price)}</div>
-          ${showMapLinks
-            ? html`
-                <a
-                  class="icon-action map"
-                  href=${safeHttpsUri(mapsUrl(loc, s.name ?? ""))}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  aria-label=${`${this._t("map")}: ${s.name ?? ""}`}
-                  title=${this._t("map")}
-                  @click=${this._onMapLinkClick}
-                >
-                  <ha-icon
-                    icon=${/\d/.test(loc.address ?? "")
-                      ? "mdi:map-marker"
-                      : "mdi:magnify"}
-                    aria-hidden="true"
-                  ></ha-icon>
-                </a>
-              `
-            : nothing}
+          ${(() => {
+            if (!showMapLinks) return nothing;
+            const url = safeHttpsUri(mapsUrl(loc, s.name ?? ""));
+            // mapsUrl returns null when neither a station name nor any
+            // location field is available — and safeHttpsUri returns ""
+            // for non-https inputs. Either way, render nothing rather
+            // than an empty <a href> that would reload the page on click.
+            if (!url) return nothing;
+            return html`
+              <a
+                class="icon-action map"
+                href=${url}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label=${`${this._t("map")}: ${s.name ?? ""}`}
+                title=${this._t("map")}
+                @click=${this._onMapLinkClick}
+              >
+                <ha-icon
+                  icon=${/\d/.test(loc.address ?? "")
+                    ? "mdi:map-marker"
+                    : "mdi:magnify"}
+                  aria-hidden="true"
+                ></ha-icon>
+              </a>
+            `;
+          })()}
           ${hasDetail
             ? html`<ha-icon
                 class="expander-chevron"

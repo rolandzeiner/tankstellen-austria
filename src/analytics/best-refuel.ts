@@ -1,3 +1,14 @@
+// Best-refuel-time analytics — bucketed by hour-of-day and weekday.
+//
+// Locality assumption: ``Date.getHours()`` and ``Date.getDay()`` return
+// values in the *browser's* local timezone, not UTC. The recommendation
+// is therefore framed in the user's clock ("Tuesday morning is typically
+// cheapest"), which matches the UX intent for an Austrian fuel-price
+// integration where every user is on Europe/Vienna in practice. A
+// dashboard viewed from another timezone will see the analysis re-bucket
+// to that timezone's clock — do NOT cache results across sessions or
+// share them between users without re-running the analysis.
+
 import type { HistoryPoint } from "../history";
 import type { HourlyEnvelope } from "../sparkline";
 import { clamp, percentile } from "../utils/math";
