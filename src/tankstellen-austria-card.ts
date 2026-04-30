@@ -43,7 +43,6 @@ import { formatPrice, mapsUrl } from "./utils/price";
 import {
   getFuelName,
   getWeekdays,
-  localize,
   resolveLang,
   translate,
   type TranslateContext,
@@ -84,8 +83,10 @@ import "./editor";
 const ATTRIBUTION_REQUIRED = "Datenquelle: E-Control";
 
 // Styled console banner for version-mismatch debugging in HA's console.
+// Pre-hass, pre-config — no language resolution available, so the banner
+// is intentionally English-only.
 console.info(
-  `%c  Tankstellen Austria Card  %c  ${localize("common.version")} ${CARD_VERSION}  `,
+  `%c  Tankstellen Austria Card  %c  Version ${CARD_VERSION}  `,
   "color: white; font-weight: bold; background: #DC2026",
   "color: white; font-weight: bold; background: dimgray",
 );

@@ -28,25 +28,6 @@ function resolveString(path: string, dictionary: Dict): string | undefined {
   return typeof value === "string" ? value : undefined;
 }
 
-// localStorage-backed lookup — used for the console boot banner before any
-// hass/config is available. Matches HA's own `selectedLanguage` storage key.
-export function localize(string: string, search = "", replace = ""): string {
-  const raw =
-    (typeof localStorage !== "undefined" &&
-      localStorage.getItem("selectedLanguage")) ||
-    "en";
-  const lang = raw.replace(/['"]+/g, "").replace("-", "_");
-
-  let translated = resolveString(string, languages[lang] ?? EN_LANG);
-  if (translated === undefined) translated = resolveString(string, EN_LANG);
-  if (translated === undefined) translated = string;
-
-  if (search !== "" && replace !== "") {
-    translated = translated.replace(search, replace);
-  }
-  return translated;
-}
-
 // Context-aware translator. Card uses this in render because the resolved
 // language needs to honour `config.language` first, then `hass.language`,
 // then German (the integration's origin language).

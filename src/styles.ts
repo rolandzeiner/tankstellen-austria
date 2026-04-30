@@ -942,62 +942,6 @@ export const editorStyles = css`
     line-height: 1.4;
   }
 
-  /* Entity chips */
-  .entity-chips {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-  }
-  .entity-chip {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    padding: 5px 12px;
-    border-radius: 16px;
-    font-size: 0.875rem;
-    cursor: pointer;
-    transition: all var(--ha-transition-duration-fast, 160ms) var(--ha-transition-easing-standard, ease);
-    border: 1px solid var(--divider-color);
-    background: var(--card-background-color, #fff);
-    color: var(--primary-text-color);
-    font-family: inherit;
-  }
-  .entity-chip.selected {
-    background: var(--primary-color);
-    color: var(--text-primary-color, #fff);
-    border-color: var(--primary-color);
-  }
-  .entity-chip:hover {
-    opacity: 0.85;
-  }
-  .entity-chip .fuel-name {
-    font-weight: 500;
-  }
-  .entity-chip-suffix {
-    font-size: 0.75rem;
-    opacity: 0.7;
-  }
-
-  /* Toggle rows */
-  .toggle-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 2px 0;
-  }
-  .toggle-row label {
-    font-size: 0.875rem;
-    color: var(--primary-text-color);
-    cursor: pointer;
-  }
-  .toggle-row-sub {
-    padding-left: 16px;
-  }
-  .toggle-row-sub label {
-    font-size: 0.8125rem;
-    color: var(--secondary-text-color);
-  }
-
   /* Recorder hint + copy button */
   .recorder-hint {
     margin: 4px 0 2px 16px;
@@ -1043,30 +987,6 @@ export const editorStyles = css`
   }
   .recorder-copy-btn ha-icon {
     --mdc-icon-size: 14px;
-  }
-
-  .divider {
-    height: 1px;
-    background: var(--divider-color);
-    margin: 2px 0;
-  }
-
-  /* Max-stations slider */
-  .slider-row {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-  .slider-row input[type="range"] {
-    flex: 1;
-    accent-color: var(--primary-color);
-  }
-  .slider-value {
-    min-width: 20px;
-    text-align: center;
-    font-weight: 600;
-    font-size: 0.9375rem;
-    color: var(--primary-color);
   }
 
   /* Tab labels */
