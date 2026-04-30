@@ -61,6 +61,16 @@ jobs:
           # ecosystem has caught up and 3.14 is the current target.
           python-version: "3.14"
       - name: Install dependencies
+        # PyO3 0.24 (still pinned by transitive deps pydantic-core /
+        # orjson / Pillow that HA core hasn't bumped past) refuses to
+        # build against Python ≥3.14 unless the stable-ABI forward-
+        # compat flag is set. Setting it here lets the CI tests run on
+        # 3.14 without waiting for every pyo3-using dep to ship 0.25+.
+        # Drop this env once HA's pyo3 dependency tree is uniformly
+        # 0.25+ (check `pip show pydantic_core orjson Pillow` for the
+        # bundled pyo3 version on a fresh HA release).
+        env:
+          PYO3_USE_ABI3_FORWARD_COMPATIBILITY: "1"
         run: pip install -r requirements_test.txt
       - name: Run Linter (Ruff)
         run: |
