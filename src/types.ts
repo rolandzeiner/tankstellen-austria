@@ -1,5 +1,4 @@
 import type {
-  ActionConfig,
   LovelaceCard,
   LovelaceCardConfig,
   LovelaceCardEditor,
@@ -74,10 +73,6 @@ export interface TankstellenAustriaCardConfig extends LovelaceCardConfig {
   // line). Defaults to false: the footer is visible by default,
   // matching E-Control §3 attribution practice.
   hide_attribution?: boolean;
-
-  tap_action?: ActionConfig;
-  hold_action?: ActionConfig;
-  double_tap_action?: ActionConfig;
 }
 
 // --- Upstream API shapes, as surfaced on the HA sensor's `.attributes`. ---

@@ -357,7 +357,8 @@ export class TankstellenAustriaCard extends LitElement {
       `;
     }
 
-    const active = entities[activeTab] ?? entities[0];
+    // entities.length > 0 was just checked above, so entities[0] is defined.
+    const active = entities[activeTab] ?? entities[0]!;
     const attribution = active.attributes.attribution;
 
     return html`

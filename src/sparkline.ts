@@ -95,7 +95,7 @@ function resolveVisibleMarkerIdx(
   let bestDist = Infinity;
   let bestIdx = -1;
   for (let i = 0; i < data.length; i++) {
-    const dist = Math.abs(data[i].time - targetMs);
+    const dist = Math.abs(data[i]!.time - targetMs);
     if (dist < bestDist) {
       bestDist = dist;
       bestIdx = i;
@@ -124,8 +124,8 @@ function computeMedianDelta(values: number[]): MedianDelta | null {
   if (values.length < 2) return null;
   const sorted = [...values].sort((a, b) => a - b);
   const mid = (sorted.length - 1) / 2;
-  const median = (sorted[Math.floor(mid)] + sorted[Math.ceil(mid)]) / 2;
-  const current = values[values.length - 1];
+  const median = (sorted[Math.floor(mid)]! + sorted[Math.ceil(mid)]!) / 2;
+  const current = values[values.length - 1]!;
   const deltaCents = (current - median) * 100;
   const absCents = Math.abs(deltaCents).toFixed(1);
   if (deltaCents <= -0.05) {
@@ -140,7 +140,7 @@ function computeMedianDelta(values: number[]): MedianDelta | null {
 function medianY(values: number[], priceToY: (p: number) => number): number {
   const sorted = [...values].sort((a, b) => a - b);
   const mid = (sorted.length - 1) / 2;
-  const median = (sorted[Math.floor(mid)] + sorted[Math.ceil(mid)]) / 2;
+  const median = (sorted[Math.floor(mid)]! + sorted[Math.ceil(mid)]!) / 2;
   return priceToY(median);
 }
 
@@ -167,7 +167,7 @@ export function buildSparkline(opts: SparklineOpts): SparklineResult {
     // synthetic point carries the last-known value, which is the
     // entity's current state too — accurate, not invented.
     const STALE_MS = 30 * 60 * 1000;
-    const last = data[data.length - 1];
+    const last = data[data.length - 1]!;
     if (last.time < Date.now() - STALE_MS) {
       data = [...data, { time: Date.now(), value: last.value }];
     }
@@ -215,12 +215,12 @@ export function buildSparkline(opts: SparklineOpts): SparklineResult {
       const upper: Point[] = [];
       const lower: Point[] = [];
       for (let i = 0; i < data.length; i++) {
-        const h = new Date(data[i].time).getHours();
+        const h = new Date(data[i]!.time).getHours();
         const hi = envelope.maxByHour[h];
         const lo = envelope.minByHour[h];
         if (hi == null || lo == null) continue;
-        upper.push({ x: svgPoints[i].x, y: priceToY(hi) });
-        lower.push({ x: svgPoints[i].x, y: priceToY(lo) });
+        upper.push({ x: svgPoints[i]!.x, y: priceToY(hi) });
+        lower.push({ x: svgPoints[i]!.x, y: priceToY(lo) });
       }
       if (upper.length >= 2) {
         const ribbon = monotoneRibbonPath(upper, lower);
@@ -235,8 +235,8 @@ export function buildSparkline(opts: SparklineOpts): SparklineResult {
     // visual x between the two surrounding data points.
     const noonLines: TemplateResult[] = [];
     if (opts.showNoonMarkers && data.length >= 2) {
-      const tStart = data[0].time;
-      const tEnd = data[data.length - 1].time;
+      const tStart = data[0]!.time;
+      const tEnd = data[data.length - 1]!.time;
       const first = new Date(tStart);
       first.setHours(12, 0, 0, 0);
       if (first.getTime() < tStart) first.setDate(first.getDate() + 1);
@@ -247,12 +247,12 @@ export function buildSparkline(opts: SparklineOpts): SparklineResult {
         let hi = data.length - 1;
         while (lo < hi - 1) {
           const mid = (lo + hi) >> 1;
-          if (data[mid].time <= t) lo = mid;
+          if (data[mid]!.time <= t) lo = mid;
           else hi = mid;
         }
-        const dt = data[lo + 1].time - data[lo].time;
-        const frac = dt > 0 ? (t - data[lo].time) / dt : 0;
-        return svgPoints[lo].x + frac * (svgPoints[lo + 1].x - svgPoints[lo].x);
+        const dt = data[lo + 1]!.time - data[lo]!.time;
+        const frac = dt > 0 ? (t - data[lo]!.time) / dt : 0;
+        return svgPoints[lo]!.x + frac * (svgPoints[lo + 1]!.x - svgPoints[lo]!.x);
       };
 
       for (let t = first.getTime(); t <= tEnd; t += 24 * 3600 * 1000) {
@@ -285,28 +285,30 @@ export function buildSparkline(opts: SparklineOpts): SparklineResult {
     // (rendered below as .sparkline-marker) so it stays a true circle on
     // wide cards instead of being squashed into an oval by the SVG's
     // non-uniform stretch.
-    const marker: TemplateResult | typeof nothing =
+    const markerPoint =
       markerIdx >= 0 && markerIdx < svgPoints.length
-        ? svg`
-          <line x1=${svgPoints[markerIdx].x.toFixed(1)} y1="0"
-                x2=${svgPoints[markerIdx].x.toFixed(1)} y2=${HEIGHT}
+        ? svgPoints[markerIdx]!
+        : null;
+    const marker: TemplateResult | typeof nothing = markerPoint
+      ? svg`
+          <line x1=${markerPoint.x.toFixed(1)} y1="0"
+                x2=${markerPoint.x.toFixed(1)} y2=${HEIGHT}
                 stroke="var(--success-color,#4CAF50)" stroke-width="1"
                 stroke-dasharray="3,2" opacity="0.8"/>`
-        : nothing;
-    const markerDot: TemplateResult | typeof nothing =
-      markerIdx >= 0 && markerIdx < svgPoints.length
-        ? html`<div
-            class="sparkline-marker"
-            style=${`left:${((svgPoints[markerIdx].x / WIDTH) * 100).toFixed(2)}%;top:${((svgPoints[markerIdx].y / HEIGHT) * 100).toFixed(2)}%;`}
-            aria-hidden="true"
-          ></div>`
-        : nothing;
+      : nothing;
+    const markerDot: TemplateResult | typeof nothing = markerPoint
+      ? html`<div
+          class="sparkline-marker"
+          style=${`left:${((markerPoint.x / WIDTH) * 100).toFixed(2)}%;top:${((markerPoint.y / HEIGHT) * 100).toFixed(2)}%;`}
+          aria-hidden="true"
+        ></div>`
+      : nothing;
 
     const hoverPoints = data.map((d, i) => ({
       t: d.time,
       v: d.value,
-      x: +svgPoints[i].x.toFixed(1),
-      y: +svgPoints[i].y.toFixed(1),
+      x: +svgPoints[i]!.x.toFixed(1),
+      y: +svgPoints[i]!.y.toFixed(1),
     }));
 
     const gradId = `spark-grad-${Math.random().toString(36).slice(2, 8)}`;
@@ -335,7 +337,8 @@ export function buildSparkline(opts: SparklineOpts): SparklineResult {
     const midIdx = (sortedValues.length - 1) / 2;
     const medianValue =
       sortedValues.length > 0
-        ? (sortedValues[Math.floor(midIdx)] + sortedValues[Math.ceil(midIdx)]) /
+        ? (sortedValues[Math.floor(midIdx)]! +
+            sortedValues[Math.ceil(midIdx)]!) /
           2
         : 0;
     const ariaLabel = (
@@ -492,8 +495,8 @@ export function attachSparklineHover(
       if (rect.width === 0) return;
       const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
       const targetX = ratio * vbWidth;
-      let best = pts[0];
-      let bestDist = Math.abs(pts[0].x - targetX);
+      let best = pts[0]!;
+      let bestDist = Math.abs(best.x - targetX);
       for (const p of pts) {
         const d = Math.abs(p.x - targetX);
         if (d < bestDist) {

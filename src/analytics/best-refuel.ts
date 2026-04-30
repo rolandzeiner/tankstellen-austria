@@ -55,9 +55,10 @@ function expandHourly(data: HistoryPoint[], now: number): HourlySample[] {
     for (let t = first; t < end; t += HOUR_MS) out.push({ t, price });
   };
   for (let i = 0; i < data.length - 1; i++) {
-    add(data[i].value, data[i].time, data[i + 1].time);
+    add(data[i]!.value, data[i]!.time, data[i + 1]!.time);
   }
-  add(data[data.length - 1].value, data[data.length - 1].time, now);
+  const last = data[data.length - 1]!;
+  add(last.value, last.time, now);
   return out;
 }
 
@@ -81,7 +82,7 @@ function weightedMedianOfBucket(entries: BucketEntry[]): number {
     cumulative += e.weight;
     if (cumulative >= total / 2) return e.value;
   }
-  return sorted[sorted.length - 1].value;
+  return sorted[sorted.length - 1]!.value;
 }
 
 interface BestPick {
@@ -119,7 +120,7 @@ export function analyzeBestRefuel(data: HistoryPoint[]): BestRefuelResult | null
   if (!data || data.length < 2) return null;
 
   const now = Date.now();
-  const span = now - data[0].time;
+  const span = now - data[0]!.time;
   if (span < 7 * DAY_MS) return { hasEnoughData: false };
 
   const hourly = expandHourly(data, now);
@@ -157,8 +158,8 @@ export function analyzeBestRefuel(data: HistoryPoint[]): BestRefuelResult | null
   const weekdayBuckets: BucketEntry[][] = Array.from({ length: 7 }, () => []);
   for (const { t, delta, weight } of deltas) {
     const dt = new Date(t);
-    hourBuckets[dt.getHours()].push({ value: delta, weight });
-    weekdayBuckets[dt.getDay()].push({ value: delta, weight });
+    hourBuckets[dt.getHours()]!.push({ value: delta, weight });
+    weekdayBuckets[dt.getDay()]!.push({ value: delta, weight });
   }
 
   const hourPick = pickBest(hourBuckets, 3);
@@ -214,7 +215,7 @@ export function buildHourlyEnvelope(
   if (!allData || allData.length < 2) return null;
 
   const now = Date.now();
-  if (now - allData[0].time < 7 * DAY_MS) return null;
+  if (now - allData[0]!.time < 7 * DAY_MS) return null;
 
   const hourly = expandHourly(allData, now);
   if (hourly.length === 0) return null;
@@ -229,7 +230,7 @@ export function buildHourlyEnvelope(
     const p95 = percentile(sorted, 0.95);
     for (const s of samples) {
       const price = clamp(s.price, p05, p95);
-      byHour[new Date(s.t).getHours()].push(price);
+      byHour[new Date(s.t).getHours()]!.push(price);
     }
   }
 
@@ -237,7 +238,7 @@ export function buildHourlyEnvelope(
   const maxByHour: Array<number | null> = new Array(24).fill(null);
   let filled = 0;
   for (let h = 0; h < 24; h++) {
-    const bucket = byHour[h];
+    const bucket = byHour[h]!;
     if (bucket.length < 3) continue;
     const sorted = [...bucket].sort((a, b) => a - b);
     // p10/p90 of already-clipped samples → middle 80% of typical values at

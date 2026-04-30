@@ -12,25 +12,25 @@ export interface Point {
 export function monotoneCubicPath(pts: readonly Point[]): string {
   const n = pts.length;
   if (n === 0) return "";
-  if (n === 1) return `M ${pts[0].x.toFixed(2)} ${pts[0].y.toFixed(2)}`;
+  if (n === 1) return `M ${pts[0]!.x.toFixed(2)} ${pts[0]!.y.toFixed(2)}`;
   if (n === 2) {
     return (
-      `M ${pts[0].x.toFixed(2)} ${pts[0].y.toFixed(2)} ` +
-      `L ${pts[1].x.toFixed(2)} ${pts[1].y.toFixed(2)}`
+      `M ${pts[0]!.x.toFixed(2)} ${pts[0]!.y.toFixed(2)} ` +
+      `L ${pts[1]!.x.toFixed(2)} ${pts[1]!.y.toFixed(2)}`
     );
   }
 
   const m = new Array<number>(n - 1);
   for (let k = 0; k < n - 1; k++) {
-    const dx = pts[k + 1].x - pts[k].x;
-    m[k] = dx === 0 ? 0 : (pts[k + 1].y - pts[k].y) / dx;
+    const dx = pts[k + 1]!.x - pts[k]!.x;
+    m[k] = dx === 0 ? 0 : (pts[k + 1]!.y - pts[k]!.y) / dx;
   }
 
   const d = new Array<number>(n);
-  d[0] = m[0];
-  d[n - 1] = m[n - 2];
+  d[0] = m[0]!;
+  d[n - 1] = m[n - 2]!;
   for (let k = 1; k < n - 1; k++) {
-    d[k] = (m[k - 1] + m[k]) / 2;
+    d[k] = (m[k - 1]! + m[k]!) / 2;
   }
 
   // Fritsch-Carlson correction: flatten where data is flat, clip tangents
@@ -41,27 +41,27 @@ export function monotoneCubicPath(pts: readonly Point[]): string {
       d[k + 1] = 0;
       continue;
     }
-    const a = d[k] / m[k];
-    const b = d[k + 1] / m[k];
+    const a = d[k]! / m[k]!;
+    const b = d[k + 1]! / m[k]!;
     const h = a * a + b * b;
     if (h > 9) {
       const t = 3 / Math.sqrt(h);
-      d[k] = t * a * m[k];
-      d[k + 1] = t * b * m[k];
+      d[k] = t * a * m[k]!;
+      d[k + 1] = t * b * m[k]!;
     }
   }
 
-  let out = `M ${pts[0].x.toFixed(2)} ${pts[0].y.toFixed(2)}`;
+  let out = `M ${pts[0]!.x.toFixed(2)} ${pts[0]!.y.toFixed(2)}`;
   for (let k = 0; k < n - 1; k++) {
-    const dx = pts[k + 1].x - pts[k].x;
-    const cp1x = pts[k].x + dx / 3;
-    const cp1y = pts[k].y + (d[k] * dx) / 3;
-    const cp2x = pts[k + 1].x - dx / 3;
-    const cp2y = pts[k + 1].y - (d[k + 1] * dx) / 3;
+    const dx = pts[k + 1]!.x - pts[k]!.x;
+    const cp1x = pts[k]!.x + dx / 3;
+    const cp1y = pts[k]!.y + (d[k]! * dx) / 3;
+    const cp2x = pts[k + 1]!.x - dx / 3;
+    const cp2y = pts[k + 1]!.y - (d[k + 1]! * dx) / 3;
     out +=
       ` C ${cp1x.toFixed(2)} ${cp1y.toFixed(2)}, ` +
       `${cp2x.toFixed(2)} ${cp2y.toFixed(2)}, ` +
-      `${pts[k + 1].x.toFixed(2)} ${pts[k + 1].y.toFixed(2)}`;
+      `${pts[k + 1]!.x.toFixed(2)} ${pts[k + 1]!.y.toFixed(2)}`;
   }
   return out;
 }
@@ -99,13 +99,13 @@ export function clamp(v: number, lo: number, hi: number): number {
 export function percentile(sorted: readonly number[], q: number): number {
   const n = sorted.length;
   if (n === 0) return NaN;
-  if (n === 1) return sorted[0];
+  if (n === 1) return sorted[0]!;
   const i = clamp(q, 0, 1) * (n - 1);
   const lo = Math.floor(i);
   const hi = Math.ceil(i);
-  if (lo === hi) return sorted[lo];
+  if (lo === hi) return sorted[lo]!;
   const f = i - lo;
-  return sorted[lo] * (1 - f) + sorted[hi] * f;
+  return sorted[lo]! * (1 - f) + sorted[hi]! * f;
 }
 
 export function weightedMedian(
@@ -114,7 +114,7 @@ export function weightedMedian(
 ): number {
   const n = values.length;
   if (n === 0) return NaN;
-  if (n === 1) return values[0];
+  if (n === 1) return values[0]!;
   const pairs = values
     .map((v, i) => ({ v, w: weights[i] ?? 1 }))
     .filter((p) => Number.isFinite(p.v) && p.w > 0)
@@ -126,7 +126,7 @@ export function weightedMedian(
     acc += p.w;
     if (acc >= total / 2) return p.v;
   }
-  return pairs[pairs.length - 1].v;
+  return pairs[pairs.length - 1]!.v;
 }
 
 // Winsorize values at the given low/high percentiles (e.g. 0.05 / 0.95).
