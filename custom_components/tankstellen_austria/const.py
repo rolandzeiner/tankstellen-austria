@@ -58,8 +58,13 @@ CARD_URL: Final = f"{URL_BASE}/{CARD_FILENAME}"
 # Canonical HTTP User-Agent for upstream API calls. RFC-9110 format:
 # `<product>/<version> <product>/<version>` with a single space between
 # tokens — parsers treat the string as one opaque identifier if the first
-# slash is missing.
-USER_AGENT: Final = f"HomeAssistant/{_HA_VERSION} {DOMAIN}/{INTEGRATION_VERSION}"
+# slash is missing. The trailing "(+<repo-url>)" comment follows RFC-9110
+# product-token-comment convention so E-Control has a direct contact point
+# for abuse / coordination without having to find the repo by guessing.
+USER_AGENT: Final = (
+    f"HomeAssistant/{_HA_VERSION} {DOMAIN}/{INTEGRATION_VERSION} "
+    f"(+https://github.com/rolandzeiner/tankstellen-austria)"
+)
 
 # E-Control attribution string (Spritpreisrechner §3 attribution
 # practice). Surfaced on every entity via `_attr_attribution` and in the
