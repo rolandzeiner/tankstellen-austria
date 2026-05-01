@@ -69,3 +69,13 @@ node_modules/
 
 # Local reference copies during in-flight refactors
 *.bak
+
+# ---------------------------------------------------------------------------
+# Fallow code-quality tool — config + caches. Personal tooling; ship the
+# repo without forcing fallow on contributors. Drop the rule if you decide
+# fallow should be a project-wide standard.
+# ---------------------------------------------------------------------------
+.fallowrc.json
+.fallowrc.jsonc
+fallow.toml
+.fallow/

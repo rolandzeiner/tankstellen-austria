@@ -108,7 +108,7 @@ export function percentile(sorted: readonly number[], q: number): number {
   return sorted[lo]! * (1 - f) + sorted[hi]! * f;
 }
 
-export function weightedMedian(
+function weightedMedian(
   values: readonly number[],
   weights: readonly number[],
 ): number {
@@ -131,7 +131,7 @@ export function weightedMedian(
 
 // Winsorize values at the given low/high percentiles (e.g. 0.05 / 0.95).
 // Does not mutate the input.
-export function winsorize(
+function winsorize(
   values: readonly number[],
   lo: number,
   hi: number,
