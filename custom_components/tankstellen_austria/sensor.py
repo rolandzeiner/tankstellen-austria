@@ -90,6 +90,16 @@ class TankstellenSensor(CoordinatorEntity[TankstellenCoordinator], SensorEntity)
     _attr_native_unit_of_measurement = "€/l"
     _attr_has_entity_name = True
 
+    # Excluded from the recorder: `stations` is the per-station detail list
+    # whose entries rotate on every poll (prices, open flag) — and at large
+    # radii / urban density it can exceed the recorder's 16 KB attribute
+    # cap. Embedded opening_hours + payment_methods are mostly immutable
+    # but they're carried inside the variable list so dedup never kicks
+    # in. Frontend (card, templates) still receives the full list live —
+    # only history is skipped. E-Control's portal keeps authoritative
+    # price history if a user wants to look back.
+    _unrecorded_attributes = frozenset({"stations"})
+
     def __init__(
         self,
         coordinator: TankstellenCoordinator,
