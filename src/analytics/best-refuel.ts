@@ -102,7 +102,25 @@ interface BestPick {
   bestVal: number;
 }
 
-function pickBest(buckets: BucketEntry[][], minCount: number): BestPick {
+// Two bucket medians within this many EUR/L (≈ 0.1¢) are treated as a tie.
+// Below this, the gap is dwarfed by daily price noise and the choice between
+// them is essentially arbitrary on price alone.
+const TIE_TOLERANCE_EUR = 0.001;
+
+// Lower = more customer-friendly. Circular distance from 13:00 (early
+// afternoon), so daytime hours score low and the small hours of the night
+// score high. Used only to break near-ties between hour buckets.
+function hourUnfriendliness(hour: number): number {
+  const center = 13;
+  const d = Math.abs(hour - center);
+  return Math.min(d, 24 - d);
+}
+
+function pickBest(
+  buckets: BucketEntry[][],
+  minCount: number,
+  tiebreaker?: (idx: number) => number,
+): BestPick {
   const medians = buckets.map((b) =>
     b.length >= minCount ? weightedMedianOfBucket(b) : NaN,
   );
@@ -112,6 +130,19 @@ function pickBest(buckets: BucketEntry[][], minCount: number): BestPick {
     if (!Number.isNaN(m) && m < bestVal) {
       bestVal = m;
       bestIdx = i;
+    }
+  });
+  if (bestIdx < 0 || !tiebreaker) return { medians, bestIdx, bestVal };
+
+  const minVal = bestVal;
+  let bestTb = tiebreaker(bestIdx);
+  medians.forEach((m, i) => {
+    if (Number.isNaN(m) || m - minVal > TIE_TOLERANCE_EUR) return;
+    const tb = tiebreaker(i);
+    if (tb < bestTb) {
+      bestTb = tb;
+      bestIdx = i;
+      bestVal = m;
     }
   });
   return { medians, bestIdx, bestVal };
@@ -173,7 +204,7 @@ export function analyzeBestRefuel(data: HistoryPoint[]): BestRefuelResult | null
     weekdayBuckets[dt.getDay()]!.push({ value: delta, weight });
   }
 
-  const hourPick = pickBest(hourBuckets, 3);
+  const hourPick = pickBest(hourBuckets, 3, hourUnfriendliness);
   if (hourPick.bestIdx < 0) return { hasEnoughData: false };
   const weekdayPick = pickBest(weekdayBuckets, 3);
 
