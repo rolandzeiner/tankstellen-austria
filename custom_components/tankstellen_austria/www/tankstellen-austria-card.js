@@ -5,7 +5,7 @@ function e(e,t,i,n){var r,a=arguments.length,o=a<3?t:null===n?n=Object.getOwnPro
                 stroke-dasharray="2,3" opacity="0.55"/>
         `)}}const v=e.showMedianLine?rt(o):null,b=e.showMedianLine?q`<line x1="0" y1=${at(o,u).toFixed(1)}
                   x2=${it} y2=${at(o,u).toFixed(1)}
-                  stroke="var(--secondary-text-color)" stroke-width="0.8"
+                  stroke="var(--secondary-text-color)" stroke-width="0.5"
                   stroke-dasharray="4,3" opacity="0.55"/>`:G,x=function(e,t){if(!t?.hasEnoughData||null==t.hour)return-1;if(0===e.length)return-1;const i=new Date,n=new Date(i);if(null!=t.weekday){let e=(i.getDay()-t.weekday+7)%7;0===e&&i.getHours()<t.hour&&(e=7),n.setDate(n.getDate()-e)}else i.getHours()<t.hour&&n.setDate(n.getDate()-1);n.setHours(t.hour,0,0,0);const r=n.getTime();let a=1/0,o=-1;for(let t=0;t<e.length;t++){const i=Math.abs(e[t].time-r);i<a&&(a=i,o=t)}return o}(n,e.analysis),w=x>=0&&x<m.length?m[x]:null,$=w?q`
           <line x1=${w.x.toFixed(1)} y1="0"
                 x2=${w.x.toFixed(1)} y2=${nt}

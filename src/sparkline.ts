@@ -271,7 +271,7 @@ export function buildSparkline(opts: SparklineOpts): SparklineResult {
     const medianLine: TemplateResult | typeof nothing = opts.showMedianLine
       ? svg`<line x1="0" y1=${medianY(values, priceToY).toFixed(1)}
                   x2=${WIDTH} y2=${medianY(values, priceToY).toFixed(1)}
-                  stroke="var(--secondary-text-color)" stroke-width="0.8"
+                  stroke="var(--secondary-text-color)" stroke-width="0.5"
                   stroke-dasharray="4,3" opacity="0.55"/>`
       : nothing;
 
