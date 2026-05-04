@@ -35,23 +35,41 @@ DYNAMIC_SAFETY_INTERVAL_HOURS = 6      # fallback timer when no movement detecte
 # Key inside hass.data[DOMAIN] for cross-entry rate limiting
 DOMAIN_LAST_API_CALL_KEY = "last_api_call"
 
-CARD_VERSION = "1.8.0"
-
 # Integration version — read from manifest.json at module import so the
-# string can never drift from HACS's authoritative source. Kept separate
-# from CARD_VERSION so the served JS bundle and the Python integration
-# can be released independently without breaking the frontend WS version
-# check. The manifest read is sync at import time (~one filesystem stat
-# of a 600-byte file), runs once, and is required for HACS anyway.
+# string can never drift from HACS's authoritative source. The manifest
+# read is sync at import time (~one filesystem stat of a 600-byte file),
+# runs once, and is required for HACS anyway.
 INTEGRATION_VERSION: Final = json.loads(
     (Path(__file__).parent / "manifest.json").read_text(encoding="utf-8")
 )["version"]
 
+# Aliased to INTEGRATION_VERSION so a manifest-only bump propagates
+# automatically — the parity test against `src/const.ts CARD_VERSION`
+# catches one-sided card bumps in CI before they ship.
+CARD_VERSION: Final = INTEGRATION_VERSION
+
+# Static-path mount + Lovelace-resource URL. URL_BASE is the directory
+# we expose under HA's HTTP layer so the bundle and any sibling assets
+# (e.g. e-control_logo.svg) all resolve under the same prefix.
+URL_BASE: Final = "/tankstellen-austria"
+CARD_FILENAME: Final = "tankstellen-austria-card.js"
+CARD_URL: Final = f"{URL_BASE}/{CARD_FILENAME}"
+
 # Canonical HTTP User-Agent for upstream API calls. RFC-9110 format:
 # `<product>/<version> <product>/<version>` with a single space between
 # tokens — parsers treat the string as one opaque identifier if the first
-# slash is missing.
-USER_AGENT: Final = f"HomeAssistant/{_HA_VERSION} {DOMAIN}/{INTEGRATION_VERSION}"
+# slash is missing. The trailing "(+<repo-url>)" comment follows RFC-9110
+# product-token-comment convention so E-Control has a direct contact point
+# for abuse / coordination without having to find the repo by guessing.
+USER_AGENT: Final = (
+    f"HomeAssistant/{_HA_VERSION} {DOMAIN}/{INTEGRATION_VERSION} "
+    f"(+https://github.com/rolandzeiner/tankstellen-austria)"
+)
+
+# E-Control attribution string (Spritpreisrechner §3 attribution
+# practice). Surfaced on every entity via `_attr_attribution` and in the
+# card footer so the upstream data source is always visible to the user.
+ATTRIBUTION: Final = "Datenquelle: E-Control"
 
 # Retry delay when the API returns no station data (e.g. mid-update window)
 NO_DATA_RETRY_MINUTES = 10

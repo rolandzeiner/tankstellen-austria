@@ -108,6 +108,7 @@
     "consumption_range_error": "Bitte einen Wert zwischen 0 und 30 l/100 km eingeben",
     "hide_header_price": "Günstigster/Durchschnittspreis im Header ausblenden",
     "section_branding": "Branding & Quellenangabe",
+    "section_history": "Preisverlauf",
     "logo_adapt_to_theme": "E-Control-Logo an Theme-Farbe anpassen",
     "hide_header": "Kopfzeile ausblenden",
     "hide_attribution": "Quellenangabe ausblenden"

@@ -108,6 +108,7 @@
     "consumption_range_error": "Please enter a value between 0 and 30 l/100 km",
     "hide_header_price": "Hide cheapest / average price in header",
     "section_branding": "Branding & attribution",
+    "section_history": "Price history",
     "logo_adapt_to_theme": "Adapt E-Control logo color to theme",
     "hide_header": "Hide header",
     "hide_attribution": "Hide attribution footer"

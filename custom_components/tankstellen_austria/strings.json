@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Tankstellen Austria",
-        "description": "Set up fuel price monitoring for your area.",
+        "description": "Set up fuel price monitoring for your area. Powered by the E-Control Spritpreisrechner API.",
         "data": {
           "name": "Name",
           "location": "Location",

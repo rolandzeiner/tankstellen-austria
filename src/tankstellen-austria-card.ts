@@ -15,10 +15,11 @@ import {
 } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import { classMap } from "lit/directives/class-map.js";
-import type { HomeAssistant, LovelaceCardEditor } from "custom-card-helpers";
 
 import type {
   CarConfig,
+  HomeAssistant,
+  LovelaceCardEditor,
   OpeningHours,
   PaymentMethods,
   Station,
@@ -43,7 +44,6 @@ import { formatPrice, mapsUrl } from "./utils/price";
 import {
   getFuelName,
   getWeekdays,
-  localize,
   resolveLang,
   translate,
   type TranslateContext,
@@ -60,6 +60,16 @@ import {
   type BestRefuelResult,
 } from "./analytics/best-refuel";
 import { cardStyles } from "./styles";
+import {
+  checkCardVersionWS,
+  renderVersionBanner,
+  reloadAfterCacheWipe,
+} from "./shared-render";
+import {
+  E_CONTROL_HOMEPAGE,
+  E_CONTROL_LOGO_URL,
+  safeHttpsUri,
+} from "./utils";
 
 // Eager-register the editor element. With `inlineDynamicImports: true` the
 // editor code is already in this bundle — importing it at the top guarantees
@@ -72,16 +82,6 @@ import "./editor";
 // sensor strips the upstream `attribution` attribute. Mirrors the
 // Ladestellen Austria card.
 const ATTRIBUTION_REQUIRED = "Datenquelle: E-Control";
-
-// Static path mounted by custom_components/tankstellen_austria/__init__.py.
-const E_CONTROL_LOGO_URL = "/tankstellen-austria/e-control_logo.svg";
-
-// Styled console banner for version-mismatch debugging in HA's console.
-console.info(
-  `%c  Tankstellen Austria Card  %c  ${localize("common.version")} ${CARD_VERSION}  `,
-  "color: white; font-weight: bold; background: #DC2026",
-  "color: white; font-weight: bold; background: dimgray",
-);
 
 interface WindowWithCustomCards extends Window {
   customCards: Array<{
@@ -288,17 +288,12 @@ export class TankstellenAustriaCard extends LitElement {
   }
 
   private async _checkCardVersion(): Promise<void> {
-    if (!this.hass?.callWS) return;
-    try {
-      const r = await this.hass.callWS<{ version?: string }>({
-        type: "tankstellen_austria/card_version",
-      });
-      if (r?.version && r.version !== CARD_VERSION) {
-        this._versionMismatch = r.version;
-      }
-    } catch {
-      // Backend may not support this WS command yet — silent.
-    }
+    const mismatch = await checkCardVersionWS(
+      this.hass,
+      "tankstellen_austria/card_version",
+      CARD_VERSION,
+    );
+    if (mismatch) this._versionMismatch = mismatch;
   }
 
   private _reattachSparklineHover(): void {
@@ -357,7 +352,8 @@ export class TankstellenAustriaCard extends LitElement {
       `;
     }
 
-    const active = entities[activeTab] ?? entities[0];
+    // entities.length > 0 was just checked above, so entities[0] is defined.
+    const active = entities[activeTab] ?? entities[0]!;
     const attribution = active.attributes.attribution;
 
     return html`
@@ -409,7 +405,7 @@ export class TankstellenAustriaCard extends LitElement {
       <div class="footer">
         <a
           class="brand-link"
-          href="https://www.e-control.at/"
+          href=${safeHttpsUri(E_CONTROL_HOMEPAGE)}
           target="_blank"
           rel="noopener noreferrer"
           aria-label="E-Control"
@@ -427,44 +423,24 @@ export class TankstellenAustriaCard extends LitElement {
   }
 
   private _renderVersionBanner(): TemplateResult | typeof nothing {
-    if (!this._versionMismatch) return nothing;
     // If the user already clicked reload in this session and the version
     // we just saw from the backend is still ahead of CARD_VERSION, the
     // reload didn't pick up the new bundle (likely a stuck SW/CDN cache).
     // Switch the banner to a stuck-state message so the user isn't
     // trapped in a reload → banner → reload loop.
-    const reloadTried =
+    const stuck =
+      this._versionMismatch !== null &&
       typeof sessionStorage !== "undefined" &&
       sessionStorage.getItem(
         `tsa-reload-attempted-${this._versionMismatch}`,
       ) === "1";
-    if (reloadTried) {
-      return html`
-        <div class="version-notice" role="alert" aria-live="assertive">
-          <span>${this._t("version_reload_stuck")}</span>
-          <button
-            class="version-reload-btn"
-            type="button"
-            @click=${this._onDismissVersionBanner}
-          >
-            ${this._t("version_dismiss")}
-          </button>
-        </div>
-      `;
-    }
-    const msg = this._t("version_update", { v: this._versionMismatch });
-    return html`
-      <div class="version-notice" role="alert" aria-live="assertive">
-        <span>${msg}</span>
-        <button
-          class="version-reload-btn"
-          type="button"
-          @click=${this._onVersionReload}
-        >
-          ${this._t("version_reload")}
-        </button>
-      </div>
-    `;
+    return renderVersionBanner({
+      mismatchVersion: this._versionMismatch,
+      stuck,
+      t: (key, repl) => this._t(key, repl),
+      onReload: this._onVersionReload,
+      onDismiss: this._onDismissVersionBanner,
+    });
   }
 
   private _onDismissVersionBanner = (): void => {
@@ -488,12 +464,8 @@ export class TankstellenAustriaCard extends LitElement {
             const ft = e.attributes.fuel_type ?? "";
             label = getFuelName(ft, this._ctx());
             if (e.attributes.dynamic_mode === true) {
-              const trackerId = e.attributes.dynamic_entity;
-              const trackerName = trackerId
-                ? this.hass.states[trackerId]?.attributes?.friendly_name ||
-                  trackerId.split(".")[1]
-                : null;
-              if (trackerName) label += ` · ${trackerName}`;
+              const trackerLabel = e.attributes.dynamic_tracker_label;
+              if (trackerLabel) label += ` · ${trackerLabel}`;
             }
           }
           const selected = i === activeTab;
@@ -527,12 +499,7 @@ export class TankstellenAustriaCard extends LitElement {
 
     let subtitle: string | null = null;
     if (isDynamic) {
-      const trackerId = active.attributes.dynamic_entity;
-      const trackerName = trackerId
-        ? this.hass.states[trackerId]?.attributes?.friendly_name ||
-          trackerId.split(".")[1]
-        : null;
-      subtitle = trackerName ?? null;
+      subtitle = active.attributes.dynamic_tracker_label ?? null;
     }
 
     return html`
@@ -728,8 +695,9 @@ export class TankstellenAustriaCard extends LitElement {
       `;
     }
     const hour = analysis.hour ?? 0;
+    const hourEnd = analysis.hour_end ?? (hour + 1) % 24;
     const h1 = String(hour).padStart(2, "0");
-    const h2 = String((hour + 1) % 24).padStart(2, "0");
+    const h2 = String(hourEnd).padStart(2, "0");
 
     let text: string;
     if (analysis.weekday != null) {
@@ -1008,26 +976,33 @@ export class TankstellenAustriaCard extends LitElement {
             </div>
           </div>
           <div class="price">${formatPrice(s.price)}</div>
-          ${showMapLinks
-            ? html`
-                <a
-                  class="icon-action map"
-                  href=${mapsUrl(loc, s.name ?? "")}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  aria-label=${`${this._t("map")}: ${s.name ?? ""}`}
-                  title=${this._t("map")}
-                  @click=${this._onMapLinkClick}
-                >
-                  <ha-icon
-                    icon=${/\d/.test(loc.address ?? "")
-                      ? "mdi:map-marker"
-                      : "mdi:magnify"}
-                    aria-hidden="true"
-                  ></ha-icon>
-                </a>
-              `
-            : nothing}
+          ${(() => {
+            if (!showMapLinks) return nothing;
+            const url = safeHttpsUri(mapsUrl(loc, s.name ?? ""));
+            // mapsUrl returns null when neither a station name nor any
+            // location field is available — and safeHttpsUri returns ""
+            // for non-https inputs. Either way, render nothing rather
+            // than an empty <a href> that would reload the page on click.
+            if (!url) return nothing;
+            return html`
+              <a
+                class="icon-action map"
+                href=${url}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label=${`${this._t("map")}: ${s.name ?? ""}`}
+                title=${this._t("map")}
+                @click=${this._onMapLinkClick}
+              >
+                <ha-icon
+                  icon=${/\d/.test(loc.address ?? "")
+                    ? "mdi:map-marker"
+                    : "mdi:magnify"}
+                  aria-hidden="true"
+                ></ha-icon>
+              </a>
+            `;
+          })()}
           ${hasDetail
             ? html`<ha-icon
                 class="expander-chevron"
@@ -1264,7 +1239,7 @@ export class TankstellenAustriaCard extends LitElement {
     }
   }
 
-  private async _onVersionReload(): Promise<void> {
+  private _onVersionReload = async (): Promise<void> => {
     // Flag this target version as "user tried reload" before the page
     // unloads, so on re-render the banner flips to the stuck-state
     // variant instead of a second reload button.
@@ -1278,16 +1253,8 @@ export class TankstellenAustriaCard extends LitElement {
         // sessionStorage can be disabled in private browsing — fall through.
       }
     }
-    try {
-      if (typeof window !== "undefined" && "caches" in window) {
-        const keys = await caches.keys();
-        await Promise.all(keys.map((k) => caches.delete(k)));
-      }
-    } catch {
-      // caches API requires HTTPS in some contexts; fall through to reload.
-    }
-    location.reload();
-  }
+    await reloadAfterCacheWipe();
+  };
 
   static styles: CSSResultGroup = cardStyles;
 }

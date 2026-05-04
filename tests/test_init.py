@@ -5,7 +5,7 @@ config-flow or coordinator tests:
 
 * the ``tankstellen_austria/card_version`` WebSocket command,
 * ``async_unload_entry`` happy path,
-* ``_async_register_card`` static-path + Lovelace-resource branches.
+* ``JSModuleRegistration`` static-path + Lovelace-resource branches.
 """
 from __future__ import annotations
 
@@ -16,45 +16,23 @@ import pytest
 from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.tankstellen_austria import (
-    CARD_URL,
-    _async_register_card,
-    async_remove_entry,
+from custom_components.tankstellen_austria import async_remove_entry
+from custom_components.tankstellen_austria.card_registration import (
+    JSModuleRegistration,
 )
 from custom_components.tankstellen_austria.const import (
+    CARD_URL,
     CARD_VERSION,
-    CONF_DYNAMIC_ENTITY,
-    CONF_FUEL_TYPES,
-    CONF_INCLUDE_CLOSED,
-    CONF_LATITUDE,
-    CONF_LONGITUDE,
-    CONF_SCAN_INTERVAL,
     DOMAIN,
 )
 
-MOCK_STATION = {
-    "id": 1,
-    "name": "Test Tankstelle",
-    "open": True,
-    "location": {"latitude": 48.1478, "longitude": 16.5147},
-    "prices": [{"amount": 1.459}],
-    "openingHours": [],
-}
-
-_BASE_DATA = {
-    CONF_LATITUDE: 48.1478,
-    CONF_LONGITUDE: 16.5147,
-    CONF_FUEL_TYPES: ["DIE"],
-    CONF_INCLUDE_CLOSED: True,
-    CONF_SCAN_INTERVAL: 30,
-    CONF_DYNAMIC_ENTITY: None,
-}
+from .conftest import BASE_ENTRY_DATA, MOCK_STATION
 
 
 def _make_entry() -> MockConfigEntry:
     return MockConfigEntry(
         domain=DOMAIN,
-        data=_BASE_DATA,
+        data=BASE_ENTRY_DATA,
         options={},
         title="Test",
         unique_id="48.148_16.515",
@@ -123,7 +101,7 @@ async def test_async_unload_entry_returns_true(hass: HomeAssistant) -> None:
 
 
 # ---------------------------------------------------------------------
-# _async_register_card
+# JSModuleRegistration — Lovelace-resource branches
 # ---------------------------------------------------------------------
 
 
@@ -135,16 +113,29 @@ def _stub_static(hass: HomeAssistant) -> AsyncMock:
     return static
 
 
-def _build_lovelace(items: list[dict[str, Any]], mode: str = "storage") -> MagicMock:
-    """Build a fake Lovelace store exposing the surface ``_async_register_card`` needs."""
+def _build_lovelace(
+    items: list[dict[str, Any]],
+    *,
+    storage_attr: str = "resource_mode",
+    mode: str = "storage",
+) -> MagicMock:
+    """Build a fake Lovelace store exposing the surface JSModuleRegistration needs.
+
+    ``storage_attr`` selects which LovelaceData attribute carries the mode
+    string (HA ≥ 2026.2 uses ``resource_mode``; HA ≤ 2026.1 uses ``mode``).
+    Picking the right one per-test keeps the duck-typed check honest.
+    """
     resources = MagicMock()
-    resources.async_load = AsyncMock()
+    resources.loaded = True
     resources.async_items = MagicMock(return_value=list(items))
     resources.async_create_item = AsyncMock()
     resources.async_update_item = AsyncMock()
     resources.async_delete_item = AsyncMock()
-    lovelace = MagicMock()
-    lovelace.mode = mode
+    # spec_set to whichever attribute we want present so the duck check
+    # really probes the chosen branch (the other attribute simply isn't
+    # there on this fake object).
+    lovelace = MagicMock(spec_set=(storage_attr, "resources"))
+    setattr(lovelace, storage_attr, mode)
     lovelace.resources = resources
     return lovelace
 
@@ -156,7 +147,7 @@ def _disable_card_path_skip():
     The autouse fixture in conftest.py forces ``is_file`` to False for any
     path containing ``tankstellen-austria-card.js`` so the integration setup
     skips static-path registration. These tests want the opposite — the
-    happy path through ``_async_register_card``.
+    happy path through ``JSModuleRegistration``.
     """
     with patch("pathlib.Path.is_file", return_value=True):
         yield
@@ -170,7 +161,7 @@ async def test_register_card_creates_resource_when_absent(
     lovelace = _build_lovelace([])
     hass.data["lovelace"] = lovelace
 
-    await _async_register_card(hass)
+    await JSModuleRegistration(hass).async_register()
 
     static.assert_awaited_once()
     lovelace.resources.async_create_item.assert_awaited_once()
@@ -188,7 +179,7 @@ async def test_register_card_updates_outdated_resource(
     lovelace = _build_lovelace([stale])
     hass.data["lovelace"] = lovelace
 
-    await _async_register_card(hass)
+    await JSModuleRegistration(hass).async_register()
 
     lovelace.resources.async_update_item.assert_awaited_once_with(
         "abc",
@@ -210,7 +201,7 @@ async def test_register_card_skips_when_already_current(
     lovelace = _build_lovelace([current])
     hass.data["lovelace"] = lovelace
 
-    await _async_register_card(hass)
+    await JSModuleRegistration(hass).async_register()
 
     lovelace.resources.async_update_item.assert_not_awaited()
     lovelace.resources.async_create_item.assert_not_awaited()
@@ -224,10 +215,28 @@ async def test_register_card_noop_in_yaml_mode(
     lovelace = _build_lovelace([], mode="yaml")
     hass.data["lovelace"] = lovelace
 
-    await _async_register_card(hass)
+    await JSModuleRegistration(hass).async_register()
 
     lovelace.resources.async_create_item.assert_not_awaited()
     lovelace.resources.async_update_item.assert_not_awaited()
+
+
+async def test_register_card_storage_via_legacy_mode_attr(
+    hass: HomeAssistant, _disable_card_path_skip
+) -> None:
+    """HA ≤ 2026.1 exposes the storage flag via ``mode`` (not ``resource_mode``).
+
+    The duck-typed _is_storage_mode() must read whichever attribute is
+    present. Without this test, a regression that hard-codes one of the
+    two attribute names would silently break legacy HA installs.
+    """
+    _stub_static(hass)
+    lovelace = _build_lovelace([], storage_attr="mode")
+    hass.data["lovelace"] = lovelace
+
+    await JSModuleRegistration(hass).async_register()
+
+    lovelace.resources.async_create_item.assert_awaited_once()
 
 
 async def test_register_card_warns_when_card_missing(
@@ -245,7 +254,7 @@ async def test_register_card_warns_when_card_missing(
 
     caplog.clear()
     with caplog.at_level("WARNING"):
-        await _async_register_card(hass)
+        await JSModuleRegistration(hass).async_register()
 
     assert any(
         "Card JS not found" in rec.message for rec in caplog.records
@@ -269,7 +278,7 @@ async def test_register_card_delete_recreate_when_update_fails(
     lovelace.resources.async_update_item.side_effect = RuntimeError("not supported")
     hass.data["lovelace"] = lovelace
 
-    await _async_register_card(hass)
+    await JSModuleRegistration(hass).async_register()
 
     lovelace.resources.async_delete_item.assert_awaited_once_with("abc")
     lovelace.resources.async_create_item.assert_awaited_once_with(
@@ -306,7 +315,7 @@ async def test_remove_entry_keeps_resource_when_other_entries_exist(
     entry.add_to_hass(hass)
     other = MockConfigEntry(
         domain=DOMAIN,
-        data=_BASE_DATA,
+        data=BASE_ENTRY_DATA,
         options={},
         title="Other",
         unique_id="48.200_16.400",

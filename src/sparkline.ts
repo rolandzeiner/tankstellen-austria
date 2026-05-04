@@ -68,17 +68,18 @@ const HEIGHT = 48;
 const PAD_Y = 4;
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 
-// Walks the *visible* 7-day array and returns the index of the point
-// nearest in time to the analysis's target hour (and weekday, when
-// confident enough to surface). The vanilla card inlined this next to
-// the rendering loop; keeping it here preserves the invariant that the
-// marker index always refers to the same array that's rendered.
-function resolveVisibleMarkerIdx(
-  data: HistoryPoint[],
+interface RecommendationWindow {
+  startMs: number;
+  endMs: number;
+}
+
+// Resolves the most recent past occurrence of the recommended cheap window
+// against the *visible* 7-day data array, so the SVG can render a band
+// between the start and end timestamps.
+function resolveRecommendationWindow(
   analysis: BestRefuelResult | null | undefined,
-): number {
-  if (!analysis?.hasEnoughData || analysis.hour == null) return -1;
-  if (data.length === 0) return -1;
+): RecommendationWindow | null {
+  if (!analysis?.hasEnoughData || analysis.hour == null) return null;
 
   const now = new Date();
   const target = new Date(now);
@@ -90,18 +91,14 @@ function resolveVisibleMarkerIdx(
     target.setDate(target.getDate() - 1);
   }
   target.setHours(analysis.hour, 0, 0, 0);
-  const targetMs = target.getTime();
+  const startMs = target.getTime();
 
-  let bestDist = Infinity;
-  let bestIdx = -1;
-  for (let i = 0; i < data.length; i++) {
-    const dist = Math.abs(data[i].time - targetMs);
-    if (dist < bestDist) {
-      bestDist = dist;
-      bestIdx = i;
-    }
-  }
-  return bestIdx;
+  // hour_end is the exclusive end of the window (0-23). Defaults to a
+  // single-hour window when older results without hour_end show up.
+  const hourEnd = analysis.hour_end ?? (analysis.hour + 1) % 24;
+  const spanHours = ((hourEnd - analysis.hour + 24) % 24) || 1;
+  const endMs = startMs + spanHours * 3_600_000;
+  return { startMs, endMs };
 }
 
 function sliceLast7Days(all: HistoryPoint[]): HistoryPoint[] {
@@ -109,14 +106,14 @@ function sliceLast7Days(all: HistoryPoint[]): HistoryPoint[] {
   const inside = all.filter((d) => d.time >= cutoff);
   const prior = all.filter((d) => d.time < cutoff);
   const lastKnown = prior.length ? prior[prior.length - 1] : null;
-  // Always prepend the most recent pre-window sample (if we have one)
-  // so the sparkline's left edge anchors at the *start* of the 7-day
-  // window with the correct pre-week value. Previously this only
-  // happened when `inside.length < 2` — which meant stable-price
-  // entities (e.g. Diesel whose last change was the prior Friday)
-  // rendered a line that visibly "started on Monday" because the
-  // prior-Friday row had been filtered out and no anchor prepended.
-  if (lastKnown) return [lastKnown, ...inside];
+  // Anchor the left edge with the most recent pre-window sample so a
+  // stable-price entity (e.g. Diesel whose last change was the prior
+  // Friday) doesn't render a line that visibly "starts on Monday".
+  // Clamp the anchor's timestamp to the cutoff (preserving its value)
+  // so the time-proportional X-axis spans exactly the 7-day window —
+  // without the clamp a stable-price entity would silently widen the
+  // visible range and the "Last 7 days" label would lie.
+  if (lastKnown) return [{ time: cutoff, value: lastKnown.value }, ...inside];
   return inside;
 }
 
@@ -124,8 +121,8 @@ function computeMedianDelta(values: number[]): MedianDelta | null {
   if (values.length < 2) return null;
   const sorted = [...values].sort((a, b) => a - b);
   const mid = (sorted.length - 1) / 2;
-  const median = (sorted[Math.floor(mid)] + sorted[Math.ceil(mid)]) / 2;
-  const current = values[values.length - 1];
+  const median = (sorted[Math.floor(mid)]! + sorted[Math.ceil(mid)]!) / 2;
+  const current = values[values.length - 1]!;
   const deltaCents = (current - median) * 100;
   const absCents = Math.abs(deltaCents).toFixed(1);
   if (deltaCents <= -0.05) {
@@ -140,7 +137,7 @@ function computeMedianDelta(values: number[]): MedianDelta | null {
 function medianY(values: number[], priceToY: (p: number) => number): number {
   const sorted = [...values].sort((a, b) => a - b);
   const mid = (sorted.length - 1) / 2;
-  const median = (sorted[Math.floor(mid)] + sorted[Math.ceil(mid)]) / 2;
+  const median = (sorted[Math.floor(mid)]! + sorted[Math.ceil(mid)]!) / 2;
   return priceToY(median);
 }
 
@@ -167,7 +164,7 @@ export function buildSparkline(opts: SparklineOpts): SparklineResult {
     // synthetic point carries the last-known value, which is the
     // entity's current state too — accurate, not invented.
     const STALE_MS = 30 * 60 * 1000;
-    const last = data[data.length - 1];
+    const last = data[data.length - 1]!;
     if (last.time < Date.now() - STALE_MS) {
       data = [...data, { time: Date.now(), value: last.value }];
     }
@@ -215,12 +212,12 @@ export function buildSparkline(opts: SparklineOpts): SparklineResult {
       const upper: Point[] = [];
       const lower: Point[] = [];
       for (let i = 0; i < data.length; i++) {
-        const h = new Date(data[i].time).getHours();
+        const h = new Date(data[i]!.time).getHours();
         const hi = envelope.maxByHour[h];
         const lo = envelope.minByHour[h];
         if (hi == null || lo == null) continue;
-        upper.push({ x: svgPoints[i].x, y: priceToY(hi) });
-        lower.push({ x: svgPoints[i].x, y: priceToY(lo) });
+        upper.push({ x: svgPoints[i]!.x, y: priceToY(hi) });
+        lower.push({ x: svgPoints[i]!.x, y: priceToY(lo) });
       }
       if (upper.length >= 2) {
         const ribbon = monotoneRibbonPath(upper, lower);
@@ -230,37 +227,40 @@ export function buildSparkline(opts: SparklineOpts): SparklineResult {
       }
     }
 
+    const tStart = data[0]!.time;
+    const tEnd = data[data.length - 1]!.time;
+    // Map an arbitrary timestamp to its x in the sparkline by interpolating
+    // between the two surrounding data points. Returns null when t is
+    // outside the visible window so callers can decide whether to clamp
+    // or skip.
+    const xForTime = (t: number): number | null => {
+      if (t <= tStart || t >= tEnd) return null;
+      let lo = 0;
+      let hi = data.length - 1;
+      while (lo < hi - 1) {
+        const mid = (lo + hi) >> 1;
+        if (data[mid]!.time <= t) lo = mid;
+        else hi = mid;
+      }
+      const dt = data[lo + 1]!.time - data[lo]!.time;
+      const frac = dt > 0 ? (t - data[lo]!.time) / dt : 0;
+      return svgPoints[lo]!.x + frac * (svgPoints[lo + 1]!.x - svgPoints[lo]!.x);
+    };
+
     // Overlay 2: noon markers — one dashed vertical at each 12:00 local time
-    // inside the 7-day window. Uniform-index sparkline, so we interpolate
-    // visual x between the two surrounding data points.
+    // inside the 7-day window.
     const noonLines: TemplateResult[] = [];
     if (opts.showNoonMarkers && data.length >= 2) {
-      const tStart = data[0].time;
-      const tEnd = data[data.length - 1].time;
       const first = new Date(tStart);
       first.setHours(12, 0, 0, 0);
       if (first.getTime() < tStart) first.setDate(first.getDate() + 1);
-
-      const xForTime = (t: number): number | null => {
-        if (t <= tStart || t >= tEnd) return null;
-        let lo = 0;
-        let hi = data.length - 1;
-        while (lo < hi - 1) {
-          const mid = (lo + hi) >> 1;
-          if (data[mid].time <= t) lo = mid;
-          else hi = mid;
-        }
-        const dt = data[lo + 1].time - data[lo].time;
-        const frac = dt > 0 ? (t - data[lo].time) / dt : 0;
-        return svgPoints[lo].x + frac * (svgPoints[lo + 1].x - svgPoints[lo].x);
-      };
 
       for (let t = first.getTime(); t <= tEnd; t += 24 * 3600 * 1000) {
         const x = xForTime(t);
         if (x == null) continue;
         noonLines.push(svg`
           <line x1=${x.toFixed(1)} y1="0" x2=${x.toFixed(1)} y2=${HEIGHT}
-                stroke="var(--secondary-text-color)" stroke-width="0.9"
+                stroke="var(--secondary-text-color)" stroke-width="0.5"
                 stroke-dasharray="2,3" opacity="0.55"/>
         `);
       }
@@ -271,42 +271,42 @@ export function buildSparkline(opts: SparklineOpts): SparklineResult {
     const medianLine: TemplateResult | typeof nothing = opts.showMedianLine
       ? svg`<line x1="0" y1=${medianY(values, priceToY).toFixed(1)}
                   x2=${WIDTH} y2=${medianY(values, priceToY).toFixed(1)}
-                  stroke="var(--secondary-text-color)" stroke-width="0.8"
+                  stroke="var(--secondary-text-color)" stroke-width="0.5"
                   stroke-dasharray="4,3" opacity="0.55"/>`
       : nothing;
 
-    // Best-refuel marker. Must be computed against the *visible* 7-day
-    // `data` array, not the full history that `analysis` was derived
-    // from — the indices don't correspond across the two arrays.
-    const markerIdx = resolveVisibleMarkerIdx(data, opts.analysis);
-    // Vertical dashed line stays inside the SVG — a 1-px vertical line
-    // scales fine under preserveAspectRatio="none". The dot at the line/
-    // sparkline intersection is moved OUT of the SVG to an HTML overlay
-    // (rendered below as .sparkline-marker) so it stays a true circle on
-    // wide cards instead of being squashed into an oval by the SVG's
-    // non-uniform stretch.
-    const marker: TemplateResult | typeof nothing =
-      markerIdx >= 0 && markerIdx < svgPoints.length
-        ? svg`
-          <line x1=${svgPoints[markerIdx].x.toFixed(1)} y1="0"
-                x2=${svgPoints[markerIdx].x.toFixed(1)} y2=${HEIGHT}
-                stroke="var(--success-color,#4CAF50)" stroke-width="1"
-                stroke-dasharray="3,2" opacity="0.8"/>`
-        : nothing;
-    const markerDot: TemplateResult | typeof nothing =
-      markerIdx >= 0 && markerIdx < svgPoints.length
-        ? html`<div
-            class="sparkline-marker"
-            style=${`left:${((svgPoints[markerIdx].x / WIDTH) * 100).toFixed(2)}%;top:${((svgPoints[markerIdx].y / HEIGHT) * 100).toFixed(2)}%;`}
-            aria-hidden="true"
-          ></div>`
-        : nothing;
+    // Best-refuel marker — translucent band over the recommended cheap
+    // window. The band is the entire visualisation; an earlier dotted
+    // centre line was removed because for clamped or wide windows it
+    // landed somewhere meaningless and added no information beyond what
+    // the band already shows.
+    const recommendation = resolveRecommendationWindow(opts.analysis);
+
+    let bandX1: number | null = null;
+    let bandX2: number | null = null;
+    if (recommendation) {
+      // xForTime returns null at/outside the edges; clamp instead of skip
+      // so the band still renders when the window touches now or the left
+      // edge of the visible window.
+      const x1 = xForTime(recommendation.startMs);
+      const x2 = xForTime(recommendation.endMs);
+      bandX1 = x1 ?? (recommendation.startMs <= tStart ? 0 : null);
+      bandX2 = x2 ?? (recommendation.endMs >= tEnd ? WIDTH : null);
+    }
+
+    const hasBand = bandX1 != null && bandX2 != null && bandX2 > bandX1;
+    const marker: TemplateResult | typeof nothing = hasBand
+      ? svg`<rect x=${bandX1!.toFixed(1)} y="0"
+                  width=${(bandX2! - bandX1!).toFixed(1)} height=${HEIGHT}
+                  fill="var(--success-color,#4CAF50)" fill-opacity="0.10"
+                  stroke="none"/>`
+      : nothing;
 
     const hoverPoints = data.map((d, i) => ({
       t: d.time,
       v: d.value,
-      x: +svgPoints[i].x.toFixed(1),
-      y: +svgPoints[i].y.toFixed(1),
+      x: +svgPoints[i]!.x.toFixed(1),
+      y: +svgPoints[i]!.y.toFixed(1),
     }));
 
     const gradId = `spark-grad-${Math.random().toString(36).slice(2, 8)}`;
@@ -335,7 +335,8 @@ export function buildSparkline(opts: SparklineOpts): SparklineResult {
     const midIdx = (sortedValues.length - 1) / 2;
     const medianValue =
       sortedValues.length > 0
-        ? (sortedValues[Math.floor(midIdx)] + sortedValues[Math.ceil(midIdx)]) /
+        ? (sortedValues[Math.floor(midIdx)]! +
+            sortedValues[Math.ceil(midIdx)]!) /
           2
         : 0;
     const ariaLabel = (
@@ -386,7 +387,6 @@ export function buildSparkline(opts: SparklineOpts): SparklineResult {
           stroke-dasharray="2,2" opacity="0" pointer-events="none"
         />
       </svg>
-      ${markerDot}
       <div class="sparkline-hover-dot" style="opacity:0" aria-hidden="true"></div>
       </div>
       <div class="sparkline-tooltip" hidden>
@@ -492,8 +492,8 @@ export function attachSparklineHover(
       if (rect.width === 0) return;
       const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
       const targetX = ratio * vbWidth;
-      let best = pts[0];
-      let bestDist = Math.abs(pts[0].x - targetX);
+      let best = pts[0]!;
+      let bestDist = Math.abs(best.x - targetX);
       for (const p of pts) {
         const d = Math.abs(p.x - targetX);
         if (d < bestDist) {

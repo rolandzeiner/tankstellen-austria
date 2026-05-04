@@ -18,6 +18,7 @@ export function isClosingSoon(station: Station, now: Date = new Date()): boolean
   if (today.from === "00:00" && today.to === "24:00") return false;
 
   const [hStr, mStr] = today.to.split(":");
+  if (hStr === undefined || mStr === undefined) return false;
   const closeHour = parseInt(hStr, 10);
   const closeMin = parseInt(mStr, 10);
   if (!Number.isFinite(closeHour) || !Number.isFinite(closeMin)) return false;
