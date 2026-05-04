@@ -57,8 +57,8 @@ import {
 } from "./localize/localize";
 import { editorStyles } from "./styles";
 
-// Sanitisation mirror of the vanilla editor: strip HTML-injection chars,
-// cap length, trim. Applied to every free-form user-typed value.
+// Strip HTML-injection chars, cap length, trim. Applied to every free-form
+// user-typed value before it lands in config.
 function sanitizeShort(raw: string): string {
   return raw.replace(/[<>"'&]/g, "").slice(0, 50).trim();
 }
@@ -666,7 +666,7 @@ export class TankstellenAustriaCardEditor
         this._copiedTimeout = undefined;
       }, 1500);
     } catch {
-      // clipboard unavailable (insecure context) — silent match with vanilla.
+      // Clipboard API unavailable (insecure context) — fail silent.
     }
   }
 

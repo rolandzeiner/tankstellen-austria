@@ -897,7 +897,8 @@ export const cardStyles = css`
   }
 `;
 
-// Editor-side styles. Port of the vanilla editor's <style> block.
+// Editor-side styles — separate shadow root from the card so tokens are
+// duplicated on `:host` rather than inherited (see :host comment below).
 export const editorStyles = css`
   :host {
     /* color-scheme enables light-dark() and steers forced-colors palette

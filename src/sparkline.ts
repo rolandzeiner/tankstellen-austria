@@ -106,20 +106,13 @@ function sliceLast7Days(all: HistoryPoint[]): HistoryPoint[] {
   const inside = all.filter((d) => d.time >= cutoff);
   const prior = all.filter((d) => d.time < cutoff);
   const lastKnown = prior.length ? prior[prior.length - 1] : null;
-  // Always prepend the most recent pre-window sample (if we have one)
-  // so the sparkline's left edge anchors at the *start* of the 7-day
-  // window with the correct pre-week value. Previously this only
-  // happened when `inside.length < 2` — which meant stable-price
-  // entities (e.g. Diesel whose last change was the prior Friday)
-  // rendered a line that visibly "started on Monday" because the
-  // prior-Friday row had been filtered out and no anchor prepended.
-  //
+  // Anchor the left edge with the most recent pre-window sample so a
+  // stable-price entity (e.g. Diesel whose last change was the prior
+  // Friday) doesn't render a line that visibly "starts on Monday".
   // Clamp the anchor's timestamp to the cutoff (preserving its value)
-  // so the time-proportional X-axis spans exactly the 7-day window,
-  // not back to whenever that pre-window sample originally occurred.
-  // Without this clamp a stable-price entity would silently widen the
-  // visible range — e.g. an extra noon marker per pre-cutoff day, and
-  // the chart's "Last 7 days" label would lie.
+  // so the time-proportional X-axis spans exactly the 7-day window —
+  // without the clamp a stable-price entity would silently widen the
+  // visible range and the "Last 7 days" label would lie.
   if (lastKnown) return [{ time: cutoff, value: lastKnown.value }, ...inside];
   return inside;
 }
