@@ -703,8 +703,9 @@ export class TankstellenAustriaCard extends LitElement {
       `;
     }
     const hour = analysis.hour ?? 0;
+    const hourEnd = analysis.hour_end ?? (hour + 1) % 24;
     const h1 = String(hour).padStart(2, "0");
-    const h2 = String((hour + 1) % 24).padStart(2, "0");
+    const h2 = String(hourEnd).padStart(2, "0");
 
     let text: string;
     if (analysis.weekday != null) {

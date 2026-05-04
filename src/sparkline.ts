@@ -68,17 +68,18 @@ const HEIGHT = 48;
 const PAD_Y = 4;
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 
-// Walks the *visible* 7-day array and returns the index of the point
-// nearest in time to the analysis's target hour (and weekday, when
-// confident enough to surface). The vanilla card inlined this next to
-// the rendering loop; keeping it here preserves the invariant that the
-// marker index always refers to the same array that's rendered.
-function resolveVisibleMarkerIdx(
-  data: HistoryPoint[],
+interface RecommendationWindow {
+  startMs: number;
+  endMs: number;
+}
+
+// Resolves the most recent past occurrence of the recommended cheap window
+// against the *visible* 7-day data array, so the SVG can render a band
+// between the start and end timestamps.
+function resolveRecommendationWindow(
   analysis: BestRefuelResult | null | undefined,
-): number {
-  if (!analysis?.hasEnoughData || analysis.hour == null) return -1;
-  if (data.length === 0) return -1;
+): RecommendationWindow | null {
+  if (!analysis?.hasEnoughData || analysis.hour == null) return null;
 
   const now = new Date();
   const target = new Date(now);
@@ -90,18 +91,14 @@ function resolveVisibleMarkerIdx(
     target.setDate(target.getDate() - 1);
   }
   target.setHours(analysis.hour, 0, 0, 0);
-  const targetMs = target.getTime();
+  const startMs = target.getTime();
 
-  let bestDist = Infinity;
-  let bestIdx = -1;
-  for (let i = 0; i < data.length; i++) {
-    const dist = Math.abs(data[i]!.time - targetMs);
-    if (dist < bestDist) {
-      bestDist = dist;
-      bestIdx = i;
-    }
-  }
-  return bestIdx;
+  // hour_end is the exclusive end of the window (0-23). Defaults to a
+  // single-hour window when older results without hour_end show up.
+  const hourEnd = analysis.hour_end ?? (analysis.hour + 1) % 24;
+  const spanHours = ((hourEnd - analysis.hour + 24) % 24) || 1;
+  const endMs = startMs + spanHours * 3_600_000;
+  return { startMs, endMs };
 }
 
 function sliceLast7Days(all: HistoryPoint[]): HistoryPoint[] {
@@ -230,30 +227,33 @@ export function buildSparkline(opts: SparklineOpts): SparklineResult {
       }
     }
 
+    const tStart = data[0]!.time;
+    const tEnd = data[data.length - 1]!.time;
+    // Map an arbitrary timestamp to its x in the sparkline by interpolating
+    // between the two surrounding data points. Returns null when t is
+    // outside the visible window so callers can decide whether to clamp
+    // or skip.
+    const xForTime = (t: number): number | null => {
+      if (t <= tStart || t >= tEnd) return null;
+      let lo = 0;
+      let hi = data.length - 1;
+      while (lo < hi - 1) {
+        const mid = (lo + hi) >> 1;
+        if (data[mid]!.time <= t) lo = mid;
+        else hi = mid;
+      }
+      const dt = data[lo + 1]!.time - data[lo]!.time;
+      const frac = dt > 0 ? (t - data[lo]!.time) / dt : 0;
+      return svgPoints[lo]!.x + frac * (svgPoints[lo + 1]!.x - svgPoints[lo]!.x);
+    };
+
     // Overlay 2: noon markers — one dashed vertical at each 12:00 local time
-    // inside the 7-day window. Uniform-index sparkline, so we interpolate
-    // visual x between the two surrounding data points.
+    // inside the 7-day window.
     const noonLines: TemplateResult[] = [];
     if (opts.showNoonMarkers && data.length >= 2) {
-      const tStart = data[0]!.time;
-      const tEnd = data[data.length - 1]!.time;
       const first = new Date(tStart);
       first.setHours(12, 0, 0, 0);
       if (first.getTime() < tStart) first.setDate(first.getDate() + 1);
-
-      const xForTime = (t: number): number | null => {
-        if (t <= tStart || t >= tEnd) return null;
-        let lo = 0;
-        let hi = data.length - 1;
-        while (lo < hi - 1) {
-          const mid = (lo + hi) >> 1;
-          if (data[mid]!.time <= t) lo = mid;
-          else hi = mid;
-        }
-        const dt = data[lo + 1]!.time - data[lo]!.time;
-        const frac = dt > 0 ? (t - data[lo]!.time) / dt : 0;
-        return svgPoints[lo]!.x + frac * (svgPoints[lo + 1]!.x - svgPoints[lo]!.x);
-      };
 
       for (let t = first.getTime(); t <= tEnd; t += 24 * 3600 * 1000) {
         const x = xForTime(t);
@@ -275,34 +275,44 @@ export function buildSparkline(opts: SparklineOpts): SparklineResult {
                   stroke-dasharray="4,3" opacity="0.55"/>`
       : nothing;
 
-    // Best-refuel marker. Must be computed against the *visible* 7-day
-    // `data` array, not the full history that `analysis` was derived
-    // from — the indices don't correspond across the two arrays.
-    const markerIdx = resolveVisibleMarkerIdx(data, opts.analysis);
-    // Vertical dashed line stays inside the SVG — a 1-px vertical line
-    // scales fine under preserveAspectRatio="none". The dot at the line/
-    // sparkline intersection is moved OUT of the SVG to an HTML overlay
-    // (rendered below as .sparkline-marker) so it stays a true circle on
-    // wide cards instead of being squashed into an oval by the SVG's
-    // non-uniform stretch.
-    const markerPoint =
-      markerIdx >= 0 && markerIdx < svgPoints.length
-        ? svgPoints[markerIdx]!
-        : null;
-    const marker: TemplateResult | typeof nothing = markerPoint
-      ? svg`
-          <line x1=${markerPoint.x.toFixed(1)} y1="0"
-                x2=${markerPoint.x.toFixed(1)} y2=${HEIGHT}
-                stroke="var(--success-color,#4CAF50)" stroke-width="0.6"
-                stroke-dasharray="3,2" opacity="0.8"/>`
+    // Best-refuel marker — translucent band over the recommended cheap
+    // window plus a single dashed vertical centred on it.
+    const recommendation = resolveRecommendationWindow(opts.analysis);
+
+    let bandX1: number | null = null;
+    let bandX2: number | null = null;
+    if (recommendation) {
+      // xForTime returns null at/outside the edges; clamp instead of skip
+      // so the band still renders when the window touches now or the left
+      // edge of the visible window.
+      const x1 = xForTime(recommendation.startMs);
+      const x2 = xForTime(recommendation.endMs);
+      bandX1 = x1 ?? (recommendation.startMs <= tStart ? 0 : null);
+      bandX2 = x2 ?? (recommendation.endMs >= tEnd ? WIDTH : null);
+    }
+
+    const hasBand = bandX1 != null && bandX2 != null && bandX2 > bandX1;
+    const markerBand: TemplateResult | typeof nothing = hasBand
+      ? svg`<rect x=${bandX1!.toFixed(1)} y="0"
+                  width=${(bandX2! - bandX1!).toFixed(1)} height=${HEIGHT}
+                  fill="var(--success-color,#4CAF50)" fill-opacity="0.10"
+                  stroke="none"/>`
       : nothing;
-    const markerDot: TemplateResult | typeof nothing = markerPoint
-      ? html`<div
-          class="sparkline-marker"
-          style=${`left:${((markerPoint.x / WIDTH) * 100).toFixed(2)}%;top:${((markerPoint.y / HEIGHT) * 100).toFixed(2)}%;`}
-          aria-hidden="true"
-        ></div>`
-      : nothing;
+    // Single dashed vertical centred on the recommended window — same
+    // visual whether the window is one hour or six, so it always reads
+    // the same regardless of fuel type.
+    const centreX = hasBand ? (bandX1! + bandX2!) / 2 : null;
+    const markerLine: TemplateResult | typeof nothing =
+      centreX != null
+        ? svg`<line x1=${centreX.toFixed(1)} y1="0"
+                    x2=${centreX.toFixed(1)} y2=${HEIGHT}
+                    stroke="var(--success-color,#4CAF50)" stroke-width="0.6"
+                    stroke-dasharray="3,2" opacity="0.8"/>`
+        : nothing;
+    const marker: TemplateResult | typeof nothing =
+      markerBand === nothing && markerLine === nothing
+        ? nothing
+        : svg`${markerBand}${markerLine}`;
 
     const hoverPoints = data.map((d, i) => ({
       t: d.time,
@@ -389,7 +399,6 @@ export function buildSparkline(opts: SparklineOpts): SparklineResult {
           stroke-dasharray="2,2" opacity="0" pointer-events="none"
         />
       </svg>
-      ${markerDot}
       <div class="sparkline-hover-dot" style="opacity:0" aria-hidden="true"></div>
       </div>
       <div class="sparkline-tooltip" hidden>

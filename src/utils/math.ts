@@ -108,6 +108,33 @@ export function percentile(sorted: readonly number[], q: number): number {
   return sorted[lo]! * (1 - f) + sorted[hi]! * f;
 }
 
+export interface WeightedEntry {
+  value: number;
+  weight: number;
+}
+
+// Weighted quantile. Returns the value at which the cumulative weight crosses
+// `q × total`. Entries are sorted internally; weights ≤ 0 are dropped.
+export function weightedPercentile(
+  entries: readonly WeightedEntry[],
+  q: number,
+): number {
+  const usable = entries.filter(
+    (e) => Number.isFinite(e.value) && e.weight > 0,
+  );
+  if (usable.length === 0) return NaN;
+  if (usable.length === 1) return usable[0]!.value;
+  const sorted = [...usable].sort((a, b) => a.value - b.value);
+  const total = sorted.reduce((s, e) => s + e.weight, 0);
+  const target = clamp(q, 0, 1) * total;
+  let acc = 0;
+  for (const e of sorted) {
+    acc += e.weight;
+    if (acc >= target) return e.value;
+  }
+  return sorted[sorted.length - 1]!.value;
+}
+
 function weightedMedian(
   values: readonly number[],
   weights: readonly number[],

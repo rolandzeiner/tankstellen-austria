@@ -8,20 +8,35 @@
 // dashboard viewed from another timezone will see the analysis re-bucket
 // to that timezone's clock — do NOT cache results across sessions or
 // share them between users without re-running the analysis.
+//
+// Bucket population uses *duration-weighted chunks*, not hour-boundary
+// samples. For each step-function price interval we split at every hour
+// boundary it crosses and credit each (hour, weekday) bucket with the
+// active price weighted by the milliseconds spent in that bucket. This
+// removes the phase bias that hour-boundary sampling has when stations
+// update mid-hour (e.g. the legal 12:00 hike that lands at 12:14): the
+// 12:00 bucket now reflects ~14min × pre-hike + ~46min × post-hike
+// instead of being attributed entirely to the pre-hike price.
 
 import type { HistoryPoint } from "../history";
 import type { HourlyEnvelope } from "../sparkline";
-import { clamp, percentile } from "../utils/math";
+import type { WeightedEntry } from "../utils/math";
+import { clamp, weightedPercentile } from "../utils/math";
 
 const HOUR_MS = 3_600_000;
 const DAY_MS = 86_400_000;
 const HALF_LIFE_MS = 14 * DAY_MS;
 
+// Skip per-week aggregation when fewer than this many ms of observed time
+// fell in the week — partial-week slivers at the edges of the window.
+const MIN_WEEK_MS = DAY_MS;
+
 export type Confidence = "high" | "medium" | "low";
 
 export interface BestRefuelResult {
   hasEnoughData: boolean;
-  hour?: number; // 0-23, the best hour of day
+  hour?: number; // 0-23, start of recommended window
+  hour_end?: number; // 0-23, exclusive end of recommended window (wraps past 23)
   weekday?: number | null; // 0-6 (Sun..Sat), only set when weekday signal is strong
   confidence?: {
     level: Confidence;
@@ -32,20 +47,13 @@ export interface BestRefuelResult {
   };
 }
 
-interface HourlySample {
-  t: number;
+interface Chunk {
   price: number;
-}
-
-interface Delta {
-  t: number;
-  delta: number;
-  weight: number;
-}
-
-interface BucketEntry {
-  value: number;
-  weight: number;
+  t: number; // chunk start (epoch ms, local-clock-relevant)
+  hour: number; // 0-23 in local time
+  weekday: number; // 0-6 in local time
+  weekKey: number; // Monday-aligned local-midnight epoch ms
+  durationMs: number;
 }
 
 // Monday-aligned week key (midnight on the Monday of the week containing t).
@@ -57,43 +65,46 @@ function mondayKey(t: number): number {
   return d.getTime();
 }
 
-// Step-function hourly expansion — each price event stays active until the
-// next. Emits one sample per hour boundary from the first event onwards.
-function expandHourly(data: HistoryPoint[], now: number): HourlySample[] {
-  const out: HourlySample[] = [];
-  const add = (price: number, start: number, end: number): void => {
-    const first = Math.ceil(start / HOUR_MS) * HOUR_MS;
-    for (let t = first; t < end; t += HOUR_MS) out.push({ t, price });
+// Walk every step-function price interval and emit one chunk per hour the
+// interval crosses. The chunk's hour/weekday are determined by its *start*
+// — since we always split at hour boundaries, that uniquely identifies the
+// hour-of-day for the whole chunk's duration.
+function walkChunks(data: HistoryPoint[], now: number): Chunk[] {
+  const out: Chunk[] = [];
+  const emit = (price: number, start: number, end: number): void => {
+    if (end <= start) return;
+    let cursor = start;
+    while (cursor < end) {
+      const nextHour = Math.floor(cursor / HOUR_MS) * HOUR_MS + HOUR_MS;
+      const chunkEnd = Math.min(end, nextHour);
+      const dt = new Date(cursor);
+      out.push({
+        price,
+        t: cursor,
+        hour: dt.getHours(),
+        weekday: dt.getDay(),
+        weekKey: mondayKey(cursor),
+        durationMs: chunkEnd - cursor,
+      });
+      cursor = chunkEnd;
+    }
   };
   for (let i = 0; i < data.length - 1; i++) {
-    add(data[i]!.value, data[i]!.time, data[i + 1]!.time);
+    emit(data[i]!.value, data[i]!.time, data[i + 1]!.time);
   }
   const last = data[data.length - 1]!;
-  add(last.value, last.time, now);
+  emit(last.value, last.time, now);
   return out;
 }
 
-function groupByWeek(hourly: HourlySample[]): Map<number, HourlySample[]> {
-  const weeks = new Map<number, HourlySample[]>();
-  for (const s of hourly) {
-    const wk = mondayKey(s.t);
-    const bucket = weeks.get(wk);
-    if (bucket) bucket.push(s);
-    else weeks.set(wk, [s]);
+function groupByWeek(chunks: Chunk[]): Map<number, Chunk[]> {
+  const weeks = new Map<number, Chunk[]>();
+  for (const c of chunks) {
+    const arr = weeks.get(c.weekKey);
+    if (arr) arr.push(c);
+    else weeks.set(c.weekKey, [c]);
   }
   return weeks;
-}
-
-function weightedMedianOfBucket(entries: BucketEntry[]): number {
-  if (entries.length === 0) return NaN;
-  const sorted = [...entries].sort((a, b) => a.value - b.value);
-  const total = sorted.reduce((s, e) => s + e.weight, 0);
-  let cumulative = 0;
-  for (const e of sorted) {
-    cumulative += e.weight;
-    if (cumulative >= total / 2) return e.value;
-  }
-  return sorted[sorted.length - 1]!.value;
 }
 
 interface BestPick {
@@ -102,10 +113,23 @@ interface BestPick {
   bestVal: number;
 }
 
-// Two bucket medians within this many EUR/L (≈ 0.1¢) are treated as a tie.
-// Below this, the gap is dwarfed by daily price noise and the choice between
-// them is essentially arbitrary on price alone.
-const TIE_TOLERANCE_EUR = 0.001;
+// Two bucket medians within this many EUR/L are treated as a tie. Kept very
+// tight (well below any real station's hour-to-hour variation but well above
+// float noise) so the daytime tiebreaker only kicks in for genuinely
+// identical hours — e.g. a flat-overnight pattern where many hours produce
+// bit-identical medians. A looser tolerance hijacks the seed away from the
+// truly-cheapest hour and biases the recommended window toward daytime even
+// when overnight is meaningfully cheaper.
+const TIE_TOLERANCE_EUR = 0.0001;
+
+// Adjacent hours within this many EUR/L (≈ 0.5¢) of the best hour are folded
+// into the recommended window. Looser than the tiebreaker tolerance because
+// "also a good time to refuel" is a softer bar than "essentially identical".
+const EXPAND_TOLERANCE_EUR = 0.005;
+
+// Cap on the recommended-window length. A window longer than this means
+// the data has no real signal and a six-hour band is already past useful.
+const MAX_WINDOW_HOURS = 6;
 
 // Lower = more customer-friendly. Circular distance from 13:00 (early
 // afternoon), so daytime hours score low and the small hours of the night
@@ -116,13 +140,51 @@ function hourUnfriendliness(hour: number): number {
   return Math.min(d, 24 - d);
 }
 
+// Walk circularly from the seed hour in both directions, including any
+// adjacent hour whose median is within EXPAND_TOLERANCE_EUR of the seed
+// median. Caps total length at MAX_WINDOW_HOURS, trimming preferentially
+// from whichever side has more slack.
+function expandHourWindow(
+  medians: number[],
+  seedIdx: number,
+  seedVal: number,
+): { start: number; end: number } {
+  let forward = 0;
+  for (let step = 1; step <= 23; step++) {
+    const i = (seedIdx + step) % 24;
+    const m = medians[i];
+    if (m === undefined || Number.isNaN(m)) break;
+    if (m - seedVal > EXPAND_TOLERANCE_EUR) break;
+    forward = step;
+  }
+  let backward = 0;
+  for (let step = 1; step <= 23; step++) {
+    const i = (seedIdx - step + 24) % 24;
+    const m = medians[i];
+    if (m === undefined || Number.isNaN(m)) break;
+    if (m - seedVal > EXPAND_TOLERANCE_EUR) break;
+    backward = step;
+  }
+  const total = 1 + forward + backward;
+  if (total > MAX_WINDOW_HOURS) {
+    const excess = total - MAX_WINDOW_HOURS;
+    const trimFwd = Math.min(forward, Math.ceil(excess / 2));
+    const trimBack = Math.min(backward, excess - trimFwd);
+    forward -= trimFwd;
+    backward -= trimBack;
+  }
+  const start = (seedIdx - backward + 24) % 24;
+  const end = (seedIdx + forward + 1) % 24;
+  return { start, end };
+}
+
 function pickBest(
-  buckets: BucketEntry[][],
+  buckets: WeightedEntry[][],
   minCount: number,
   tiebreaker?: (idx: number) => number,
 ): BestPick {
   const medians = buckets.map((b) =>
-    b.length >= minCount ? weightedMedianOfBucket(b) : NaN,
+    b.length >= minCount ? weightedPercentile(b, 0.5) : NaN,
   );
   let bestIdx = -1;
   let bestVal = Infinity;
@@ -153,7 +215,7 @@ function scoreSeparation(pick: BestPick, refCents: number): number {
     .filter((m) => !Number.isNaN(m))
     .sort((a, b) => a - b);
   if (valid.length < 2 || pick.bestIdx < 0) return 0;
-  const mid = percentile(valid, 0.5);
+  const mid = valid[Math.floor((valid.length - 1) / 2)]!;
   const gapCents = (mid - pick.bestVal) * 100;
   return clamp(gapCents / refCents, 0, 1);
 }
@@ -165,43 +227,45 @@ export function analyzeBestRefuel(data: HistoryPoint[]): BestRefuelResult | null
   const span = now - data[0]!.time;
   if (span < 7 * DAY_MS) return { hasEnoughData: false };
 
-  const hourly = expandHourly(data, now);
-  if (hourly.length === 0) return { hasEnoughData: false };
+  const chunks = walkChunks(data, now);
+  if (chunks.length === 0) return { hasEnoughData: false };
 
-  const weeks = groupByWeek(hourly);
+  const weeks = groupByWeek(chunks);
 
-  // Per-week winsorise (p05/p95) → normalise as (price − week_mean)
-  // → weight by recency (exponential decay, 14-day half-life).
-  const deltas: Delta[] = [];
-  for (const samples of weeks.values()) {
-    if (samples.length < 24) continue; // skip partial-week slivers
-    const sortedPrices = samples.map((s) => s.price).sort((a, b) => a - b);
-    const p05 = percentile(sortedPrices, 0.05);
-    const p95 = percentile(sortedPrices, 0.95);
-    let sum = 0;
-    const clipped = samples.map((s) => {
-      const price = clamp(s.price, p05, p95);
-      sum += price;
-      return { t: s.t, price };
-    });
-    const mean = sum / clipped.length;
-    for (const { t, price } of clipped) {
-      deltas.push({
-        t,
-        delta: price - mean,
-        weight: Math.pow(0.5, (now - t) / HALF_LIFE_MS),
-      });
+  // Per-week duration-weighted winsorise (p05/p95) → normalise as
+  // (clipped_price − week_mean) → bucket entry weighted by
+  // duration × recency-decay (14-day half-life).
+  const hourBuckets: WeightedEntry[][] = Array.from({ length: 24 }, () => []);
+  const weekdayBuckets: WeightedEntry[][] = Array.from({ length: 7 }, () => []);
+
+  for (const weekChunks of weeks.values()) {
+    let totalMs = 0;
+    for (const c of weekChunks) totalMs += c.durationMs;
+    if (totalMs < MIN_WEEK_MS) continue;
+
+    const priceEntries: WeightedEntry[] = weekChunks.map((c) => ({
+      value: c.price,
+      weight: c.durationMs,
+    }));
+    const p05 = weightedPercentile(priceEntries, 0.05);
+    const p95 = weightedPercentile(priceEntries, 0.95);
+
+    let weightedSum = 0;
+    for (const c of weekChunks) {
+      weightedSum += clamp(c.price, p05, p95) * c.durationMs;
     }
-  }
-  if (deltas.length === 0) return { hasEnoughData: false };
+    const weekMean = weightedSum / totalMs;
 
-  // Bucket deltas independently by hour-of-day and weekday.
-  const hourBuckets: BucketEntry[][] = Array.from({ length: 24 }, () => []);
-  const weekdayBuckets: BucketEntry[][] = Array.from({ length: 7 }, () => []);
-  for (const { t, delta, weight } of deltas) {
-    const dt = new Date(t);
-    hourBuckets[dt.getHours()]!.push({ value: delta, weight });
-    weekdayBuckets[dt.getDay()]!.push({ value: delta, weight });
+    for (const c of weekChunks) {
+      const clipped = clamp(c.price, p05, p95);
+      const recency = Math.pow(0.5, (now - c.t) / HALF_LIFE_MS);
+      const entry: WeightedEntry = {
+        value: clipped - weekMean,
+        weight: c.durationMs * recency,
+      };
+      hourBuckets[c.hour]!.push(entry);
+      weekdayBuckets[c.weekday]!.push(entry);
+    }
   }
 
   const hourPick = pickBest(hourBuckets, 3, hourUnfriendliness);
@@ -219,7 +283,9 @@ export function analyzeBestRefuel(data: HistoryPoint[]): BestRefuelResult | null
     .sort((a, b) => a - b);
   const hourGapCents =
     validHour.length >= 2
-      ? (percentile(validHour, 0.5) - hourPick.bestVal) * 100
+      ? (validHour[Math.floor((validHour.length - 1) / 2)]! -
+          hourPick.bestVal) *
+        100
       : 0;
   const hourConfidence = (span_score + hourCoverage + hourSep) / 3;
   const hourLevel: Confidence =
@@ -234,9 +300,16 @@ export function analyzeBestRefuel(data: HistoryPoint[]): BestRefuelResult | null
       : 0;
   const showWeekday = weekdayConfidence >= 0.75;
 
+  const window = expandHourWindow(
+    hourPick.medians,
+    hourPick.bestIdx,
+    hourPick.bestVal,
+  );
+
   return {
     hasEnoughData: true,
-    hour: hourPick.bestIdx,
+    hour: window.start,
+    hour_end: window.end,
     weekday: showWeekday ? weekdayPick.bestIdx : null,
     confidence: {
       level: hourLevel,
@@ -250,7 +323,8 @@ export function analyzeBestRefuel(data: HistoryPoint[]): BestRefuelResult | null
 
 // Per-hour price envelope across the analysable window. Returns absolute
 // p10/p90 bounds per hour-of-day, suitable for drawing a band behind the
-// 7-day sparkline. null when too sparse.
+// 7-day sparkline. null when too sparse. Uses the same duration-weighted
+// chunk walker as the recommendation so the band stays consistent with it.
 export function buildHourlyEnvelope(
   allData: HistoryPoint[],
 ): HourlyEnvelope | null {
@@ -259,20 +333,29 @@ export function buildHourlyEnvelope(
   const now = Date.now();
   if (now - allData[0]!.time < 7 * DAY_MS) return null;
 
-  const hourly = expandHourly(allData, now);
-  if (hourly.length === 0) return null;
+  const chunks = walkChunks(allData, now);
+  if (chunks.length === 0) return null;
 
-  const weeks = groupByWeek(hourly);
+  const weeks = groupByWeek(chunks);
 
-  const byHour: number[][] = Array.from({ length: 24 }, () => []);
-  for (const samples of weeks.values()) {
-    if (samples.length < 24) continue;
-    const sorted = samples.map((s) => s.price).sort((a, b) => a - b);
-    const p05 = percentile(sorted, 0.05);
-    const p95 = percentile(sorted, 0.95);
-    for (const s of samples) {
-      const price = clamp(s.price, p05, p95);
-      byHour[new Date(s.t).getHours()]!.push(price);
+  const byHour: WeightedEntry[][] = Array.from({ length: 24 }, () => []);
+  for (const weekChunks of weeks.values()) {
+    let totalMs = 0;
+    for (const c of weekChunks) totalMs += c.durationMs;
+    if (totalMs < MIN_WEEK_MS) continue;
+
+    const priceEntries: WeightedEntry[] = weekChunks.map((c) => ({
+      value: c.price,
+      weight: c.durationMs,
+    }));
+    const p05 = weightedPercentile(priceEntries, 0.05);
+    const p95 = weightedPercentile(priceEntries, 0.95);
+
+    for (const c of weekChunks) {
+      byHour[c.hour]!.push({
+        value: clamp(c.price, p05, p95),
+        weight: c.durationMs,
+      });
     }
   }
 
@@ -282,11 +365,10 @@ export function buildHourlyEnvelope(
   for (let h = 0; h < 24; h++) {
     const bucket = byHour[h]!;
     if (bucket.length < 3) continue;
-    const sorted = [...bucket].sort((a, b) => a - b);
-    // p10/p90 of already-clipped samples → middle 80% of typical values at
-    // this hour. Robust against sparse weeks.
-    minByHour[h] = percentile(sorted, 0.1);
-    maxByHour[h] = percentile(sorted, 0.9);
+    // p10/p90 of already-clipped, duration-weighted chunks → middle 80% of
+    // typical values at this hour.
+    minByHour[h] = weightedPercentile(bucket, 0.1);
+    maxByHour[h] = weightedPercentile(bucket, 0.9);
     filled++;
   }
   if (filled < 6) return null;
