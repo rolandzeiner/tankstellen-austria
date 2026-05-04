@@ -150,23 +150,9 @@ interface BestPick {
   minVal: number; // unconditional minimum across all valid bucket medians
 }
 
-// Two bucket medians within this many EUR/L are treated as a tie for the
-// purpose of the daytime tiebreaker. Real Austrian fuel prices are quoted to
-// 0.001 EUR/L; per-week winsorise + duration-weighted mean introduce float
-// arithmetic on top, so this tolerance is wider than raw input precision but
-// tight enough that only genuinely-identical-by-construction medians qualify
-// (e.g. the synthetic test fixture, where every cheap hour produces the same
-// delta-from-mean across every week). A looser tolerance hijacks the seed
-// away from the truly-cheapest hour and biases the recommended window toward
-// daytime even when overnight is meaningfully cheaper.
-const TIE_TOLERANCE_EUR = 0.0001;
-
 // Adjacent hours whose median is within this many EUR/L (≈ 0.5¢) of the
-// *unconditional minimum* are folded into the recommended window. Anchored to
-// minVal (not the post-tiebreaker seed) so the window can't silently drift
-// upward when the tiebreaker shifts the seed. Looser than TIE_TOLERANCE
-// because "also a good time to refuel" is a softer bar than "essentially
-// identical": 0.5¢/L is roughly the smallest gap a driver would notice.
+// unconditional minimum are folded into the recommended window. 0.5¢/L is
+// roughly the smallest gap a driver would notice as cheaper.
 const EXPAND_TOLERANCE_EUR = 0.005;
 
 // UX cap on the recommended-window length. A 7+ hour window is statistically
@@ -176,24 +162,22 @@ const EXPAND_TOLERANCE_EUR = 0.005;
 // signal-quality threshold — confidence/separation handle that separately.
 const MAX_WINDOW_HOURS = 6;
 
-// UX bias: when several hours tie at exactly the same median, prefer the
-// most daytime one as the seed. Returns a "lower is friendlier" score equal
-// to the circular distance from 13:00 (early afternoon). This is *not* a
-// statistical preference — overnight hours can be genuinely cheaper — and
-// only fires inside TIE_TOLERANCE_EUR of the absolute minimum, so it never
-// overrides real signal.
-function hourUnfriendliness(hour: number): number {
-  const center = 13;
-  const d = Math.abs(hour - center);
-  return Math.min(d, 24 - d);
-}
+// Why no daytime tiebreaker on the seed: an earlier version of this code
+// preferred the most-daytime hour among any hours tied near the minimum.
+// On real aggregate fuel data many hours frequently share an identical
+// post-winsorise median (the per-week winsorise collapses several distinct
+// prices into the same clipped value, then per-week mean produces the same
+// delta). The tiebreaker would then yank the seed across the cluster — say
+// from hour 22 to hour 05 — and the slack-aware trim would silently drop
+// the truly cheapest hours from the recommended window. We choose the
+// honest answer over the friendlier-looking one: seed = first absolute
+// minimum, expand from there, let the window land where the data says.
 
 // Walk circularly from the seed hour in both directions, including any
 // adjacent hour whose median is within EXPAND_TOLERANCE_EUR of the
-// unconditional minimum (NOT the seed median — see EXPAND_TOLERANCE_EUR
-// comment). Caps total length at MAX_WINDOW_HOURS by trimming whichever
-// side has more remaining slack first, so the kept window stays as
-// centred as the data allows.
+// unconditional minimum. Caps total length at MAX_WINDOW_HOURS by trimming
+// whichever side has more remaining slack first, so the kept window stays
+// as centred as the data allows.
 function expandHourWindow(
   medians: number[],
   seedIdx: number,
@@ -237,11 +221,7 @@ function expandHourWindow(
   return { start, end };
 }
 
-function pickBest(
-  buckets: WeightedEntry[][],
-  minCount: number,
-  tiebreaker?: (idx: number) => number,
-): BestPick {
+function pickBest(buckets: WeightedEntry[][], minCount: number): BestPick {
   const medians = buckets.map((b) =>
     b.length >= minCount ? weightedPercentile(b, 0.5) : NaN,
   );
@@ -253,23 +233,10 @@ function pickBest(
       bestIdx = i;
     }
   });
-  // minVal is the unconditional minimum across all valid buckets — captured
-  // here so callers (notably window expansion) can anchor to the true cheap
-  // floor even after the tiebreaker shifts the seed to a more daytime hour.
-  const minVal = bestVal;
-  if (bestIdx < 0 || !tiebreaker) return { medians, bestIdx, bestVal, minVal };
-
-  let bestTb = tiebreaker(bestIdx);
-  medians.forEach((m, i) => {
-    if (Number.isNaN(m) || m - minVal > TIE_TOLERANCE_EUR) return;
-    const tb = tiebreaker(i);
-    if (tb < bestTb) {
-      bestTb = tb;
-      bestIdx = i;
-      bestVal = m;
-    }
-  });
-  return { medians, bestIdx, bestVal, minVal };
+  // bestVal === minVal here (no tiebreaker), but kept as a separate field
+  // so downstream code is explicit about which value it depends on and so
+  // adding a future tiebreaker doesn't silently change semantics.
+  return { medians, bestIdx, bestVal, minVal: bestVal };
 }
 
 // Gap between the unconditional minimum bucket median and the median of all
@@ -335,7 +302,7 @@ export function analyzeBestRefuel(data: HistoryPoint[]): BestRefuelResult | null
     }
   }
 
-  const hourPick = pickBest(hourBuckets, 3, hourUnfriendliness);
+  const hourPick = pickBest(hourBuckets, 3);
   if (hourPick.bestIdx < 0) return { hasEnoughData: false };
   const weekdayPick = pickBest(weekdayBuckets, 3);
 

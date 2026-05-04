@@ -113,7 +113,14 @@ function sliceLast7Days(all: HistoryPoint[]): HistoryPoint[] {
   // entities (e.g. Diesel whose last change was the prior Friday)
   // rendered a line that visibly "started on Monday" because the
   // prior-Friday row had been filtered out and no anchor prepended.
-  if (lastKnown) return [lastKnown, ...inside];
+  //
+  // Clamp the anchor's timestamp to the cutoff (preserving its value)
+  // so the time-proportional X-axis spans exactly the 7-day window,
+  // not back to whenever that pre-window sample originally occurred.
+  // Without this clamp a stable-price entity would silently widen the
+  // visible range — e.g. an extra noon marker per pre-cutoff day, and
+  // the chart's "Last 7 days" label would lie.
+  if (lastKnown) return [{ time: cutoff, value: lastKnown.value }, ...inside];
   return inside;
 }
 

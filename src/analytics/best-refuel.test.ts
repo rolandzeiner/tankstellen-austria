@@ -54,25 +54,49 @@ function noonHikePattern(hikeMinute: number) {
 }
 
 describe("analyzeBestRefuel — duration-weighted bucketing", () => {
-  it("recommends a multi-hour pre-noon window when the hike lands at 12:14", () => {
+  it("the recommended window stays inside the cheap zone with a 12:14 hike", () => {
+    // Cheap zone in the fixture: hours 0..11 and 23 (13 hours total). With
+    // the 6-hour cap, the algorithm anchors on the absolute minimum hour
+    // (the first one in iteration order), expands across the cheap cluster
+    // and trims the over-cap excess from whichever side has more slack.
+    // We don't pin the exact start/end (any 6 contiguous hours inside the
+    // cheap zone are equally valid statistically), but every hour in the
+    // returned window must be one of the truly-cheap hours.
     const now = deterministicNow();
     const data = buildHistory(28, now, noonHikePattern(14));
     const result = analyzeBestRefuel(data);
     expect(result?.hasEnoughData).toBe(true);
-    // Window must end at hour 12 exclusive — the noon hike makes 12:00–13:00
-    // expensive on average, so the cheap window stops there.
-    expect(result?.hour_end).toBe(12);
-    // Window cap is 6 hours, so start is 6:00.
-    expect(result?.hour).toBe(6);
+
+    const cheapHours = new Set([
+      0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 23,
+    ]);
+    const start = result!.hour!;
+    const end = result!.hour_end!;
+    const span = ((end - start + 24) % 24) || 24;
+    expect(span).toBeGreaterThanOrEqual(1);
+    expect(span).toBeLessThanOrEqual(6);
+    for (let i = 0; i < span; i++) {
+      const h = (start + i) % 24;
+      expect(cheapHours.has(h)).toBe(true);
+    }
+    // Hour 12 (noon hike — mostly expensive after the 12:14 mark) must
+    // never be inside the recommended window.
+    for (let i = 0; i < span; i++) {
+      expect((start + i) % 24).not.toBe(12);
+    }
   });
 
-  it("recommends a window ending at 12 with an on-the-hour hike too (sanity)", () => {
+  it("excludes hour 12 with an on-the-hour hike too (sanity)", () => {
     const now = deterministicNow();
     const data = buildHistory(28, now, noonHikePattern(0));
     const result = analyzeBestRefuel(data);
     expect(result?.hasEnoughData).toBe(true);
-    expect(result?.hour_end).toBe(12);
-    expect(result?.hour).toBe(6);
+    const start = result!.hour!;
+    const end = result!.hour_end!;
+    const span = ((end - start + 24) % 24) || 24;
+    for (let i = 0; i < span; i++) {
+      expect((start + i) % 24).not.toBe(12);
+    }
   });
 
   it("returns hasEnoughData=false for less than a week of data", () => {
