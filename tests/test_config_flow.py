@@ -15,6 +15,8 @@ from custom_components.tankstellen_austria.const import (
     USER_AGENT,
 )
 
+from .conftest import make_response_cm
+
 VALID_USER_INPUT = {
     "name": "Test Tankstelle",
     "location": {"latitude": 48.1478, "longitude": 16.5147},
@@ -198,7 +200,7 @@ async def test_connection_test_sends_canonical_user_agent(hass: HomeAssistant) -
     resp = MagicMock()
     resp.raise_for_status = MagicMock()
     session = MagicMock()
-    session.get = AsyncMock(return_value=resp)
+    session.get = MagicMock(return_value=make_response_cm(resp))
 
     with patch(
         "custom_components.tankstellen_austria.config_flow.async_get_clientsession",

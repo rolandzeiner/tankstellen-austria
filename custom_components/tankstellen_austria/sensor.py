@@ -9,7 +9,7 @@ from homeassistant.components.sensor import (
     SensorEntity,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -120,13 +120,38 @@ class TankstellenSensor(CoordinatorEntity[TankstellenCoordinator], SensorEntity)
             model="Spritpreisrechner",
             configuration_url="https://www.spritpreisrechner.at/",
         )
+        # Cache populated from coordinator data once per refresh; the
+        # `native_value` and `extra_state_attributes` properties read from
+        # this rather than re-walking `coordinator.data` (which used to call
+        # `_extract_price` on the first station twice per state write).
+        self._attr_extra_state_attributes: dict[str, Any] = {}
+        self._recompute_from_coordinator()
 
-    @property
-    def native_value(self) -> float | None:
-        """Return the cheapest price."""
+    async def async_added_to_hass(self) -> None:
+        """Recompute on add so the first state-write reflects current data."""
+        await super().async_added_to_hass()
+        self._recompute_from_coordinator()
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Recompute cached state once per coordinator refresh."""
+        self._recompute_from_coordinator()
+        super()._handle_coordinator_update()
+
+    def _recompute_from_coordinator(self) -> None:
+        """Walk the station list once and stash the derived state.
+
+        Computes the cheapest price, the per-station attribute list, and
+        the dynamic-mode label in a single pass — keeping `native_value`
+        and `extra_state_attributes` as O(1) dict lookups instead of two
+        independent O(n) walks per HA state read.
+        """
         stations = self._stations
         if not stations:
-            return None
+            self._attr_native_value = None
+            self._attr_extra_state_attributes = self._build_attrs([])
+            return
+
         price = _extract_price(stations[0])
         if price is None:
             # First time we see a malformed payload for this entity, surface
@@ -144,26 +169,25 @@ class TankstellenSensor(CoordinatorEntity[TankstellenCoordinator], SensorEntity)
                     "No price for %s: unexpected API payload shape",
                     self.entity_id or self._fuel_type,
                 )
-        return price
+        self._attr_native_value = price
 
-    @property
-    def extra_state_attributes(self) -> dict[str, Any]:
-        """Return all station data as attributes."""
-        stations = self._stations
         attr_stations: list[dict[str, Any]] = []
         for s in stations:
             if not isinstance(s, dict):
                 continue
-            price = _extract_price(s)
             attr_stations.append({
                 "id": s.get("id"),
                 "name": s.get("name"),
-                "price": price,
+                "price": _extract_price(s),
                 "open": s.get("open"),
                 "location": s.get("location", {}),
                 "opening_hours": s.get("openingHours", []),
                 "payment_methods": _parse_payment_methods(s.get("paymentMethods")),
             })
+        self._attr_extra_state_attributes = self._build_attrs(attr_stations)
+
+    def _build_attrs(self, attr_stations: list[dict[str, Any]]) -> dict[str, Any]:
+        """Compose the public attributes dict from a precomputed station list."""
         prices = [s["price"] for s in attr_stations if s.get("price") is not None]
         avg_price = round(sum(prices) / len(prices), 3) if prices else None
 
@@ -186,7 +210,7 @@ class TankstellenSensor(CoordinatorEntity[TankstellenCoordinator], SensorEntity)
         if self.coordinator.dynamic_mode:
             tracker_id = self.coordinator.dynamic_entity
             label: str | None = None
-            if tracker_id:
+            if tracker_id and self.hass is not None:
                 tracker_state = self.hass.states.get(tracker_id)
                 if tracker_state is not None:
                     raw = tracker_state.attributes.get("friendly_name")

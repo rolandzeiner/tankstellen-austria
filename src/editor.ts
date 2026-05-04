@@ -781,7 +781,14 @@ export class TankstellenAustriaCardEditor
       }
     } else if (field === "tank_size") {
       const parsed = parseInt(raw, 10);
-      next.tank_size = Math.max(1, Number.isFinite(parsed) ? parsed : 1);
+      // Clamp on both sides so the stored value never drifts outside the
+      // 1..200 contract enforced by `utils/config.ts` and the aria-invalid
+      // threshold in `_renderCarRow`. Lower-only clamping let users save
+      // an out-of-range value that the UI then flagged invalid forever.
+      next.tank_size = Math.min(
+        200,
+        Math.max(1, Number.isFinite(parsed) ? parsed : 1),
+      );
     } else if (field === "fuel_type") {
       const allowed: readonly FuelType[] = ["DIE", "SUP", "GAS"];
       if (allowed.includes(raw as FuelType)) {

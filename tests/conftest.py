@@ -21,6 +21,21 @@ from custom_components.tankstellen_austria.const import (
 
 pytest_plugins = ["pytest_homeassistant_custom_component"]
 
+
+def make_response_cm(resp: Any) -> MagicMock:
+    """Wrap a mock response as an async context manager.
+
+    Production code uses ``async with session.get(...) as resp:`` so the
+    return value of ``session.get`` must support ``__aenter__`` / ``__aexit__``.
+    Real aiohttp's ``_RequestContextManager`` is both awaitable and a context
+    manager; mocks need to mimic the context-manager half.
+    """
+    cm = MagicMock()
+    cm.__aenter__ = AsyncMock(return_value=resp)
+    cm.__aexit__ = AsyncMock(return_value=None)
+    return cm
+
+
 # Test fixtures use the coordinates of the Friedhof der Namenlosen in Vienna.
 MOCK_STATION = {
     "id": 1,
@@ -83,10 +98,13 @@ def mock_aiohttp_session():
     Prevents pycares DNS from starting its background thread for every
     test. Returning a ``MagicMock(spec=aiohttp.ClientSession)`` rather
     than a bare MagicMock makes attribute typos surface during testing
-    instead of producing more MagicMocks silently.
+    instead of producing more MagicMocks silently. ``session.get`` is a
+    plain ``MagicMock`` returning an empty async context manager so the
+    ``async with session.get(...) as resp:`` shape used by production
+    code doesn't crash before tests have a chance to override it.
     """
     fake_session = MagicMock(spec=aiohttp.ClientSession)
-    fake_session.get = AsyncMock()
+    fake_session.get = MagicMock(return_value=make_response_cm(MagicMock()))
     with patch(
         "custom_components.tankstellen_austria.coordinator.async_get_clientsession",
         return_value=fake_session,

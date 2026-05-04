@@ -149,7 +149,10 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]
         if not self._should_update(lat, lng):
             return
         # Update domain-level timestamp before scheduling so concurrent
-        # entries see it immediately.
+        # entries see it immediately. Set optimistically (before the refresh
+        # actually runs) on purpose — failed requests should still rate-limit
+        # the next attempt, otherwise a flapping API would burst-fire on
+        # every tracker tick.
         self.hass.data.setdefault(DOMAIN, {})[DOMAIN_LAST_API_CALL_KEY] = dt_util.utcnow()
         self.hass.async_create_task(self.async_refresh())
 
@@ -376,8 +379,43 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]
         headers = {"User-Agent": USER_AGENT}
         timeout = aiohttp.ClientTimeout(total=30)
         try:
-            resp = await self._session.get(url, params=params, headers=headers, timeout=timeout)
-            resp.raise_for_status()
+            async with self._session.get(
+                url, params=params, headers=headers, timeout=timeout
+            ) as resp:
+                resp.raise_for_status()
+                try:
+                    data = await resp.json()
+                except aiohttp.ContentTypeError as err:
+                    raise UpdateFailed(
+                        translation_domain=DOMAIN,
+                        translation_key="api_invalid_content_type",
+                        translation_placeholders={
+                            "fuel_type": fuel_type,
+                            "status": str(resp.status),
+                            "reason": err.message,
+                        },
+                    ) from err
+                except ValueError as err:  # json.JSONDecodeError is a ValueError subclass
+                    raise UpdateFailed(
+                        translation_domain=DOMAIN,
+                        translation_key="api_invalid_json",
+                        translation_placeholders={
+                            "fuel_type": fuel_type,
+                            "status": str(resp.status),
+                            "error": str(err),
+                        },
+                    ) from err
+
+                if not isinstance(data, list):
+                    raise UpdateFailed(
+                        translation_domain=DOMAIN,
+                        translation_key="api_invalid_response",
+                        translation_placeholders={
+                            "fuel_type": fuel_type,
+                            "status": str(resp.status),
+                            "got": type(data).__name__,
+                        },
+                    )
         except asyncio.TimeoutError as err:
             raise UpdateFailed(
                 translation_domain=DOMAIN,
@@ -404,40 +442,6 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]
                     "error": str(err),
                 },
             ) from err
-
-        try:
-            data = await resp.json()
-        except aiohttp.ContentTypeError as err:
-            raise UpdateFailed(
-                translation_domain=DOMAIN,
-                translation_key="api_invalid_content_type",
-                translation_placeholders={
-                    "fuel_type": fuel_type,
-                    "status": str(resp.status),
-                    "reason": err.message,
-                },
-            ) from err
-        except ValueError as err:  # json.JSONDecodeError is a ValueError subclass
-            raise UpdateFailed(
-                translation_domain=DOMAIN,
-                translation_key="api_invalid_json",
-                translation_placeholders={
-                    "fuel_type": fuel_type,
-                    "status": str(resp.status),
-                    "error": str(err),
-                },
-            ) from err
-
-        if not isinstance(data, list):
-            raise UpdateFailed(
-                translation_domain=DOMAIN,
-                translation_key="api_invalid_response",
-                translation_placeholders={
-                    "fuel_type": fuel_type,
-                    "status": str(resp.status),
-                    "got": type(data).__name__,
-                },
-            )
 
         # API returns array of stations; first 5 have prices, rest don't
         stations: list[dict[str, Any]] = []

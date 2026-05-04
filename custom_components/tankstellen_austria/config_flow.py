@@ -64,13 +64,13 @@ async def _test_api_connection(
         "includeClosed": "true",
     }
     try:
-        resp = await session.get(
+        async with session.get(
             url,
             params=params,
             headers={"User-Agent": USER_AGENT},
             timeout=aiohttp.ClientTimeout(total=10),
-        )
-        resp.raise_for_status()
+        ) as resp:
+            resp.raise_for_status()
     except asyncio.TimeoutError:
         _LOGGER.warning("API connection test timed out after 10s (%s)", url)
         return False

@@ -20,7 +20,7 @@ from custom_components.tankstellen_austria.const import (
 )
 from custom_components.tankstellen_austria.coordinator import TankstellenCoordinator
 
-from .conftest import BASE_ENTRY_DATA as _BASE_ENTRY_DATA, MOCK_STATION
+from .conftest import BASE_ENTRY_DATA as _BASE_ENTRY_DATA, MOCK_STATION, make_response_cm
 
 
 def _make_entry(data: dict | None = None) -> MockConfigEntry:
@@ -100,7 +100,7 @@ async def test_fetch_rejects_non_list_payload(hass: HomeAssistant) -> None:
     resp.json = AsyncMock(return_value={"error": "upstream_format_change"})
     resp.status = 200
     coordinator._session = MagicMock()
-    coordinator._session.get = AsyncMock(return_value=resp)
+    coordinator._session.get = MagicMock(return_value=make_response_cm(resp))
 
     with pytest.raises(UpdateFailed) as exc:
         await coordinator._fetch("DIE", 48.0, 16.0)
@@ -142,7 +142,7 @@ async def test_coordinator_fetch_sends_canonical_user_agent(hass: HomeAssistant)
     resp.raise_for_status = MagicMock()
     resp.json = AsyncMock(return_value=[])
     coordinator._session = MagicMock()
-    coordinator._session.get = AsyncMock(return_value=resp)
+    coordinator._session.get = MagicMock(return_value=make_response_cm(resp))
 
     await coordinator._fetch("DIE", 48.0, 16.0)
 
@@ -328,7 +328,11 @@ async def test_include_closed_true_passed_to_api(hass: HomeAssistant) -> None:
     mock_resp.raise_for_status = MagicMock()
     mock_resp.json = AsyncMock(return_value=[MOCK_STATION])
 
-    with patch.object(coordinator._session, "get", new=AsyncMock(return_value=mock_resp)) as mock_get:
+    with patch.object(
+        coordinator._session,
+        "get",
+        new=MagicMock(return_value=make_response_cm(mock_resp)),
+    ) as mock_get:
         await coordinator._fetch("DIE", 48.1478, 16.5147)
 
     _, kwargs = mock_get.call_args
@@ -345,7 +349,11 @@ async def test_include_closed_false_passed_to_api(hass: HomeAssistant) -> None:
     mock_resp.raise_for_status = MagicMock()
     mock_resp.json = AsyncMock(return_value=[MOCK_STATION])
 
-    with patch.object(coordinator._session, "get", new=AsyncMock(return_value=mock_resp)) as mock_get:
+    with patch.object(
+        coordinator._session,
+        "get",
+        new=MagicMock(return_value=make_response_cm(mock_resp)),
+    ) as mock_get:
         await coordinator._fetch("DIE", 48.1478, 16.5147)
 
     _, kwargs = mock_get.call_args
@@ -556,7 +564,7 @@ def _stub_session_returning(coordinator: TankstellenCoordinator, payload: object
     resp.status = 200
     resp.json = AsyncMock(return_value=payload)
     coordinator._session = MagicMock()
-    coordinator._session.get = AsyncMock(return_value=resp)
+    coordinator._session.get = MagicMock(return_value=make_response_cm(resp))
 
 
 async def test_fetch_caps_results_at_five_stations(hass: HomeAssistant) -> None:
@@ -606,14 +614,26 @@ async def test_fetch_drops_priceless_stations(hass: HomeAssistant) -> None:
     assert [s["id"] for s in stations] == [1, 4]
 
 
+def _stub_session_raising(coordinator: TankstellenCoordinator, exc: BaseException) -> None:
+    """Mock coordinator._session.get so its async-context-manager __aenter__ raises ``exc``.
+
+    Mirrors how aiohttp's ``_RequestContextManager`` actually surfaces transport
+    errors: the request only happens inside ``__aenter__``, not at call-time.
+    """
+    cm = MagicMock()
+    cm.__aenter__ = AsyncMock(side_effect=exc)
+    cm.__aexit__ = AsyncMock(return_value=None)
+    coordinator._session = MagicMock()
+    coordinator._session.get = MagicMock(return_value=cm)
+
+
 async def test_fetch_timeout_uses_translation_key(hass: HomeAssistant) -> None:
     """asyncio.TimeoutError → UpdateFailed(translation_key='api_timeout')."""
     entry = _make_entry()
     entry.add_to_hass(hass)
     coordinator = TankstellenCoordinator(hass, entry)
 
-    coordinator._session = MagicMock()
-    coordinator._session.get = AsyncMock(side_effect=asyncio.TimeoutError())
+    _stub_session_raising(coordinator, asyncio.TimeoutError())
 
     with pytest.raises(UpdateFailed) as exc:
         await coordinator._fetch("DIE", 48.0, 16.0)
@@ -634,8 +654,7 @@ async def test_fetch_http_error_uses_translation_key(hass: HomeAssistant) -> Non
         status=500,
         message="Internal Server Error",
     )
-    coordinator._session = MagicMock()
-    coordinator._session.get = AsyncMock(side_effect=err)
+    _stub_session_raising(coordinator, err)
 
     with pytest.raises(UpdateFailed) as exc:
         await coordinator._fetch("DIE", 48.0, 16.0)
@@ -648,8 +667,7 @@ async def test_fetch_connection_error_uses_translation_key(hass: HomeAssistant) 
     entry.add_to_hass(hass)
     coordinator = TankstellenCoordinator(hass, entry)
 
-    coordinator._session = MagicMock()
-    coordinator._session.get = AsyncMock(side_effect=aiohttp.ClientError("DNS"))
+    _stub_session_raising(coordinator, aiohttp.ClientError("DNS"))
 
     with pytest.raises(UpdateFailed) as exc:
         await coordinator._fetch("DIE", 48.0, 16.0)
@@ -667,7 +685,7 @@ async def test_fetch_invalid_json_uses_translation_key(hass: HomeAssistant) -> N
     resp.status = 200
     resp.json = AsyncMock(side_effect=ValueError("not JSON"))
     coordinator._session = MagicMock()
-    coordinator._session.get = AsyncMock(return_value=resp)
+    coordinator._session.get = MagicMock(return_value=make_response_cm(resp))
 
     with pytest.raises(UpdateFailed) as exc:
         await coordinator._fetch("DIE", 48.0, 16.0)

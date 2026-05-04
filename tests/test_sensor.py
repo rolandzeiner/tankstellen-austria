@@ -265,7 +265,9 @@ async def test_sensor_warns_once_on_price_drift(
 
     Without this guard, an upstream shape change could either flood the
     log with WARNINGs (one per refresh) or stay completely silent. The
-    warn-once-then-debug pattern is the integration's contract.
+    warn-once-then-debug pattern is the integration's contract — applied
+    per coordinator refresh (state is memoised between refreshes so
+    duplicate state reads don't log at all).
     """
     bad_station = {
         "id": 99,
@@ -286,7 +288,6 @@ async def test_sensor_warns_once_on_price_drift(
         await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
 
-        # Re-read native_value once more to fire a second access.
         coordinator = entry.runtime_data
         from custom_components.tankstellen_austria.sensor import TankstellenSensor
 
@@ -296,13 +297,16 @@ async def test_sensor_warns_once_on_price_drift(
         )
         caplog.clear()
         with caplog.at_level("DEBUG"):
-            _ = sensor.native_value
-            _ = sensor.native_value
+            # Trigger two further coordinator-update recomputes; the cache
+            # is rebuilt each time but the warn-once guard demotes them
+            # both to DEBUG.
+            sensor._recompute_from_coordinator()
+            sensor._recompute_from_coordinator()
 
         warnings = [r for r in caplog.records if r.levelname == "WARNING"]
         debugs = [r for r in caplog.records if r.levelname == "DEBUG"]
         # First attempt happened during setup → already warned. Both
-        # subsequent reads must NOT emit WARNING (they may emit DEBUG).
+        # subsequent recomputes must NOT emit WARNING (they may emit DEBUG).
         assert len(warnings) == 0
         assert any("unexpected API payload shape" in r.message for r in debugs)
         # Coordinator presence is a sanity check — keeps the test

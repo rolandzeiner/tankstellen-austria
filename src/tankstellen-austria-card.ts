@@ -150,6 +150,13 @@ export class TankstellenAustriaCard extends LitElement {
   private _initDone = false;
   private _historyInterval: number | undefined;
   private _cooldownInterval: number | undefined;
+  // Manual-refresh post-fetch check (3s after the update_entity calls) and
+  // the reduce-motion cooldown wake-up are one-shot setTimeouts. Stored on
+  // the instance so disconnectedCallback can cancel them — otherwise a
+  // dashboard edit-mode flip leaves a pending callback that fires against
+  // a detached element and writes to a now-unobserved reactive prop.
+  private _postRefreshTimeout: number | undefined;
+  private _cooldownTimeout: number | undefined;
   private _sparklineCleanup: (() => void) | undefined;
 
   public setConfig(config: TankstellenAustriaCardConfig): void {
@@ -245,6 +252,14 @@ export class TankstellenAustriaCard extends LitElement {
     if (this._cooldownInterval !== undefined) {
       clearInterval(this._cooldownInterval);
       this._cooldownInterval = undefined;
+    }
+    if (this._postRefreshTimeout !== undefined) {
+      clearTimeout(this._postRefreshTimeout);
+      this._postRefreshTimeout = undefined;
+    }
+    if (this._cooldownTimeout !== undefined) {
+      clearTimeout(this._cooldownTimeout);
+      this._cooldownTimeout = undefined;
     }
     if (this._sparklineCleanup) {
       this._sparklineCleanup();
@@ -1199,7 +1214,11 @@ export class TankstellenAustriaCard extends LitElement {
     }
 
     // After HA has had time to fetch, check if data actually changed.
-    window.setTimeout(() => {
+    if (this._postRefreshTimeout !== undefined) {
+      clearTimeout(this._postRefreshTimeout);
+    }
+    this._postRefreshTimeout = window.setTimeout(() => {
+      this._postRefreshTimeout = undefined;
       try {
         const updated = this._resolveEntities();
         const updatedActive = updated[this._activeTab] ?? updated[0];
@@ -1223,7 +1242,11 @@ export class TankstellenAustriaCard extends LitElement {
       typeof window.matchMedia === "function" &&
       window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (reduceMotion) {
-      window.setTimeout(() => {
+      if (this._cooldownTimeout !== undefined) {
+        clearTimeout(this._cooldownTimeout);
+      }
+      this._cooldownTimeout = window.setTimeout(() => {
+        this._cooldownTimeout = undefined;
         this._cooldownTick = (this._cooldownTick + 1) % 1_000_000;
       }, DYNAMIC_MANUAL_COOLDOWN_MS);
     } else {
