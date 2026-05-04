@@ -28,11 +28,22 @@ ENV/
 htmlcov/
 coverage.xml
 
-# Secrets / env files (never commit these, even by mistake)
+# Secrets — API keys and credentials are the #1 leak vector for HA integrations
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
 secrets.yaml
+.secrets
+*.secret
+credentials.json
+token.json
+auth.json
+*.pem
+*.key
+*.p12
+*.pfx
+local_*.py
+private_*.py
 
 # Tool caches
 .pytest_cache/
@@ -42,17 +53,36 @@ secrets.yaml
 # IDEs / editors
 .vscode/
 .idea/
+*.iml
 *.swp
 *.swo
 *~
 
-# Claude Code
+# Claude / AI tooling — transcripts, plans, local state
 .claude/
+.claude-cache/
+.claude-*
+CLAUDE.local.md
+*.local.md
+.aider*
+.cursor/
+.cursorrules.local
+.continue/
+.windsurf/
+
+# HA-local test state (from running a local HA against the integration)
+config/
+home-assistant.log*
+home-assistant_*.log*
+.storage/
 
 # Logs / pip
 *.log
 pip-log.txt
 pip-delete-this-directory.txt
+
+# Python — version pin
+.python-version
 
 # Build
 target/
