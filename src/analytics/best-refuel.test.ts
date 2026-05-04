@@ -7,11 +7,20 @@ const DAY_MS = 86_400_000;
 const CHEAP = 1.5;
 const EXPENSIVE = 1.6;
 
-// Build a synthetic price history at local-time anchors. `now` is fixed
-// inside each test so spans and recency are deterministic; we run with
-// the system clock by calling Date.now() at the point of test invocation
-// — vitest by default uses the real clock, which is fine because the
-// fixture is built relative to it.
+// Anchor the synthetic `now` to the most recent past Monday at midnight
+// local time. With a 28-day fixture window this guarantees the data spans
+// exactly four ISO weeks (Mon→Sun ×4) with no partial weeks at either
+// edge — so MIN_WEEK_MS = 3 days never trims fixture data and the test
+// produces the same buckets regardless of the day-of-week the suite runs.
+function deterministicNow(): number {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  const dow = d.getDay(); // 0=Sun, 1=Mon
+  const daysBackToMonday = dow === 0 ? 6 : dow - 1;
+  d.setDate(d.getDate() - daysBackToMonday);
+  return d.getTime();
+}
+
 function buildHistory(
   days: number,
   now: number,
@@ -46,7 +55,7 @@ function noonHikePattern(hikeMinute: number) {
 
 describe("analyzeBestRefuel — duration-weighted bucketing", () => {
   it("recommends a multi-hour pre-noon window when the hike lands at 12:14", () => {
-    const now = Date.now();
+    const now = deterministicNow();
     const data = buildHistory(28, now, noonHikePattern(14));
     const result = analyzeBestRefuel(data);
     expect(result?.hasEnoughData).toBe(true);
@@ -58,7 +67,7 @@ describe("analyzeBestRefuel — duration-weighted bucketing", () => {
   });
 
   it("recommends a window ending at 12 with an on-the-hour hike too (sanity)", () => {
-    const now = Date.now();
+    const now = deterministicNow();
     const data = buildHistory(28, now, noonHikePattern(0));
     const result = analyzeBestRefuel(data);
     expect(result?.hasEnoughData).toBe(true);
@@ -67,14 +76,14 @@ describe("analyzeBestRefuel — duration-weighted bucketing", () => {
   });
 
   it("returns hasEnoughData=false for less than a week of data", () => {
-    const now = Date.now();
+    const now = deterministicNow();
     const data = buildHistory(3, now, noonHikePattern(0));
     const result = analyzeBestRefuel(data);
     expect(result?.hasEnoughData).toBe(false);
   });
 
   it("recommends a 3-hour window when 11:00–14:00 is the cheap stretch", () => {
-    const now = Date.now();
+    const now = deterministicNow();
     const data = buildHistory(28, now, () => [
       { offsetMs: 0, price: EXPENSIVE },
       { offsetMs: 11 * HOUR_MS, price: CHEAP },
@@ -89,7 +98,7 @@ describe("analyzeBestRefuel — duration-weighted bucketing", () => {
 
 describe("buildHourlyEnvelope — duration-weighted band", () => {
   it("widens the band only at the transition hour", () => {
-    const now = Date.now();
+    const now = deterministicNow();
     const data = buildHistory(28, now, noonHikePattern(14));
     const env = buildHourlyEnvelope(data);
     expect(env).not.toBeNull();

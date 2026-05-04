@@ -9,6 +9,15 @@
 // to that timezone's clock — do NOT cache results across sessions or
 // share them between users without re-running the analysis.
 //
+// DST: chunks are split at UTC hour boundaries and labelled with the
+// local clock-hour at the chunk start. Vienna's offset is always integer
+// hours, so the splits align with local hour boundaries on normal days.
+// On the spring-forward day, local hour 02:00 is *skipped* (no chunk gets
+// that hour label); on fall-back, local hour 02:00 occurs *twice* (two
+// distinct UTC hours both label as 02:00 local). Real elapsed time is
+// counted correctly in either case — only the local-clock label aliases.
+// Negligible over a 28-day window.
+//
 // Bucket population uses *duration-weighted chunks*, not hour-boundary
 // samples. For each step-function price interval we split at every hour
 // boundary it crosses and credit each (hour, weekday) bucket with the
@@ -17,6 +26,23 @@
 // update mid-hour (e.g. the legal 12:00 hike that lands at 12:14): the
 // 12:00 bucket now reflects ~14min × pre-hike + ~46min × post-hike
 // instead of being attributed entirely to the pre-hike price.
+//
+// IMPORTANT — aggregate min-of-N input: the upstream `HistoryPoint[]` for
+// this card is *not* a single station's posted price. It is the running
+// minimum over N nearby stations (Tankstellen Austria sensors expose this
+// as `station_count`). Consequences this code does **not** try to undo:
+//   • An apparent "price hike" in the stream can simply mean the
+//     previously-cheapest station got uncovered (its competitor is now
+//     cheaper or it briefly went `unavailable`) — no single station may
+//     have raised its price at that instant.
+//   • The composition of the N stations can change over weeks; recency
+//     decay assumes the stream is from a stable source, which it is not.
+//   • Per-week winsorise + delta-from-mean shrink genuine composition
+//     shifts toward zero, since they look like outliers.
+// We treat the stream as opaque on purpose: the card surfaces "when is
+// the aggregate cheapest", which is the actionable question for a driver
+// choosing among the N stations. Do not interpret the medians or the
+// recommendation as statements about any individual station's pricing.
 
 import type { HistoryPoint } from "../history";
 import type { HourlyEnvelope } from "../sparkline";
@@ -28,8 +54,11 @@ const DAY_MS = 86_400_000;
 const HALF_LIFE_MS = 14 * DAY_MS;
 
 // Skip per-week aggregation when fewer than this many ms of observed time
-// fell in the week — partial-week slivers at the edges of the window.
-const MIN_WEEK_MS = DAY_MS;
+// fell in the week. The first and last ISO weeks of a 28-day window are
+// usually partial; below ~3 days of chunks the per-week winsorise (p05/p95)
+// and weekMean become unstable enough to contaminate every bucket entry
+// derived from that week.
+const MIN_WEEK_MS = 3 * DAY_MS;
 
 export type Confidence = "high" | "medium" | "low";
 
@@ -69,10 +98,17 @@ function mondayKey(t: number): number {
 // interval crosses. The chunk's hour/weekday are determined by its *start*
 // — since we always split at hour boundaries, that uniquely identifies the
 // hour-of-day for the whole chunk's duration.
+//
+// Defensive non-finite filter: upstream history.ts already drops `unavailable`
+// rows, but a NaN price leaking through (e.g. a malformed sensor value during
+// a brief integration glitch) would poison the per-week mean for the entire
+// week it landed in. Skip the chunk silently — a missed segment is far less
+// damaging than a NaN-poisoned weekMean.
 function walkChunks(data: HistoryPoint[], now: number): Chunk[] {
   const out: Chunk[] = [];
   const emit = (price: number, start: number, end: number): void => {
     if (end <= start) return;
+    if (!Number.isFinite(price)) return;
     let cursor = start;
     while (cursor < end) {
       const nextHour = Math.floor(cursor / HOUR_MS) * HOUR_MS + HOUR_MS;
@@ -109,31 +145,43 @@ function groupByWeek(chunks: Chunk[]): Map<number, Chunk[]> {
 
 interface BestPick {
   medians: number[];
-  bestIdx: number;
-  bestVal: number;
+  bestIdx: number; // index of the seed bucket (may have been shifted by tiebreaker)
+  bestVal: number; // median of the seed bucket (may be > minVal after tiebreaker)
+  minVal: number; // unconditional minimum across all valid bucket medians
 }
 
-// Two bucket medians within this many EUR/L are treated as a tie. Kept very
-// tight (well below any real station's hour-to-hour variation but well above
-// float noise) so the daytime tiebreaker only kicks in for genuinely
-// identical hours — e.g. a flat-overnight pattern where many hours produce
-// bit-identical medians. A looser tolerance hijacks the seed away from the
-// truly-cheapest hour and biases the recommended window toward daytime even
-// when overnight is meaningfully cheaper.
+// Two bucket medians within this many EUR/L are treated as a tie for the
+// purpose of the daytime tiebreaker. Real Austrian fuel prices are quoted to
+// 0.001 EUR/L; per-week winsorise + duration-weighted mean introduce float
+// arithmetic on top, so this tolerance is wider than raw input precision but
+// tight enough that only genuinely-identical-by-construction medians qualify
+// (e.g. the synthetic test fixture, where every cheap hour produces the same
+// delta-from-mean across every week). A looser tolerance hijacks the seed
+// away from the truly-cheapest hour and biases the recommended window toward
+// daytime even when overnight is meaningfully cheaper.
 const TIE_TOLERANCE_EUR = 0.0001;
 
-// Adjacent hours within this many EUR/L (≈ 0.5¢) of the best hour are folded
-// into the recommended window. Looser than the tiebreaker tolerance because
-// "also a good time to refuel" is a softer bar than "essentially identical".
+// Adjacent hours whose median is within this many EUR/L (≈ 0.5¢) of the
+// *unconditional minimum* are folded into the recommended window. Anchored to
+// minVal (not the post-tiebreaker seed) so the window can't silently drift
+// upward when the tiebreaker shifts the seed. Looser than TIE_TOLERANCE
+// because "also a good time to refuel" is a softer bar than "essentially
+// identical": 0.5¢/L is roughly the smallest gap a driver would notice.
 const EXPAND_TOLERANCE_EUR = 0.005;
 
-// Cap on the recommended-window length. A window longer than this means
-// the data has no real signal and a six-hour band is already past useful.
+// UX cap on the recommended-window length. A 7+ hour window is statistically
+// fine on a flat-overnight station, but it stops being actionable advice
+// ("refuel anytime in this 9-hour stretch" is just "refuel today"). 6 hours
+// is the longest window that still feels like a recommendation. Not a
+// signal-quality threshold — confidence/separation handle that separately.
 const MAX_WINDOW_HOURS = 6;
 
-// Lower = more customer-friendly. Circular distance from 13:00 (early
-// afternoon), so daytime hours score low and the small hours of the night
-// score high. Used only to break near-ties between hour buckets.
+// UX bias: when several hours tie at exactly the same median, prefer the
+// most daytime one as the seed. Returns a "lower is friendlier" score equal
+// to the circular distance from 13:00 (early afternoon). This is *not* a
+// statistical preference — overnight hours can be genuinely cheaper — and
+// only fires inside TIE_TOLERANCE_EUR of the absolute minimum, so it never
+// overrides real signal.
 function hourUnfriendliness(hour: number): number {
   const center = 13;
   const d = Math.abs(hour - center);
@@ -141,37 +189,48 @@ function hourUnfriendliness(hour: number): number {
 }
 
 // Walk circularly from the seed hour in both directions, including any
-// adjacent hour whose median is within EXPAND_TOLERANCE_EUR of the seed
-// median. Caps total length at MAX_WINDOW_HOURS, trimming preferentially
-// from whichever side has more slack.
+// adjacent hour whose median is within EXPAND_TOLERANCE_EUR of the
+// unconditional minimum (NOT the seed median — see EXPAND_TOLERANCE_EUR
+// comment). Caps total length at MAX_WINDOW_HOURS by trimming whichever
+// side has more remaining slack first, so the kept window stays as
+// centred as the data allows.
 function expandHourWindow(
   medians: number[],
   seedIdx: number,
-  seedVal: number,
+  minVal: number,
 ): { start: number; end: number } {
+  const withinTolerance = (m: number | undefined): boolean =>
+    m !== undefined && !Number.isNaN(m) && m - minVal <= EXPAND_TOLERANCE_EUR;
+
   let forward = 0;
   for (let step = 1; step <= 23; step++) {
-    const i = (seedIdx + step) % 24;
-    const m = medians[i];
-    if (m === undefined || Number.isNaN(m)) break;
-    if (m - seedVal > EXPAND_TOLERANCE_EUR) break;
+    if (!withinTolerance(medians[(seedIdx + step) % 24])) break;
     forward = step;
   }
   let backward = 0;
   for (let step = 1; step <= 23; step++) {
-    const i = (seedIdx - step + 24) % 24;
-    const m = medians[i];
-    if (m === undefined || Number.isNaN(m)) break;
-    if (m - seedVal > EXPAND_TOLERANCE_EUR) break;
+    if (!withinTolerance(medians[(seedIdx - step + 24) % 24])) break;
     backward = step;
   }
-  const total = 1 + forward + backward;
+
+  // Slack-aware trim: pull each excess hour off whichever side still has
+  // more remaining slack. Equal-slack ties alternate by step parity, so a
+  // window that needs to shed an even excess shrinks symmetrically and an
+  // odd excess produces a single-hour asymmetry that doesn't favour either
+  // direction in the long run.
+  let total = 1 + forward + backward;
   if (total > MAX_WINDOW_HOURS) {
-    const excess = total - MAX_WINDOW_HOURS;
-    const trimFwd = Math.min(forward, Math.ceil(excess / 2));
-    const trimBack = Math.min(backward, excess - trimFwd);
-    forward -= trimFwd;
-    backward -= trimBack;
+    let excess = total - MAX_WINDOW_HOURS;
+    for (let step = 0; excess > 0; step++) {
+      const fwdSlack = forward;
+      const backSlack = backward;
+      if (fwdSlack === 0 && backSlack === 0) break;
+      if (fwdSlack > backSlack) forward--;
+      else if (backSlack > fwdSlack) backward--;
+      else if (step % 2 === 0) forward--;
+      else backward--;
+      excess--;
+    }
   }
   const start = (seedIdx - backward + 24) % 24;
   const end = (seedIdx + forward + 1) % 24;
@@ -194,9 +253,12 @@ function pickBest(
       bestIdx = i;
     }
   });
-  if (bestIdx < 0 || !tiebreaker) return { medians, bestIdx, bestVal };
-
+  // minVal is the unconditional minimum across all valid buckets — captured
+  // here so callers (notably window expansion) can anchor to the true cheap
+  // floor even after the tiebreaker shifts the seed to a more daytime hour.
   const minVal = bestVal;
+  if (bestIdx < 0 || !tiebreaker) return { medians, bestIdx, bestVal, minVal };
+
   let bestTb = tiebreaker(bestIdx);
   medians.forEach((m, i) => {
     if (Number.isNaN(m) || m - minVal > TIE_TOLERANCE_EUR) return;
@@ -207,16 +269,21 @@ function pickBest(
       bestVal = m;
     }
   });
-  return { medians, bestIdx, bestVal };
+  return { medians, bestIdx, bestVal, minVal };
 }
 
+// Gap between the unconditional minimum bucket median and the median of all
+// bucket medians, expressed as a 0..1 confidence ratio against `refCents`.
+// Uses `minVal` (not the post-tiebreaker `bestVal`) so the reported
+// separation reflects the actual cheap-zone strength, not how friendly the
+// seed hour happens to be.
 function scoreSeparation(pick: BestPick, refCents: number): number {
   const valid = pick.medians
     .filter((m) => !Number.isNaN(m))
     .sort((a, b) => a - b);
   if (valid.length < 2 || pick.bestIdx < 0) return 0;
   const mid = valid[Math.floor((valid.length - 1) / 2)]!;
-  const gapCents = (mid - pick.bestVal) * 100;
+  const gapCents = (mid - pick.minVal) * 100;
   return clamp(gapCents / refCents, 0, 1);
 }
 
@@ -272,19 +339,23 @@ export function analyzeBestRefuel(data: HistoryPoint[]): BestRefuelResult | null
   if (hourPick.bestIdx < 0) return { hasEnoughData: false };
   const weekdayPick = pickBest(weekdayBuckets, 3);
 
-  // Confidence scoring: average of span, coverage, and separation.
+  // Confidence scoring: average of span, coverage, and separation. The
+  // reference gaps (1.5¢ for hour, 0.8¢ for weekday) and the high/medium
+  // thresholds (0.75 / 0.5) are *UX calibration constants*, not statistical
+  // thresholds. They were tuned to produce a sensible spread of high/medium/
+  // low labels on real Austrian fuel-price histories — change them only if
+  // you also re-look at how they bin in practice.
   const spanDays = span / DAY_MS;
   const span_score = Math.min(1, spanDays / 28);
 
   const hourCoverage = hourBuckets.filter((b) => b.length >= 3).length / 24;
-  const hourSep = scoreSeparation(hourPick, 1.5); // 1.5¢ gap = full confidence
+  const hourSep = scoreSeparation(hourPick, 1.5);
   const validHour = hourPick.medians
     .filter((m) => !Number.isNaN(m))
     .sort((a, b) => a - b);
   const hourGapCents =
     validHour.length >= 2
-      ? (validHour[Math.floor((validHour.length - 1) / 2)]! -
-          hourPick.bestVal) *
+      ? (validHour[Math.floor((validHour.length - 1) / 2)]! - hourPick.minVal) *
         100
       : 0;
   const hourConfidence = (span_score + hourCoverage + hourSep) / 3;
@@ -303,7 +374,7 @@ export function analyzeBestRefuel(data: HistoryPoint[]): BestRefuelResult | null
   const window = expandHourWindow(
     hourPick.medians,
     hourPick.bestIdx,
-    hourPick.bestVal,
+    hourPick.minVal,
   );
 
   return {

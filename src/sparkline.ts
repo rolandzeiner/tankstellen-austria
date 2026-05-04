@@ -307,7 +307,7 @@ export function buildSparkline(opts: SparklineOpts): SparklineResult {
         ? svg`<line x1=${centreX.toFixed(1)} y1="0"
                     x2=${centreX.toFixed(1)} y2=${HEIGHT}
                     stroke="var(--success-color,#4CAF50)" stroke-width="0.6"
-                    stroke-dasharray="3,2" opacity="0.8"/>`
+                    stroke-dasharray="0.6,2" stroke-linecap="round" opacity="0.8"/>`
         : nothing;
     const marker: TemplateResult | typeof nothing =
       markerBand === nothing && markerLine === nothing

@@ -94,27 +94,23 @@ export function clamp(v: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, v));
 }
 
-// Weighted percentile on a numeric array. Returns the value at the given
-// quantile `q` in [0, 1]. Uses linear interpolation between adjacent samples.
-export function percentile(sorted: readonly number[], q: number): number {
-  const n = sorted.length;
-  if (n === 0) return NaN;
-  if (n === 1) return sorted[0]!;
-  const i = clamp(q, 0, 1) * (n - 1);
-  const lo = Math.floor(i);
-  const hi = Math.ceil(i);
-  if (lo === hi) return sorted[lo]!;
-  const f = i - lo;
-  return sorted[lo]! * (1 - f) + sorted[hi]! * f;
-}
-
 export interface WeightedEntry {
   value: number;
   weight: number;
 }
 
-// Weighted quantile. Returns the value at which the cumulative weight crosses
-// `q × total`. Entries are sorted internally; weights ≤ 0 are dropped.
+// Weighted quantile (type-1 / "lower" convention). Returns the value at
+// which the cumulative weight first reaches `q × total`. Entries are
+// sorted internally; non-finite values and non-positive weights are
+// dropped.
+//
+// Note on q=0.5: when cumulative weight crosses exactly at a boundary,
+// the *lower* of the two bracketing values is returned (no interpolation).
+// This matches R's `quantile(..., type=1)` and NumPy's `interpolation='lower'`.
+// For our use (per-week winsorise + bucket-median) it produces a small,
+// consistent downward bias on bit-exact ties — fine because tied medians
+// are essentially noise, and the daytime tiebreaker handles the
+// degenerate case explicitly.
 export function weightedPercentile(
   entries: readonly WeightedEntry[],
   q: number,
@@ -133,39 +129,4 @@ export function weightedPercentile(
     if (acc >= target) return e.value;
   }
   return sorted[sorted.length - 1]!.value;
-}
-
-function weightedMedian(
-  values: readonly number[],
-  weights: readonly number[],
-): number {
-  const n = values.length;
-  if (n === 0) return NaN;
-  if (n === 1) return values[0]!;
-  const pairs = values
-    .map((v, i) => ({ v, w: weights[i] ?? 1 }))
-    .filter((p) => Number.isFinite(p.v) && p.w > 0)
-    .sort((a, b) => a.v - b.v);
-  if (pairs.length === 0) return NaN;
-  const total = pairs.reduce((s, p) => s + p.w, 0);
-  let acc = 0;
-  for (const p of pairs) {
-    acc += p.w;
-    if (acc >= total / 2) return p.v;
-  }
-  return pairs[pairs.length - 1]!.v;
-}
-
-// Winsorize values at the given low/high percentiles (e.g. 0.05 / 0.95).
-// Does not mutate the input.
-function winsorize(
-  values: readonly number[],
-  lo: number,
-  hi: number,
-): number[] {
-  if (values.length === 0) return [];
-  const sorted = [...values].sort((a, b) => a - b);
-  const loV = percentile(sorted, lo);
-  const hiV = percentile(sorted, hi);
-  return values.map((v) => clamp(v, loV, hiV));
 }
