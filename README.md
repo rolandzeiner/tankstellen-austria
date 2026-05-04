@@ -16,7 +16,7 @@ and CNG. No API key required.
 
 - **Config-flow setup** with map picker for coordinates and per-entry options
 - **One sensor per fuel type** — state = cheapest price, attributes carry all 5 stations (name, address, opening hours, payment methods, coordinates)
-- **Custom Lovelace card** with fuel-type tabs, expandable station detail, map links, 7-day price sparkline, and best-refuel-time recommendation
+- **Custom Lovelace card** with fuel-type tabs, expandable station detail, map links, 7-day price sparkline, hour-of-day envelope band, and a best-refuel-time **window** highlighted on the chart
 - **Dynamic mode** — bind a `device_tracker` so prices follow you as you drive (with distance threshold and rate-limit guards)
 - **Payment-method filter / highlight** — show only stations accepting your card, or keep all visible with matches highlighted in green
 - **Car fill-up cost widget** — define cars and see total fill-up cost (and €/100 km) at the cheapest station for that fuel type
@@ -126,7 +126,7 @@ You can mix fixed and dynamic entries; both render as separate tabs in the same 
 
 ## Best refuel time
 
-The card analyses up to **4 weeks** of your sensor's recorded price history (refetched every 30 min) to find the hour-of-day that's consistently cheapest *relative to that week's prices*. A weekday is added to the tip only when its own signal is strong. A High / Medium / Low confidence badge shows next to the tip — hover for the breakdown.
+The card analyses up to **4 weeks** of your sensor's recorded price history (refetched every 30 min) to find the **window of consecutive hours** that's consistently cheapest *relative to that week's prices*. The recommended window is 1–6 hours long: short when only one hour stands out, wider when several adjacent hours are similarly cheap. The same window is rendered as a translucent green band on the sparkline so the visual matches the text tip. A weekday is added only when its own signal is strong. A High / Medium / Low confidence badge shows next to the tip — hover for the breakdown.
 
 Home Assistant's default `recorder.purge_keep_days` is **10**, so out of the box only ~10 days are available and confidence stays low until the window fills. Extend retention to get the full 28-day pipeline:
 
@@ -138,16 +138,18 @@ recorder:
 
 ### How it works
 
-Austrian law (Preisauszeichnungsgesetz) lets prices rise only once a day at 12:00 noon and drop at any time, producing a reliable daily sawtooth. The card exploits that pattern in six steps:
+Austrian law (Preisauszeichnungsgesetz) lets prices rise only once a day at 12:00 noon and drop at any time. Combined with the sensor being the **min over N nearby stations** (`station_count` in the attributes), the aggregate price stream isn't a clean daily sawtooth — it's a combined signal of every station's noon hike, every station's evening drops, and the cheapest-of-N rolling over as different stations cross. The card extracts the time-of-day signal from this stream in six steps:
 
-1. **Time-weighted hourly expansion** — sparse change-events are held constant across full hours into a dense hourly series.
-2. **Per-week winsorising** — values outside the 5th–95th percentile of each Monday-aligned week are clipped (kills sensor glitches and the noon-reset spike).
-3. **Per-week normalisation** — each sample becomes `price − week_mean`, so a slot that's consistently the weekly low wins regardless of absolute price level.
+1. **Duration-weighted chunk walk** — each step-function price interval is split at every hour boundary it crosses; each (hour-of-day, weekday) bucket is credited with the active price weighted by milliseconds spent in it. Eliminates the phase bias hour-boundary sampling has when stations update mid-hour (e.g. a noon hike that lands at 12:14 no longer attributes the entire 12:00 bucket to the pre-hike price).
+2. **Per-week winsorising** — values outside the 5th–95th percentile of each Monday-aligned week are clipped. Kills sensor glitches and stops the noon-reset spike from poisoning the per-week mean.
+3. **Per-week normalisation** — each chunk becomes `price − week_mean`, so a slot that's consistently the weekly low wins regardless of absolute price level.
 4. **Independent bucketing** — deltas aggregated separately into 24 hour-of-day and 7 weekday buckets (a single 168-cell grid would mix strong + weak signals).
-5. **Weighted median per bucket** — recency weight `0.5^(age_in_days / 14)`; samples from 2 weeks ago count half, 4 weeks ago a quarter.
-6. **Confidence score** averages three components: data span (28-day window coverage), hour coverage (≥3 obs per hour), and separation (gap between winning bucket and cross-bucket median in cents). Maps to **High / Medium / Low**.
+5. **Weighted median per bucket** — entry weights are duration × recency, with recency `0.5^(age_in_days / 14)`. A chunk from 2 weeks ago counts half a chunk from today; 4 weeks ago, a quarter.
+6. **Cheap-window expansion** — pick the bucket with the unconditional minimum median, then walk circularly outward in both directions, including any adjacent hour whose median is within ~0.5¢/L of that minimum. Capped at 6 hours; ties between equally-cheap exact hours fall back to a daytime-friendly tiebreaker.
 
-The weekday is appended to the tip only when its own signal is strong enough — otherwise the tip shows the hour alone. The tip reflects the *cheapest nearby station at each point in time*, not any single station's pattern.
+**Confidence** averages three components: data span (28-day window coverage), hour coverage (≥3 chunks per hour), and separation (gap between the cheapest bucket median and the cross-bucket median in cents, against a 1.5¢ reference). Maps to **High / Medium / Low** — these thresholds are UX calibration constants tuned against real Austrian price histories, not statistical thresholds.
+
+The recommendation reflects the *cheapest nearby station at each point in time*, **not any single station's pattern** — a recommendation of "21:00–03:00" can mean one station drops in the evening and another comes in cheap at midnight, not that any single station is following that schedule. The min-of-N stream means apparent price hikes can also be station-uncovering events rather than real hikes.
 
 ## Sensors
 
@@ -277,8 +279,9 @@ The helper stores its config in HA's internal storage (not `configuration.yaml`)
 - API covers **Austria only** — neighbouring countries are not returned.
 - Each query returns at most **5 stations with prices** for the requested fuel type.
 - Don't poll faster than every 10 minutes (informal API rate limit).
-- Best-refuel recommendation needs ≥ 7 days of history; improves up to 28; granularity is one hour.
+- Best-refuel recommendation needs ≥ 7 days of history; improves up to 28. The recommended window is 1–6 hours long, with 1-hour granularity inside it.
 - Austrian public holidays are not modelled separately in the best-refuel pipeline.
+- The DST transitions twice a year alias the local-clock label of one hour (skipped in spring, doubled in autumn). Real elapsed time is counted correctly; the label aliasing is negligible over a 28-day window.
 - `average_price` is the average of the 5 cheapest only — not a regional average.
 
 ## Removal

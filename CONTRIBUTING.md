@@ -40,11 +40,15 @@ pytest tests/ --cov-report=term-missing
 ## Verification gate (must pass before pushing)
 
 ```bash
-pytest tests/ -v
+pytest tests/ -v                                               # Python integration
 mypy --strict --ignore-missing-imports custom_components/tankstellen_austria
 ruff check .
-npm run build
+npx tsc --noEmit                                               # TypeScript card type-check
+npm test                                                       # Vitest — frontend analytics
+npm run build                                                  # Rollup card bundle
 ```
+
+The frontend tests live in `src/**/*.test.ts` (vitest, no config file — picks up the `*.test.ts` convention). The current focus is `src/analytics/best-refuel.test.ts`, which pins the duration-weighted bucketing against a synthetic noon-hike fixture and is anchored to a Monday-aligned `now` so it's deterministic regardless of the day-of-week the suite runs.
 
 CI runs the same checks plus hassfest + HACS validation. Failing locally wastes a push.
 
