@@ -109,6 +109,56 @@ describe("analyzeBestRefuel — duration-weighted bucketing", () => {
     expect(result?.hour).toBe(11);
     expect(result?.hour_end).toBe(14);
   });
+
+  it("returns only the seed cluster when two disjoint cheap zones exist", () => {
+    // Cheap morning (03:00–06:00) and cheap evening (21:00–23:00),
+    // separated by an expensive midday/afternoon. Both clusters share
+    // the same minimum delta-from-mean, so the seed = first absolute
+    // minimum in iteration order = hour 3. Expansion walks outward and
+    // breaks at the first non-cheap hour. The evening cluster is
+    // silently dropped — documented behaviour in expandHourWindow.
+    const now = deterministicNow();
+    const data = buildHistory(28, now, () => [
+      { offsetMs: 0, price: EXPENSIVE },
+      { offsetMs: 3 * HOUR_MS, price: CHEAP },
+      { offsetMs: 6 * HOUR_MS, price: EXPENSIVE },
+      { offsetMs: 21 * HOUR_MS, price: CHEAP },
+      { offsetMs: 23 * HOUR_MS, price: EXPENSIVE },
+    ]);
+    const result = analyzeBestRefuel(data);
+    expect(result?.hasEnoughData).toBe(true);
+    expect(result?.hour).toBe(3);
+    expect(result?.hour_end).toBe(6);
+    // Evening cluster (21–23) is the dropped one — the public window
+    // must not bridge across the midday/afternoon expensive hours.
+    const start = result!.hour!;
+    const end = result!.hour_end!;
+    const span = ((end - start + 24) % 24) || 24;
+    for (let i = 0; i < span; i++) {
+      const h = (start + i) % 24;
+      expect([21, 22, 23]).not.toContain(h);
+    }
+  });
+
+  it("returns a wrap-around window when the cheap zone crosses midnight", () => {
+    // Cheap from 22:00 to next-day 04:00 (6 hours, wraps midnight).
+    // Expensive 04:00–22:00. Seed = hour 0 (first absolute minimum in
+    // iteration order). Expansion walks both directions across the
+    // wrap. Result: hour > hour_end, signalling a wrap-around window.
+    const now = deterministicNow();
+    const data = buildHistory(28, now, () => [
+      { offsetMs: 0, price: CHEAP },
+      { offsetMs: 4 * HOUR_MS, price: EXPENSIVE },
+      { offsetMs: 22 * HOUR_MS, price: CHEAP },
+    ]);
+    const result = analyzeBestRefuel(data);
+    expect(result?.hasEnoughData).toBe(true);
+    const start = result!.hour!;
+    const end = result!.hour_end!;
+    expect(start).toBeGreaterThan(end); // confirms the wrap
+    expect(start).toBe(22);
+    expect(end).toBe(4);
+  });
 });
 
 describe("buildHourlyEnvelope — duration-weighted band", () => {

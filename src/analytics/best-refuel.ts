@@ -12,11 +12,12 @@
 // DST: chunks are split at UTC hour boundaries and labelled with the
 // local clock-hour at the chunk start. Vienna's offset is always integer
 // hours, so the splits align with local hour boundaries on normal days.
-// On the spring-forward day, local hour 02:00 is *skipped* (no chunk gets
-// that hour label); on fall-back, local hour 02:00 occurs *twice* (two
-// distinct UTC hours both label as 02:00 local). Real elapsed time is
-// counted correctly in either case — only the local-clock label aliases.
-// Negligible over a 28-day window.
+// On the spring-forward day the local 02:00 bucket gets *less* total
+// duration that week (the 02–03 wall-clock hour vanishes); on fall-back
+// the 02:00 bucket gets *double* duration (two UTC hours both label as
+// 02:00 local). Real elapsed time is counted correctly in either case —
+// only the per-bucket coverage shifts, by at most one hour-of-data per
+// year per affected hour-of-day. Negligible over a 28-day window.
 //
 // Bucket population uses *duration-weighted chunks*, not hour-boundary
 // samples. For each step-function price interval we split at every hour
@@ -150,9 +151,11 @@ interface BestPick {
   minVal: number; // unconditional minimum across all valid bucket medians
 }
 
-// Adjacent hours whose median is within this many EUR/L (≈ 0.5¢) of the
-// unconditional minimum are folded into the recommended window. 0.5¢/L is
-// roughly the smallest gap a driver would notice as cheaper.
+// Adjacent hours whose median is within 0.5¢/L (= 0.005 EUR/L) of the
+// unconditional minimum are folded into the recommended window. Roughly
+// the smallest gap a driver would notice as cheaper. Inclusive boundary
+// — `m - minVal <= EXPAND_TOLERANCE_EUR` — so an hour exactly on the
+// edge is included.
 const EXPAND_TOLERANCE_EUR = 0.005;
 
 // Why no daytime tiebreaker on the seed: an earlier version of this code
@@ -171,8 +174,15 @@ const EXPAND_TOLERANCE_EUR = 0.005;
 // unconditional minimum. The window is whatever length the data dictates
 // — no UX cap. A station with a flat overnight pattern will return a wide
 // window (e.g. 18 hours covering "anytime except midday"); a station with
-// a sharp single cheap hour returns a 1-hour window. The visible band on
-// the sparkline reflects whatever this returns.
+// a sharp single cheap hour returns a 1-hour window.
+//
+// Single-cluster only: only the contiguous run of cheap hours containing
+// the seed is returned. If a station has *two* disjoint cheap clusters
+// (e.g. cheap morning + cheap evening separated by an expensive midday
+// spike), the cluster not containing the seed is silently dropped. We
+// accept this because the surfaced recommendation is one window, not a
+// set, and the absolute-minimum seed deterministically picks the same
+// cluster every render.
 function expandHourWindow(
   medians: number[],
   seedIdx: number,
@@ -209,17 +219,26 @@ function pickBest(buckets: WeightedEntry[][], minCount: number): BestPick {
       bestIdx = i;
     }
   });
-  // bestVal === minVal here (no tiebreaker), but kept as a separate field
-  // so downstream code is explicit about which value it depends on and so
-  // adding a future tiebreaker doesn't silently change semantics.
+  // Both fields hold the unconditional minimum today (no tiebreaker is
+  // applied). Kept as separate fields so a future tiebreaker that shifts
+  // `bestVal` (e.g. seed → most-daytime tied hour) doesn't silently break
+  // downstream callers that need the *true* floor — they already pick the
+  // right one (`expandHourWindow` uses minVal, the public hour echoes
+  // bestIdx).
   return { medians, bestIdx, bestVal, minVal: bestVal };
 }
 
 // Gap between the unconditional minimum bucket median and the median of all
 // bucket medians, expressed as a 0..1 confidence ratio against `refCents`.
-// Uses `minVal` (not the post-tiebreaker `bestVal`) so the reported
-// separation reflects the actual cheap-zone strength, not how friendly the
-// seed hour happens to be.
+// Uses `minVal` (not `bestVal`) so the reported separation reflects the
+// actual cheap-zone strength.
+//
+// Reference is the median *of bucket medians*, not the median price. For a
+// strongly bimodal pattern (cheap night, expensive day, no spread inside
+// either zone) this lands inside the expensive cluster and inflates the gap
+// → high confidence. We accept this because high confidence on a clean
+// bimodal pattern is the correct answer for fuel pricing — the user really
+// can refuel cheaper at the cluster minimum.
 function scoreSeparation(pick: BestPick, refCents: number): number {
   const valid = pick.medians
     .filter((m) => !Number.isNaN(m))
@@ -330,6 +349,10 @@ export function analyzeBestRefuel(data: HistoryPoint[]): BestRefuelResult | null
       score: hourConfidence,
       span_days: Math.round(spanDays),
       coverage_pct: Math.round(hourCoverage * 100),
+      // Rounded to 0.1¢ for display only — two genuinely different gaps
+      // (e.g. 0.04¢ and 0.05¢) report as 0.0 vs 0.1. Source value is
+      // `hourGapCents`. Internal confidence-level scoring uses the raw
+      // `hourSep` ratio, not this rounded display value.
       gap_cents: Math.round(hourGapCents * 10) / 10,
     },
   };

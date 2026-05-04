@@ -107,10 +107,17 @@ export interface WeightedEntry {
 // Note on q=0.5: when cumulative weight crosses exactly at a boundary,
 // the *lower* of the two bracketing values is returned (no interpolation).
 // This matches R's `quantile(..., type=1)` and NumPy's `interpolation='lower'`.
-// For our use (per-week winsorise + bucket-median) it produces a small,
-// consistent downward bias on bit-exact ties — fine because tied medians
-// are essentially noise, and the daytime tiebreaker handles the
-// degenerate case explicitly.
+// For our use (per-week winsorise + bucket-median) the small downward
+// bias on bit-exact ties is fine — `expandHourWindow` then folds in
+// adjacent hours within ±0.5¢ of the unconditional minimum, which
+// covers any near-tied bucket regardless of which side of the boundary
+// the median landed on.
+//
+// q=0 returns sorted[0] on the first iteration (target=0, acc>=0 after
+// one positive weight). q=1 falls through the loop to the trailing
+// `return sorted[sorted.length - 1]` to absorb floating-point epsilon
+// in `acc >= total` — the trailing return is the q=1 fallback, not
+// dead code.
 export function weightedPercentile(
   entries: readonly WeightedEntry[],
   q: number,

@@ -283,7 +283,10 @@ export function buildSparkline(opts: SparklineOpts): SparklineResult {
       : nothing;
 
     // Best-refuel marker — translucent band over the recommended cheap
-    // window plus a single dashed vertical centred on it.
+    // window. The band is the entire visualisation; an earlier dotted
+    // centre line was removed because for clamped or wide windows it
+    // landed somewhere meaningless and added no information beyond what
+    // the band already shows.
     const recommendation = resolveRecommendationWindow(opts.analysis);
 
     let bandX1: number | null = null;
@@ -299,27 +302,12 @@ export function buildSparkline(opts: SparklineOpts): SparklineResult {
     }
 
     const hasBand = bandX1 != null && bandX2 != null && bandX2 > bandX1;
-    const markerBand: TemplateResult | typeof nothing = hasBand
+    const marker: TemplateResult | typeof nothing = hasBand
       ? svg`<rect x=${bandX1!.toFixed(1)} y="0"
                   width=${(bandX2! - bandX1!).toFixed(1)} height=${HEIGHT}
                   fill="var(--success-color,#4CAF50)" fill-opacity="0.10"
                   stroke="none"/>`
       : nothing;
-    // Single dashed vertical centred on the recommended window — same
-    // visual whether the window is one hour or six, so it always reads
-    // the same regardless of fuel type.
-    const centreX = hasBand ? (bandX1! + bandX2!) / 2 : null;
-    const markerLine: TemplateResult | typeof nothing =
-      centreX != null
-        ? svg`<line x1=${centreX.toFixed(1)} y1="0"
-                    x2=${centreX.toFixed(1)} y2=${HEIGHT}
-                    stroke="var(--success-color,#4CAF50)" stroke-width="0.6"
-                    stroke-dasharray="0.6,2" stroke-linecap="round" opacity="0.8"/>`
-        : nothing;
-    const marker: TemplateResult | typeof nothing =
-      markerBand === nothing && markerLine === nothing
-        ? nothing
-        : svg`${markerBand}${markerLine}`;
 
     const hoverPoints = data.map((d, i) => ({
       t: d.time,
