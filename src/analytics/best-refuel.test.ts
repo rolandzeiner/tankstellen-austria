@@ -54,14 +54,11 @@ function noonHikePattern(hikeMinute: number) {
 }
 
 describe("analyzeBestRefuel — duration-weighted bucketing", () => {
-  it("the recommended window stays inside the cheap zone with a 12:14 hike", () => {
-    // Cheap zone in the fixture: hours 0..11 and 23 (13 hours total). With
-    // the 6-hour cap, the algorithm anchors on the absolute minimum hour
-    // (the first one in iteration order), expands across the cheap cluster
-    // and trims the over-cap excess from whichever side has more slack.
-    // We don't pin the exact start/end (any 6 contiguous hours inside the
-    // cheap zone are equally valid statistically), but every hour in the
-    // returned window must be one of the truly-cheap hours.
+  it("recommends the full cheap zone (no length cap) with a 12:14 hike", () => {
+    // Cheap zone: hours 0..11 and 23 (13 hours total, contiguous with wrap
+    // around midnight). With no length cap, the algorithm should return
+    // the entire 13-hour cheap zone — every truly-cheap hour included,
+    // every expensive hour (12..22) excluded.
     const now = deterministicNow();
     const data = buildHistory(28, now, noonHikePattern(14));
     const result = analyzeBestRefuel(data);
@@ -73,16 +70,10 @@ describe("analyzeBestRefuel — duration-weighted bucketing", () => {
     const start = result!.hour!;
     const end = result!.hour_end!;
     const span = ((end - start + 24) % 24) || 24;
-    expect(span).toBeGreaterThanOrEqual(1);
-    expect(span).toBeLessThanOrEqual(6);
+    expect(span).toBe(13);
     for (let i = 0; i < span; i++) {
       const h = (start + i) % 24;
       expect(cheapHours.has(h)).toBe(true);
-    }
-    // Hour 12 (noon hike — mostly expensive after the 12:14 mark) must
-    // never be inside the recommended window.
-    for (let i = 0; i < span; i++) {
-      expect((start + i) % 24).not.toBe(12);
     }
   });
 

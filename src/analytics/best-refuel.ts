@@ -155,29 +155,24 @@ interface BestPick {
 // roughly the smallest gap a driver would notice as cheaper.
 const EXPAND_TOLERANCE_EUR = 0.005;
 
-// UX cap on the recommended-window length. A 7+ hour window is statistically
-// fine on a flat-overnight station, but it stops being actionable advice
-// ("refuel anytime in this 9-hour stretch" is just "refuel today"). 6 hours
-// is the longest window that still feels like a recommendation. Not a
-// signal-quality threshold — confidence/separation handle that separately.
-const MAX_WINDOW_HOURS = 6;
-
 // Why no daytime tiebreaker on the seed: an earlier version of this code
 // preferred the most-daytime hour among any hours tied near the minimum.
 // On real aggregate fuel data many hours frequently share an identical
 // post-winsorise median (the per-week winsorise collapses several distinct
 // prices into the same clipped value, then per-week mean produces the same
 // delta). The tiebreaker would then yank the seed across the cluster — say
-// from hour 22 to hour 05 — and the slack-aware trim would silently drop
-// the truly cheapest hours from the recommended window. We choose the
-// honest answer over the friendlier-looking one: seed = first absolute
-// minimum, expand from there, let the window land where the data says.
+// from hour 22 to hour 05 — and silently drop the truly cheapest hours
+// from the recommended window. We choose the honest answer over the
+// friendlier-looking one: seed = first absolute minimum, expand from
+// there, let the window land where the data says.
 
-// Walk circularly from the seed hour in both directions, including any
+// Walk circularly from the seed hour in both directions, including every
 // adjacent hour whose median is within EXPAND_TOLERANCE_EUR of the
-// unconditional minimum. Caps total length at MAX_WINDOW_HOURS by trimming
-// whichever side has more remaining slack first, so the kept window stays
-// as centred as the data allows.
+// unconditional minimum. The window is whatever length the data dictates
+// — no UX cap. A station with a flat overnight pattern will return a wide
+// window (e.g. 18 hours covering "anytime except midday"); a station with
+// a sharp single cheap hour returns a 1-hour window. The visible band on
+// the sparkline reflects whatever this returns.
 function expandHourWindow(
   medians: number[],
   seedIdx: number,
@@ -197,25 +192,6 @@ function expandHourWindow(
     backward = step;
   }
 
-  // Slack-aware trim: pull each excess hour off whichever side still has
-  // more remaining slack. Equal-slack ties alternate by step parity, so a
-  // window that needs to shed an even excess shrinks symmetrically and an
-  // odd excess produces a single-hour asymmetry that doesn't favour either
-  // direction in the long run.
-  let total = 1 + forward + backward;
-  if (total > MAX_WINDOW_HOURS) {
-    let excess = total - MAX_WINDOW_HOURS;
-    for (let step = 0; excess > 0; step++) {
-      const fwdSlack = forward;
-      const backSlack = backward;
-      if (fwdSlack === 0 && backSlack === 0) break;
-      if (fwdSlack > backSlack) forward--;
-      else if (backSlack > fwdSlack) backward--;
-      else if (step % 2 === 0) forward--;
-      else backward--;
-      excess--;
-    }
-  }
   const start = (seedIdx - backward + 24) % 24;
   const end = (seedIdx + forward + 1) % 24;
   return { start, end };

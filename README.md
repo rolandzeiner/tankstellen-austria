@@ -126,7 +126,7 @@ You can mix fixed and dynamic entries; both render as separate tabs in the same 
 
 ## Best refuel time
 
-The card analyses up to **4 weeks** of your sensor's recorded price history (refetched every 30 min) to find the **window of consecutive hours** that's consistently cheapest *relative to that week's prices*. The recommended window is 1–6 hours long: short when only one hour stands out, wider when several adjacent hours are similarly cheap. The same window is rendered as a translucent green band on the sparkline so the visual matches the text tip. A weekday is added only when its own signal is strong. A High / Medium / Low confidence badge shows next to the tip — hover for the breakdown.
+The card analyses up to **4 weeks** of your sensor's recorded price history (refetched every 30 min) to find the **window of consecutive hours** that's consistently cheapest *relative to that week's prices*. The window is whatever length the data dictates — a single hour when one hour clearly stands out, or 18 hours of "anytime except midday" when the station only spikes around the legal noon-hike window. The same window is rendered as a translucent green band on the sparkline so the visual matches the text tip. A weekday is added only when its own signal is strong. A High / Medium / Low confidence badge shows next to the tip — hover for the breakdown.
 
 Home Assistant's default `recorder.purge_keep_days` is **10**, so out of the box only ~10 days are available and confidence stays low until the window fills. Extend retention to get the full 28-day pipeline:
 
@@ -145,9 +145,9 @@ Austrian law (Preisauszeichnungsgesetz) lets prices rise only once a day at 12:0
 3. **Per-week normalisation** — each chunk becomes `price − week_mean`, so a slot that's consistently the weekly low wins regardless of absolute price level.
 4. **Independent bucketing** — deltas aggregated separately into 24 hour-of-day and 7 weekday buckets (a single 168-cell grid would mix strong + weak signals).
 5. **Weighted median per bucket** — entry weights are duration × recency, with recency `0.5^(age_in_days / 14)`. A chunk from 2 weeks ago counts half a chunk from today; 4 weeks ago, a quarter.
-6. **Cheap-window expansion** — pick the bucket with the unconditional minimum median (no daytime tiebreaker — see below), then walk circularly outward in both directions, including any adjacent hour whose median is within ~0.5¢/L of that minimum. Capped at 6 hours, trimmed slack-aware so the window stays as centred on the cheap zone as possible.
+6. **Cheap-window expansion** — pick the bucket with the unconditional minimum median (no daytime tiebreaker — see below), then walk circularly outward in both directions, including every adjacent hour whose median is within ~0.5¢/L of that minimum. **No length cap** — the window is whatever length the data dictates. A station with a sharp single cheap hour returns a 1-hour window; a station with a flat overnight + drop-only behaviour returns whatever the cluster spans, even if that's most of the day.
 
-There is deliberately **no daytime preference baked into the seed**. An earlier version of this code preferred the most-daytime hour among ties near the minimum, but in real aggregate fuel data many hours frequently share an identical post-winsorise median (winsorise collapses several distinct prices into the same clipped value, then per-week mean produces the same delta). The tiebreaker would then yank the seed across that tied cluster — say from hour 22 to hour 05 — and the cap-trim would silently drop the truly cheapest hours. We chose the honest answer over the friendlier-looking one.
+There is deliberately **no daytime preference baked into the seed**. An earlier version of this code preferred the most-daytime hour among ties near the minimum, but in real aggregate fuel data many hours frequently share an identical post-winsorise median (winsorise collapses several distinct prices into the same clipped value, then per-week mean produces the same delta). The tiebreaker would then yank the seed across that tied cluster — say from hour 22 to hour 05 — and silently drop the truly cheapest hours. We chose the honest answer over the friendlier-looking one.
 
 **Confidence** averages three components: data span (28-day window coverage), hour coverage (≥3 chunks per hour), and separation (gap between the cheapest bucket median and the cross-bucket median in cents, against a 1.5¢ reference). Maps to **High / Medium / Low** — these thresholds are UX calibration constants tuned against real Austrian price histories, not statistical thresholds.
 
@@ -281,7 +281,7 @@ The helper stores its config in HA's internal storage (not `configuration.yaml`)
 - API covers **Austria only** — neighbouring countries are not returned.
 - Each query returns at most **5 stations with prices** for the requested fuel type.
 - Don't poll faster than every 10 minutes (informal API rate limit).
-- Best-refuel recommendation needs ≥ 7 days of history; improves up to 28. The recommended window is 1–6 hours long, with 1-hour granularity inside it.
+- Best-refuel recommendation needs ≥ 7 days of history; improves up to 28. Window length is unbounded — it's whatever contiguous run of hours sits within ~0.5¢/L of the cheapest bucket median. 1-hour granularity inside it.
 - Austrian public holidays are not modelled separately in the best-refuel pipeline.
 - The DST transitions twice a year alias the local-clock label of one hour (skipped in spring, doubled in autumn). Real elapsed time is counted correctly; the label aliasing is negligible over a 28-day window.
 - `average_price` is the average of the 5 cheapest only — not a regional average.
