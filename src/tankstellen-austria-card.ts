@@ -15,10 +15,11 @@ import {
 } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import { classMap } from "lit/directives/class-map.js";
-import type { HomeAssistant, LovelaceCardEditor } from "custom-card-helpers";
 
 import type {
   CarConfig,
+  HomeAssistant,
+  LovelaceCardEditor,
   OpeningHours,
   PaymentMethods,
   Station,
@@ -81,15 +82,6 @@ import "./editor";
 // sensor strips the upstream `attribution` attribute. Mirrors the
 // Ladestellen Austria card.
 const ATTRIBUTION_REQUIRED = "Datenquelle: E-Control";
-
-// Styled console banner for version-mismatch debugging in HA's console.
-// Pre-hass, pre-config — no language resolution available, so the banner
-// is intentionally English-only.
-console.info(
-  `%c  Tankstellen Austria Card  %c  Version ${CARD_VERSION}  `,
-  "color: white; font-weight: bold; background: #DC2026",
-  "color: white; font-weight: bold; background: dimgray",
-);
 
 interface WindowWithCustomCards extends Window {
   customCards: Array<{

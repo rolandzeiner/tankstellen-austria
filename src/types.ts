@@ -1,8 +1,77 @@
-import type {
-  LovelaceCard,
-  LovelaceCardConfig,
-  LovelaceCardEditor,
-} from "custom-card-helpers";
+// Local mirror of the HA / Lovelace types this card actually uses.
+// Replaces the `custom-card-helpers` dependency — the package is
+// effectively unmaintained and bundled HA-internal types drift faster
+// than its release cadence. We only depend on a handful of fields, so
+// pinning a local shape is cheaper than a transitive npm dep.
+
+/** Single entity in `hass.states`. The attributes bag is open-ended —
+ *  the integration's coordinator emits the keys this card reads
+ *  (`stations`, `fuel_type`, `attribution`, `dynamic_mode`, …). HA
+ *  always populates `last_updated`, so it stays non-optional here to
+ *  satisfy the card's `_resolveEntities` mapper without an extra guard. */
+export interface HassEntity {
+  state: string;
+  attributes: Record<string, unknown> & TankstellenEntityAttributes;
+  last_changed?: string;
+  last_updated: string;
+  entity_id?: string;
+}
+
+/** Minimal HA shape — only the fields this card touches. `language` is
+ *  the user-profile locale; `localize` is HA's own UI translation
+ *  lookup (the editor reuses it for built-in field names so we don't
+ *  carry duplicates); `callWS` powers both the card-version probe and
+ *  the history fetch; `callService` powers the manual-refresh button;
+ *  `themes.darkMode` is reserved for future adaptive logo work.
+ *  `callWS` and `callService` are non-optional — the card requires
+ *  both at runtime (history view + manual refresh would silently fail
+ *  otherwise) and HA core has shipped both since well before our
+ *  `requirements.txt` floor. Anything beyond these lives untyped and
+ *  is read with a cast at the call site. */
+export interface HomeAssistant {
+  states: Record<string, HassEntity>;
+  language?: string;
+  themes?: { darkMode?: boolean } & Record<string, unknown>;
+  config?: { time_zone?: string } & Record<string, unknown>;
+  localize?: (key: string, ...args: unknown[]) => string;
+  callWS<T = unknown>(msg: { type: string; [key: string]: unknown }): Promise<T>;
+  callService(
+    domain: string,
+    service: string,
+    data?: Record<string, unknown>,
+  ): Promise<unknown> | void;
+}
+
+/** Marker every card config extends. */
+export interface LovelaceCardConfig {
+  type: string;
+  [key: string]: unknown;
+}
+
+/** Custom-card editor contract — Lovelace expects an HTMLElement that
+ *  accepts `setConfig(config)` and reads `hass`. */
+export interface LovelaceCardEditor extends HTMLElement {
+  hass?: HomeAssistant;
+  setConfig(config: LovelaceCardConfig): void;
+}
+
+/** `LovelaceCard` is only referenced as the `hui-error-card` tag-map
+ *  entry below, so an HTMLElement alias suffices. */
+export type LovelaceCard = HTMLElement;
+
+/** Local `fireEvent` shim — same shape as the helper from
+ *  custom-card-helpers. `bubbles: true` + `composed: true` are required
+ *  so the event crosses the editor's shadow boundary and reaches the
+ *  dashboard's card-editor listener. */
+export function fireEvent<T>(
+  node: HTMLElement,
+  type: string,
+  detail: T,
+): void {
+  node.dispatchEvent(
+    new CustomEvent(type, { detail, bubbles: true, composed: true }),
+  );
+}
 
 // Register your editor element + the built-in error card with the global
 // HTMLElementTagNameMap so TypeScript autocompletes them in templates.
@@ -198,7 +267,7 @@ export type HaFormSchema = HaFormSelectorSchema | HaFormExpandableSchema;
 // `<ha-form>` element shape — mirror the props the editor sets so
 // `tsc --noEmit` validates the template at compile time.
 interface HaFormElement extends HTMLElement {
-  hass?: import("custom-card-helpers").HomeAssistant;
+  hass?: HomeAssistant;
   data?: Record<string, unknown>;
   schema?: ReadonlyArray<HaFormSchema>;
   computeLabel?: (field: { name: string }) => string;

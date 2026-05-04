@@ -1,4 +1,4 @@
-import type { HomeAssistant } from "custom-card-helpers";
+import type { HomeAssistant } from "./types";
 
 export interface HistoryPoint {
   time: number; // epoch ms

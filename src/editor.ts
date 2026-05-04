@@ -39,17 +39,15 @@ import {
 } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import { classMap } from "lit/directives/class-map.js";
+
 import {
   fireEvent,
+  type CarConfig,
+  type FuelType,
+  type HaFormSchema,
   type HomeAssistant,
   type LovelaceCardEditor,
-} from "custom-card-helpers";
-
-import type {
-  CarConfig,
-  FuelType,
-  HaFormSchema,
-  TankstellenAustriaCardConfig,
+  type TankstellenAustriaCardConfig,
 } from "./types";
 import { CAR_ICONS } from "./const";
 import {

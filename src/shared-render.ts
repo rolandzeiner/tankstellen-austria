@@ -17,7 +17,7 @@
 //   target version key.
 
 import { html, nothing, type TemplateResult } from "lit";
-import type { HomeAssistant } from "custom-card-helpers";
+import type { HomeAssistant } from "./types";
 
 /**
  * Probe the backend's card-version WebSocket command. Returns the

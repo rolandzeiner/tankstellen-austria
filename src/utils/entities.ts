@@ -1,4 +1,4 @@
-import type { HomeAssistant } from "custom-card-helpers";
+import type { HomeAssistant } from "../types";
 
 // Find all tankstellen_austria sensors in hass states.
 // Key heuristic: sensor.* with both `fuel_type` and `stations` (array) attrs.
