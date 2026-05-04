@@ -1,7 +1,5 @@
 # Contributing to Tankstellen Austria
 
-Thanks for taking the time to look. This file is the single answer to "how do I work on this repo?" — read it once and you'll have everything you need.
-
 ## Dev setup
 
 ```bash
@@ -21,9 +19,7 @@ npm run build           # produces custom_components/tankstellen_austria/www/tan
 
 ## Card-version sync
 
-`src/const.ts` `CARD_VERSION` and `custom_components/tankstellen_austria/const.py` `CARD_VERSION` **must stay byte-identical** — `tests/test_card_version.py` enforces it. Bump both in the same commit. If they drift, users get an infinite reload-banner loop.
-
-`README.md` badge + `manifest.json` stay at the clean (non-beta) version; `const.py` + the TS constant can carry a `-beta-N` suffix during development.
+Bump `manifest.json` `version` and `src/const.ts` `CARD_VERSION` together — `const.py` reads `CARD_VERSION` from the manifest at import, and `tests/test_card_version.py` enforces parity with the TS constant. If they drift, users get an infinite reload-banner loop.
 
 ## Tooling & config
 
