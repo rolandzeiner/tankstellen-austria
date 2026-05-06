@@ -109,10 +109,9 @@ def _build_schema(
             default={
                 "latitude": defaults[CONF_LATITUDE],
                 "longitude": defaults[CONF_LONGITUDE],
-                "radius": 5000,
             },
         )
-    ] = LocationSelector(LocationSelectorConfig(radius=True))
+    ] = LocationSelector(LocationSelectorConfig())
     fuel_options: list[SelectOptionDict] = [
         SelectOptionDict(value=k, label=v) for k, v in FUEL_TYPES.items()
     ]
