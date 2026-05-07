@@ -199,7 +199,7 @@ export class TankstellenAustriaCard extends LitElement {
   // version-mismatch discovery, cooldown tick, or a tracked-entity state
   // object reference change. Without this gate the card re-renders on every
   // entity state change anywhere in the HA install.
-  protected shouldUpdate(changed: PropertyValues): boolean {
+  protected override shouldUpdate(changed: PropertyValues): boolean {
     if (!this._config) return false;
     if (
       changed.has("_config") ||
@@ -255,7 +255,7 @@ export class TankstellenAustriaCard extends LitElement {
 
   // --- Lifecycle ---
 
-  public disconnectedCallback(): void {
+  public override disconnectedCallback(): void {
     super.disconnectedCallback();
     if (this._historyInterval !== undefined) {
       clearInterval(this._historyInterval);
@@ -282,7 +282,7 @@ export class TankstellenAustriaCard extends LitElement {
     this._initDone = false;
   }
 
-  protected updated(_changed: PropertyValues): void {
+  protected override updated(_changed: PropertyValues): void {
     // One-shot bootstrap on first hass arrival.
     if (!this._initDone && this.hass && this._config) {
       this._initDone = true;
@@ -353,7 +353,7 @@ export class TankstellenAustriaCard extends LitElement {
 
   // --- Render ---
 
-  protected render(): TemplateResult {
+  protected override render(): TemplateResult {
     if (!this.hass || !this._config) {
       return html`
         <ha-card>
@@ -1291,5 +1291,5 @@ export class TankstellenAustriaCard extends LitElement {
     await reloadAfterCacheWipe();
   };
 
-  static styles: CSSResultGroup = cardStyles;
+  static override styles: CSSResultGroup = cardStyles;
 }

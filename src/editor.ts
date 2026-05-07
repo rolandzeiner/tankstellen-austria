@@ -93,7 +93,7 @@ export class TankstellenAustriaCardEditor
     this._config = { ...config };
   }
 
-  public disconnectedCallback(): void {
+  public override disconnectedCallback(): void {
     super.disconnectedCallback();
     if (this._copiedTimeout !== undefined) {
       clearTimeout(this._copiedTimeout);
@@ -291,7 +291,7 @@ export class TankstellenAustriaCardEditor
   // Render
   // ------------------------------------------------------------------
 
-  protected render(): TemplateResult {
+  protected override render(): TemplateResult {
     // Don't gate the whole render on `!this.hass` — if HA's hass property
     // arrives a tick after setConfig (which happens routinely when
     // Lovelace's _fetchConfig promise chain is disrupted) the editor would
@@ -825,5 +825,5 @@ export class TankstellenAustriaCardEditor
     this._fireChanged();
   }
 
-  static styles: CSSResultGroup = editorStyles;
+  static override styles: CSSResultGroup = editorStyles;
 }

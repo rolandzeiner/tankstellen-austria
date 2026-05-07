@@ -1,4 +1,5 @@
-import { html, svg, TemplateResult, nothing } from "lit";
+import { html, svg, nothing } from "lit";
+import type { TemplateResult } from "lit";
 
 import type { BestRefuelResult } from "./analytics/best-refuel";
 import type { HistoryPoint } from "./history";
