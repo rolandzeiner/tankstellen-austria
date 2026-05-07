@@ -292,13 +292,12 @@ export class TankstellenAustriaCardEditor
   // ------------------------------------------------------------------
 
   protected render(): TemplateResult {
-    if (!this.hass) {
-      // ha-form needs hass to translate field labels; render nothing
-      // until it lands. setConfig already populated _config with a
-      // minimal value so we don't need to gate on it.
-      return html`<div class="editor"></div>`;
-    }
-
+    // Don't gate the whole render on `!this.hass` — if HA's hass property
+    // arrives a tick after setConfig (which happens routinely when
+    // Lovelace's _fetchConfig promise chain is disrupted) the editor would
+    // be stuck on the empty placeholder. ha-form re-renders when hass
+    // becomes truthy, and the bespoke sections below already gate on hass
+    // internally before dereferencing states.
     const showHistory = this._config.show_history !== false;
     const showBestRefuel = this._config.show_best_refuel !== false;
     const showRecorderHint = showHistory && showBestRefuel;

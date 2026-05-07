@@ -24,7 +24,16 @@ FUEL_TYPES = {
     "GAS": "CNG Erdgas",
 }
 
-DEFAULT_SCAN_INTERVAL = 30
+# Polling cadence — units are MINUTES. The E-Control Spritpreisrechner API
+# is a public service with no documented rate limit, so the floor exists
+# to prevent self-inflicted load and the ceiling matches HA's UX
+# expectation that "scan_interval" is at most a few hours. The 10-720
+# range matches the config-flow's NumberSelector min/max; codified here
+# so both the form and any future migration logic share one source of
+# truth.
+DEFAULT_SCAN_INTERVAL: Final = 30
+MIN_POLL_MINUTES: Final = 10
+MAX_POLL_MINUTES: Final = 720
 DEFAULT_INCLUDE_CLOSED = True
 
 # Dynamic mode rate-limiting

@@ -160,6 +160,18 @@ export class TankstellenAustriaCard extends LitElement {
   private _sparklineCleanup: (() => void) | undefined;
 
   public setConfig(config: TankstellenAustriaCardConfig): void {
+    if (!config || typeof config !== "object" || Array.isArray(config)) {
+      throw new Error("tankstellen-austria-card: config must be an object");
+    }
+    // entities is optional (auto-discovery fallback), but if provided it
+    // must be a string or string[] — silently dropping a typo'd shape
+    // hides the misconfiguration behind the empty-state.
+    const ent = (config as Record<string, unknown>).entities;
+    if (ent !== undefined && typeof ent !== "string" && !Array.isArray(ent)) {
+      throw new Error(
+        "tankstellen-austria-card: config.entities must be a string or array of entity IDs",
+      );
+    }
     this._config = normaliseConfig(config);
   }
 

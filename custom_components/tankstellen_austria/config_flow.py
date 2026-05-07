@@ -45,6 +45,8 @@ from .const import (
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
     FUEL_TYPES,
+    MAX_POLL_MINUTES,
+    MIN_POLL_MINUTES,
     USER_AGENT,
 )
 
@@ -131,8 +133,8 @@ def _build_schema(
         vol.Required(CONF_SCAN_INTERVAL, default=defaults.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL))
     ] = NumberSelector(
         NumberSelectorConfig(
-            min=10,
-            max=720,
+            min=MIN_POLL_MINUTES,
+            max=MAX_POLL_MINUTES,
             step=5,
             unit_of_measurement="min",
             mode=NumberSelectorMode.BOX,
@@ -201,9 +203,12 @@ def _compute_unique_id(dynamic_entity: str | None, lat: float, lng: float) -> st
 class TankstellenConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Tankstellen Austria."""
 
-    # Bump + add async_migrate_entry when entry.data shape changes.
+    # Bump VERSION + add async_migrate_entry when entry.data shape changes
+    # in a non-additive way (renames, removals, type changes). MINOR_VERSION
+    # bumps for additive changes that older HA versions can still load.
     # Tracks the config-entry schema, NOT the integration release version.
     VERSION = 1
+    MINOR_VERSION = 1
 
     @staticmethod
     @callback
