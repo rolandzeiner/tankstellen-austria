@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { HistoryPoint } from "../history";
 import { analyzeBestRefuel, buildHourlyEnvelope } from "./best-refuel";
 
@@ -20,6 +20,22 @@ function deterministicNow(): number {
   d.setDate(d.getDate() - daysBackToMonday);
   return d.getTime();
 }
+
+// Pin Date.now() to the fixture anchor for the whole file. analyzeBestRefuel
+// and buildHourlyEnvelope both call walkChunks(data, Date.now()), and walk-
+// Chunks emits a trailing segment from the last data point to that `now`.
+// Without this pin, the trailing CHEAP segment at 23:00 of the last fixture
+// day extends through real-clock days that follow the deterministic anchor —
+// leaking CHEAP price-chunks into every hour after 23 (1, 2, … up to 22 if
+// the suite runs late enough in the week). The hourly-envelope test then
+// sees CHEAP samples in hour 14 and `minByHour[14]` collapses to CHEAP.
+beforeAll(() => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date(deterministicNow()));
+});
+afterAll(() => {
+  vi.useRealTimers();
+});
 
 function buildHistory(
   days: number,
