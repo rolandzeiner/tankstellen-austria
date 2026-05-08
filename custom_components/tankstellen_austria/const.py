@@ -84,3 +84,12 @@ ATTRIBUTION: Final = "Datenquelle: E-Control"
 
 # Retry delay when the API returns no station data (e.g. mid-update window)
 NO_DATA_RETRY_MINUTES = 10
+
+# Exponential-backoff cap for consecutive `_async_update_data` failures.
+# Bound to MAX_POLL_MINUTES (12 h) so a sustained E-Control outage settles
+# into a slow poll instead of hammering the API every 30 min × 24 = 48
+# retries/day. The first failure stays at the user-configured cadence
+# (transient hiccups shouldn't slow down the loop); from the second failure
+# onwards the interval doubles each tick, capped here, until the next
+# success resets it.
+BACKOFF_CAP_SECONDS: Final = MAX_POLL_MINUTES * 60

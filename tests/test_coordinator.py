@@ -84,6 +84,68 @@ async def test_api_failure_raises_update_failed(hass: HomeAssistant) -> None:
         await coordinator._async_update_data()
 
 
+async def test_consecutive_failures_apply_exponential_backoff(
+    hass: HomeAssistant,
+) -> None:
+    """Sustained outages double the update_interval each tick, capped, then reset.
+
+    First failure stays at the user-configured cadence; from the second
+    onwards interval doubles and is capped at BACKOFF_CAP_SECONDS. A success
+    resets back to the normal interval. Without this gate, an extended
+    E-Control outage would burn 48 retries/day at the default 30-min cadence.
+    """
+    from datetime import timedelta
+
+    from custom_components.tankstellen_austria.const import BACKOFF_CAP_SECONDS
+
+    entry = _make_entry({CONF_SCAN_INTERVAL: 30})
+    entry.add_to_hass(hass)
+    coordinator = TankstellenCoordinator(hass, entry)
+    normal = coordinator._normal_interval
+    assert normal == timedelta(minutes=30)
+    assert coordinator.update_interval == normal
+
+    with patch(
+        "custom_components.tankstellen_austria.coordinator.TankstellenCoordinator._fetch",
+        side_effect=Exception("connection refused"),
+    ):
+        # 1st failure: still at normal cadence (transient hiccup, don't slow)
+        with pytest.raises(UpdateFailed):
+            await coordinator._async_update_data()
+        assert coordinator._consecutive_failures == 1
+        assert coordinator.update_interval == normal
+
+        # 2nd failure: 60 min (×2)
+        with pytest.raises(UpdateFailed):
+            await coordinator._async_update_data()
+        assert coordinator._consecutive_failures == 2
+        assert coordinator.update_interval == timedelta(minutes=60)
+
+        # 3rd failure: 120 min (×4)
+        with pytest.raises(UpdateFailed):
+            await coordinator._async_update_data()
+        assert coordinator.update_interval == timedelta(minutes=120)
+
+    # Recovery: a single success snaps back to normal
+    with patch(
+        "custom_components.tankstellen_austria.coordinator.TankstellenCoordinator._fetch",
+        return_value=[MOCK_STATION],
+    ):
+        await coordinator._async_update_data()
+    assert coordinator._consecutive_failures == 0
+    assert coordinator.update_interval == normal
+
+    # Cap exercise: drive the counter high enough to clamp
+    with patch(
+        "custom_components.tankstellen_austria.coordinator.TankstellenCoordinator._fetch",
+        side_effect=Exception("still down"),
+    ):
+        for _ in range(20):
+            with pytest.raises(UpdateFailed):
+                await coordinator._async_update_data()
+    assert coordinator.update_interval.total_seconds() == BACKOFF_CAP_SECONDS
+
+
 async def test_fetch_rejects_non_list_payload(hass: HomeAssistant) -> None:
     """Non-list JSON (e.g. a dict error envelope) must raise UpdateFailed.
 

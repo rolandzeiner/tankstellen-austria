@@ -26,6 +26,7 @@ from homeassistant.util.location import distance
 from .const import (
     API_BASE_URL,
     API_ENDPOINT,
+    BACKOFF_CAP_SECONDS,
     CONF_DYNAMIC_ENTITY,
     CONF_FUEL_TYPES,
     CONF_INCLUDE_CLOSED,
@@ -83,6 +84,13 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]
         else:
             scan = config.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
             interval = timedelta(minutes=scan)
+
+        # Exponential-backoff state. `_normal_interval` is immutable as the
+        # user-configured cadence; `self.update_interval` is what HA actually
+        # reads on each tick, and we mutate that one to slow down during
+        # sustained outages. See `_note_failure` / `_note_success` below.
+        self._consecutive_failures = 0
+        self._normal_interval = interval
 
         super().__init__(
             hass,
@@ -305,6 +313,7 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]
             first_ft, first_err = next(iter(errors.items()))
             if was_available:
                 _LOGGER.warning("E-Control API unavailable: %s", first_err)
+            self._note_failure()
             raise UpdateFailed(
                 translation_domain=DOMAIN,
                 translation_key="api_all_failed",
@@ -326,6 +335,7 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]
 
         if not was_available:
             _LOGGER.info("E-Control API is back online")
+        self._note_success()
 
         # If the API returned no stations for any fuel type, it may be in the
         # middle of its own data update (~12:05–12:07). Schedule a retry in
@@ -360,6 +370,35 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]
         # (e.g. a card-side manual refresh that landed during the retry
         # window) so we don't double-fire.
         self.hass.async_create_task(self.async_request_refresh())
+
+    def _note_success(self) -> None:
+        """Reset the consecutive-failure counter and restore normal cadence."""
+        if self._consecutive_failures == 0:
+            return
+        self._consecutive_failures = 0
+        if self.update_interval != self._normal_interval:
+            self.update_interval = self._normal_interval
+
+    def _note_failure(self) -> None:
+        """Bump the consecutive-failure counter and apply exponential backoff.
+
+        First failure stays at the user-configured cadence (transient hiccups
+        shouldn't slow down the loop). From the second failure onwards the
+        update interval doubles each tick, capped at BACKOFF_CAP_SECONDS so a
+        sustained outage settles into a slow poll instead of hammering the API
+        every interval. The next successful tick resets it.
+        """
+        self._consecutive_failures += 1
+        if self._consecutive_failures < 2:
+            return
+        normal_secs = self._normal_interval.total_seconds()
+        backoff_secs = min(
+            normal_secs * (2 ** (self._consecutive_failures - 1)),
+            BACKOFF_CAP_SECONDS,
+        )
+        new_interval = timedelta(seconds=backoff_secs)
+        if self.update_interval != new_interval:
+            self.update_interval = new_interval
 
     async def _fetch(
         self, fuel_type: str, lat: float, lng: float
