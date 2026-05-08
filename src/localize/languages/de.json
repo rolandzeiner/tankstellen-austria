@@ -67,6 +67,7 @@
   "editor": {
     "entities": "Sensoren",
     "entities_hint": "Leer lassen für automatische Erkennung",
+    "entity_missing": "Sensor {entity} existiert nicht mehr. Wählen Sie einen anderen Sensor oder entfernen Sie ihn aus den Entitäten dieser Karte.",
     "max_stations": "Anzahl Tankstellen",
     "show_index": "Platzierung anzeigen",
     "show_map_links": "Google Maps Links anzeigen",

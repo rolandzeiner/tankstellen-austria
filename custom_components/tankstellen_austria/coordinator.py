@@ -42,6 +42,7 @@ from .const import (
     NO_DATA_RETRY_MINUTES,
     USER_AGENT,
 )
+from .http import base_request_headers
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -376,7 +377,7 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]
             "fuelType": fuel_type,
             "includeClosed": str(self._include_closed).lower(),
         }
-        headers = {"User-Agent": USER_AGENT}
+        headers = base_request_headers(USER_AGENT)
         timeout = aiohttp.ClientTimeout(total=30)
         try:
             async with self._session.get(

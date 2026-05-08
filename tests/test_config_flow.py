@@ -210,7 +210,10 @@ async def test_connection_test_sends_canonical_user_agent(hass: HomeAssistant) -
 
     assert session.get.called
     headers = session.get.call_args.kwargs["headers"]
-    assert headers == {"User-Agent": USER_AGENT}
+    assert headers == {
+        "User-Agent": USER_AGENT,
+        "Accept-Encoding": "gzip",
+    }
 
 
 async def test_options_flow_no_fuel_type(hass: HomeAssistant, mock_fetch) -> None:

@@ -67,6 +67,7 @@
   "editor": {
     "entities": "Sensors",
     "entities_hint": "Leave empty for auto-detection",
+    "entity_missing": "Sensor {entity} no longer exists. Pick a different sensor or remove it from this card's entities list.",
     "max_stations": "Number of stations",
     "show_index": "Show rank",
     "show_map_links": "Show Google Maps links",

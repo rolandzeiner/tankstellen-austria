@@ -302,6 +302,17 @@ export class TankstellenAustriaCardEditor
     const showBestRefuel = this._config.show_best_refuel !== false;
     const showRecorderHint = showHistory && showBestRefuel;
 
+    // Saved entity_ids that no longer resolve in hass.states (integration
+    // removed, sensor disabled, typo in saved YAML). ha-form's entity
+    // selector only flags this with a red outline — silent for screen
+    // readers and easy to miss visually. WCAG 3.3.1 (Error
+    // Identification): surface each missing entity as a user-readable
+    // alert under the sensors selector. The card render path already
+    // skips them (see _renderTabLabelsSection's `!!x.state` filter).
+    const missingEntities = (this._config.entities ?? []).filter(
+      (eid) => !!this.hass && !this.hass.states[eid],
+    );
+
     return html`
       <div class="editor">
         <ha-form
@@ -312,6 +323,14 @@ export class TankstellenAustriaCardEditor
           .computeHelper=${this._computeHelper}
           @value-changed=${this._onFormChanged}
         ></ha-form>
+
+        ${missingEntities.map(
+          (eid) => html`
+            <ha-alert alert-type="warning">
+              ${this._et("entity_missing", { entity: eid })}
+            </ha-alert>
+          `,
+        )}
 
         ${showRecorderHint ? this._renderRecorderHint() : nothing}
         ${this._renderTabLabelsSection()}

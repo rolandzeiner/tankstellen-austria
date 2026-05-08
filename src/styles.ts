@@ -23,10 +23,10 @@ export const cardStyles = css`
        :host also needs these — duplicated there. See ha-portfolio-design
        § 4 "Multi-card integrations — every shadow scope needs the
        tokens" for why. */
-    --tankst-rt:      var(--ha-color-success, #4caf50);
-    --tankst-warning: var(--ha-color-warning, #ffa000);
-    --tankst-error:   var(--ha-color-error,   #db4437);
-    --tankst-info:    var(--ha-color-info,    #1565c0);
+    --tankst-rt:      var(--success-color, #4caf50);
+    --tankst-warning: var(--warning-color, #ffa000);
+    --tankst-error:   var(--error-color,   #db4437);
+    --tankst-info:    var(--info-color,    #1565c0);
 
     /* Spacing / radius / sizing — layered over the HA Design System
        so the card moves with HA when tokens evolve. Hard-coded values
@@ -910,10 +910,10 @@ export const editorStyles = css`
     color-scheme: light dark;
     display: block;
 
-    --tankst-rt:      var(--ha-color-success, #4caf50);
-    --tankst-warning: var(--ha-color-warning, #ffa000);
-    --tankst-error:   var(--ha-color-error,   #db4437);
-    --tankst-info:    var(--ha-color-info,    #1565c0);
+    --tankst-rt:      var(--success-color, #4caf50);
+    --tankst-warning: var(--warning-color, #ffa000);
+    --tankst-error:   var(--error-color,   #db4437);
+    --tankst-info:    var(--info-color,    #1565c0);
   }
   .editor {
     padding: 16px;

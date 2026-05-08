@@ -49,6 +49,7 @@ from .const import (
     MIN_POLL_MINUTES,
     USER_AGENT,
 )
+from .http import base_request_headers
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -69,7 +70,7 @@ async def _test_api_connection(
         async with session.get(
             url,
             params=params,
-            headers={"User-Agent": USER_AGENT},
+            headers=base_request_headers(USER_AGENT),
             timeout=aiohttp.ClientTimeout(total=10),
         ) as resp:
             resp.raise_for_status()
