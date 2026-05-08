@@ -1,17 +1,17 @@
 """HTTP helpers for the Tankstellen Austria integration.
 
 Single source of truth for outbound request headers. Centralised so the
-two call sites (`coordinator.py` price fetches, `config_flow.py` connection
-probe) can't drift in what they send to E-Control. The accompanying
-`tests/test_user_agent.py` parametrised regression test asserts both
-sites emit byte-identical headers.
+two call sites (`coordinator.py` price fetches, `config_flow.py`
+connection probe) can't drift in what they send to E-Control.
 
-Why `Accept-Encoding: gzip`: aiohttp does NOT auto-add it, so without an
-explicit header E-Control sees no client preference and ships the JSON
-uncompressed. Diesel/SUP/CNG payloads at urban hotspots are 50-200 KB
-JSON arrays — gzip typically compresses 4-6x on price-list payloads.
-aiohttp's response decompression is transparent so call sites need no
-changes beyond the header.
+About `Accept-Encoding: gzip`: verified 2026-05-08 that E-Control's
+Tomcat server currently ignores the header — both `--compressed` and
+plain requests against `/search/gas-stations/by-address` return
+identical-size plain JSON, no `Content-Encoding: gzip` in the response.
+The header is kept anyway as defensive forward-compatibility (every
+modern HTTP client sends it; if E-Control ever enables compression we
+get the wire-size win automatically with zero code changes). aiohttp
+decompresses transparently when the server does respond compressed.
 """
 from __future__ import annotations
 
