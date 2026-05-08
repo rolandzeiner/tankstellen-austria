@@ -80,6 +80,7 @@
     "show_noon_markers": "12:00-Markierung (Preisreset)",
     "show_minmax": "Min/Max anzeigen",
     "recorder_hint_intro": "Home Assistant speichert standardmäßig nur 10 Tage Verlauf. Für bessere Empfehlungen diesen Block in configuration.yaml ergänzen und neu starten:",
+    "recorder_hint_docs": "Recorder-Dokumentation lesen",
     "copy": "Kopieren",
     "copied": "Kopiert",
     "payment_filter": "Nur Tankstellen mit",

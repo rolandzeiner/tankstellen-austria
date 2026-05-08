@@ -969,8 +969,14 @@ export const editorStyles = css`
     overflow-x: auto;
     white-space: pre;
   }
-  .recorder-copy-btn {
+  .recorder-hint-actions {
     margin-top: 6px;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .recorder-copy-btn {
     display: inline-flex;
     align-items: center;
     gap: 4px;
@@ -986,8 +992,20 @@ export const editorStyles = css`
   .recorder-copy-btn:hover {
     background: var(--primary-background-color);
   }
-  .recorder-copy-btn ha-icon {
+  .recorder-copy-btn ha-icon,
+  .recorder-docs-link ha-icon {
     --mdc-icon-size: 14px;
+  }
+  .recorder-docs-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.75rem;
+    color: var(--primary-color);
+    text-decoration: none;
+  }
+  .recorder-docs-link:hover {
+    text-decoration: underline;
   }
 
   /* Tab labels */

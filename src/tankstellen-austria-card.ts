@@ -48,7 +48,7 @@ import {
   translate,
   type TranslateContext,
 } from "./localize/localize";
-import { fetchHistory, type HistoryPoint } from "./history";
+import { fetchHistory, getCachedHistory, type HistoryPoint } from "./history";
 import {
   attachSparklineHover,
   buildSparkline,
@@ -173,6 +173,24 @@ export class TankstellenAustriaCard extends LitElement {
       );
     }
     this._config = normaliseConfig(config);
+    // Editor-preview rebuilds the card instance on every config change.
+    // Without this seed, each rebuild starts with empty `_history` and
+    // the sparkline returns `nothing` until the async `_fetchAllHistory`
+    // completes — visible flicker. The module-scope cache in history.ts
+    // (item 43) survives across instances, so reading it synchronously
+    // here means the FIRST render of a fresh instance already has data.
+    if (this._config.entities) {
+      const seed: Record<string, HistoryPoint[]> = {};
+      let any = false;
+      for (const eid of this._config.entities) {
+        const cached = getCachedHistory(eid);
+        if (cached.length >= 2) {
+          seed[eid] = cached;
+          any = true;
+        }
+      }
+      if (any) this._history = { ...this._history, ...seed };
+    }
   }
 
   public getCardSize(): number {

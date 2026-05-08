@@ -347,15 +347,26 @@ export class TankstellenAustriaCardEditor
       <div class="recorder-hint">
         <div class="recorder-hint-text">${this._et("recorder_hint_intro")}</div>
         <pre class="recorder-snippet"><code>${snippet}</code></pre>
-        <button
-          class="recorder-copy-btn"
-          type="button"
-          aria-label=${this._et("copy_sensor_id")}
-          @click=${() => this._onCopyRecorderSnippet(snippet)}
-        >
-          <ha-icon icon="mdi:content-copy" aria-hidden="true"></ha-icon>
-          <span class="recorder-copy-label">${label}</span>
-        </button>
+        <div class="recorder-hint-actions">
+          <button
+            class="recorder-copy-btn"
+            type="button"
+            aria-label=${this._et("copy_sensor_id")}
+            @click=${() => this._onCopyRecorderSnippet(snippet)}
+          >
+            <ha-icon icon="mdi:content-copy" aria-hidden="true"></ha-icon>
+            <span class="recorder-copy-label">${label}</span>
+          </button>
+          <a
+            class="recorder-docs-link"
+            href="https://www.home-assistant.io/integrations/recorder/"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <ha-icon icon="mdi:open-in-new" aria-hidden="true"></ha-icon>
+            <span>${this._et("recorder_hint_docs")}</span>
+          </a>
+        </div>
       </div>
     `;
   }

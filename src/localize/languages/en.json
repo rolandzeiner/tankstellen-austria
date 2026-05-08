@@ -80,6 +80,7 @@
     "show_noon_markers": "Noon reset markers",
     "show_minmax": "Show min/max",
     "recorder_hint_intro": "Home Assistant keeps only 10 days of history by default. For better recommendations, add this block to configuration.yaml and restart:",
+    "recorder_hint_docs": "Read the recorder docs",
     "copy": "Copy",
     "copied": "Copied",
     "payment_filter": "Only stations with",
