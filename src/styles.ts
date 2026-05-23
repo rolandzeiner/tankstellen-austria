@@ -150,8 +150,8 @@ export const cardStyles = css`
   }
   .icon-tile {
     /* Modern HA tile-card vocabulary: rounded square, accent-tinted
-       background, accent-coloured icon. Replaces the old inline
-       fuel-icon and gives the card immediate visual identity. */
+       background, accent-coloured icon. Gives the card immediate visual
+       identity in dashboards. */
     width: var(--tankst-tile-size);
     height: var(--tankst-tile-size);
     border-radius: var(--tankst-radius-md);
@@ -664,10 +664,6 @@ export const cardStyles = css`
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
     flex-shrink: 0;
-  }
-  /* Map link — circular icon-action sized for touch (40×40). */
-  .icon-action.map {
-    /* Wrap the existing .icon-action surface to match prior placement. */
   }
   /* Chevron arrow indicating collapsibility. Rotates 180° on
      aria-expanded="true" so the cue follows the WAI-ARIA state without

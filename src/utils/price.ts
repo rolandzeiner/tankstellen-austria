@@ -1,3 +1,5 @@
+import type { StationLocation } from "../types";
+
 // Format a price in EUR as "€ 1,749" (German-style decimal comma, 3 decimals).
 export function formatPrice(price: number | null | undefined): string {
   if (price == null || !Number.isFinite(Number(price))) return "–";
@@ -16,14 +18,6 @@ export function formatPriceShort(price: number | null | undefined): string {
 // the link as `nothing` rather than an empty <a href> (which the
 // safeHttpsUri allowlist would otherwise collapse to "" → page reload
 // on click).
-export interface StationLocation {
-  address?: string;
-  postalCode?: string | number;
-  city?: string;
-  latitude?: number;
-  longitude?: number;
-}
-
 export function mapsUrl(
   loc: StationLocation | null | undefined,
   stationName: string,

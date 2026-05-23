@@ -191,13 +191,9 @@ class TankstellenSensor(CoordinatorEntity[TankstellenCoordinator], SensorEntity)
         prices = [s["price"] for s in attr_stations if s.get("price") is not None]
         avg_price = round(sum(prices) / len(prices), 3) if prices else None
 
-        # Locale-agnostic display name from entry.title (user-chosen at
-        # config-flow time). Card consumes this instead of stripping a
-        # localised `friendly_name` regex.
         attrs: dict[str, Any] = {
             "fuel_type": self._fuel_type,
             "fuel_type_name": FUEL_TYPES.get(self._fuel_type, self._fuel_type),
-            "station_display_name": self._entry.title,
             "station_count": len(attr_stations),
             "stations": attr_stations,
             "average_price": avg_price,

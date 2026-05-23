@@ -36,10 +36,12 @@ MIN_POLL_MINUTES: Final = 10
 MAX_POLL_MINUTES: Final = 720
 DEFAULT_INCLUDE_CLOSED = True
 
-# Dynamic mode rate-limiting
+# Dynamic mode rate-limiting. Manual-refresh cooldown lives card-side
+# (`DYNAMIC_MANUAL_COOLDOWN_MS` in src/const.ts) because that's where the
+# button and the countdown UI sit — the integration's `async_request_refresh`
+# is already debounced (15s) so a Python mirror would be redundant.
 DYNAMIC_DISTANCE_THRESHOLD_M = 1500    # metres moved before triggering update
 DYNAMIC_COOLDOWN_MINUTES = 10          # min between auto-updates per entry
-DYNAMIC_MANUAL_COOLDOWN_MINUTES = 2    # min between manual card refreshes
 DYNAMIC_DOMAIN_COOLDOWN_MINUTES = 5    # min between ANY update across all entries
 DYNAMIC_SAFETY_INTERVAL_HOURS = 6      # fallback timer when no movement detected
 

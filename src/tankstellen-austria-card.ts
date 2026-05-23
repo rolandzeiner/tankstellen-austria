@@ -39,7 +39,6 @@ import {
   matchingPaymentMethods,
 } from "./utils/payment";
 import { isClosingSoon } from "./utils/station";
-import { escHtml } from "./utils/html";
 import { formatPrice, mapsUrl } from "./utils/price";
 import {
   getFuelName,
@@ -177,8 +176,8 @@ export class TankstellenAustriaCard extends LitElement {
     // Without this seed, each rebuild starts with empty `_history` and
     // the sparkline returns `nothing` until the async `_fetchAllHistory`
     // completes — visible flicker. The module-scope cache in history.ts
-    // (item 43) survives across instances, so reading it synchronously
-    // here means the FIRST render of a fresh instance already has data.
+    // survives across instances, so reading it synchronously here means
+    // the FIRST render of a fresh instance already has data.
     if (this._config.entities) {
       const seed: Record<string, HistoryPoint[]> = {};
       let any = false;
@@ -764,24 +763,21 @@ export class TankstellenAustriaCard extends LitElement {
     }
 
     const levelLabel = this._t(`confidence_${c.level}`);
-    const tooltipLines: string[] = [
-      `${this._t("confidence_title")}: ${levelLabel}`,
-      `• ${this._t("confidence_span")}: ${c.span_days} ${this._t("confidence_days")}`,
-      `• ${this._t("confidence_coverage")}: ${c.coverage_pct}%`,
-      `• ${this._t("confidence_gap")}: ${c.gap_cents.toFixed(1)} ${this._t("confidence_cents")}`,
-    ];
-    if (c.span_days < 14) {
-      tooltipLines.push("", this._t("confidence_short_history_hint"));
-    }
-    const tooltip = escHtml(tooltipLines.join("\n"));
-    const badgeClass = `refuel-confidence refuel-confidence-${c.level}`;
-
-    const badgeAriaLabel = [
+    // One breakdown string drives both `title` (desktop hover tooltip) and
+    // `aria-label` (screen-reader name). The HTML title attribute collapses
+    // newlines to spaces, so we use ". " as the visual separator and rely
+    // on the browser's own line-wrapping for the tooltip.
+    const breakdownParts: string[] = [
       `${this._t("confidence_title")}: ${levelLabel}`,
       `${this._t("confidence_span")}: ${c.span_days} ${this._t("confidence_days")}`,
       `${this._t("confidence_coverage")}: ${c.coverage_pct}%`,
       `${this._t("confidence_gap")}: ${c.gap_cents.toFixed(1)} ${this._t("confidence_cents")}`,
-    ].join(". ");
+    ];
+    if (c.span_days < 14) {
+      breakdownParts.push(this._t("confidence_short_history_hint"));
+    }
+    const breakdown = breakdownParts.join(". ");
+    const badgeClass = `refuel-confidence refuel-confidence-${c.level}`;
 
     return html`
       <div class="refuel-recommendation">
@@ -789,8 +785,8 @@ export class TankstellenAustriaCard extends LitElement {
         <span class="refuel-text">${text}</span>
         <span
           class=${badgeClass}
-          title=${tooltip}
-          aria-label=${badgeAriaLabel}
+          title=${breakdown}
+          aria-label=${breakdown}
         >${levelLabel}</span>
       </div>
     `;
@@ -947,7 +943,14 @@ export class TankstellenAustriaCard extends LitElement {
     const showPayment = this._config.show_payment_methods !== false;
     const loc = s.location ?? {};
 
-    const key = `${activeTab}-${idx}`;
+    // Key the expanded-state on station identity, not list position.
+    // Stations are sorted cheapest-first by the integration, so position
+    // shifts whenever prices update — keying on `${activeTab}-${idx}` would
+    // leave the detail panel attached to whichever station now occupies the
+    // old slot. `name|address` is the stable identifier the API exposes; the
+    // tab prefix keeps state per-fuel-type even though `_onTabClick` already
+    // clears the set on tab switch (belt-and-braces).
+    const key = `${activeTab}|${s.name ?? ""}|${loc.address ?? ""}`;
     const isExpanded = this._expandedStations.has(key);
     const isClosed = s.open === false;
     const isClosingSoonFlag = !isClosed && isClosingSoon(s);
@@ -979,6 +982,23 @@ export class TankstellenAustriaCard extends LitElement {
     const hasName = !!s.name;
     const cityText = loc.city ?? "";
     const addressText = loc.address ?? "";
+    // Build the address row from whichever parts the API supplied. Rural
+    // stations often have only a postal code (no city, no street); the
+    // previous template emitted a literal comma + space regardless, which
+    // rendered as e.g. "4310 ," for those. Locality (PLZ + city) and street
+    // each get their own `<span lang="de">` for screen-reader pronunciation
+    // and join with ", " only when both are present.
+    const localityText = [loc.postalCode, cityText]
+      .filter((p): p is string | number => p != null && p !== "")
+      .join(" ");
+    const localityTpl = localityText
+      ? html`<span lang="de">${localityText}</span>`
+      : nothing;
+    const addressTpl = addressText
+      ? html`<span lang="de">${addressText}</span>`
+      : nothing;
+    const addressSeparator =
+      localityTpl !== nothing && addressTpl !== nothing ? ", " : "";
     return html`
       <div class=${classMap({ station: true, "pm-highlight": highlighted })}>
         <div
@@ -1012,12 +1032,7 @@ export class TankstellenAustriaCard extends LitElement {
               )}
             </div>
             <div class="address">
-              ${loc.postalCode ?? ""}${cityText
-                ? html` <span lang="de">${cityText}</span>`
-                : nothing},
-              ${addressText
-                ? html`<span lang="de">${addressText}</span>`
-                : nothing}
+              ${localityTpl}${addressSeparator}${addressTpl}
             </div>
           </div>
           <div class="price">${formatPrice(s.price)}</div>

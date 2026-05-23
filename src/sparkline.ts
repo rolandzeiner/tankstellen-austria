@@ -313,9 +313,9 @@ export function buildSparkline(opts: SparklineOpts): SparklineResult {
     const gradId = `spark-grad-${Math.random().toString(36).slice(2, 8)}`;
 
     // Median-delta chip lives in the sparkline's label row (appended after
-    // the "Last 7 days" text). Vanilla card concatenates raw HTML; Lit needs
-    // a template, so we render it inline via the translation strings passed
-    // in by the caller.
+    // the "Last 7 days" text). Rendered as a Lit template so the chip's
+    // localised strings — passed in by the caller — compose safely without
+    // any innerHTML / string-concat surface.
     const deltaTmpl: TemplateResult | typeof nothing = opts.showMedianLine
       ? (() => {
           const d = computeMedianDelta(values);
@@ -480,8 +480,8 @@ export function attachSparklineHover(
         pts = [];
       }
       if (!pts.length) return null;
-      const vbWidth = Number(svgEl.dataset.width) || 280;
-      const vbHeight = Number(svgEl.dataset.height) || 64;
+      const vbWidth = Number(svgEl.dataset.width) || WIDTH;
+      const vbHeight = Number(svgEl.dataset.height) || HEIGHT;
       return { svgEl, line, dot, tooltip, timeEl, priceEl, pts, vbWidth, vbHeight };
     };
 
