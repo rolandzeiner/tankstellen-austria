@@ -252,12 +252,16 @@ export function buildSparkline(opts: SparklineOpts): SparklineResult {
     // inside the 7-day window.
     const noonLines: TemplateResult[] = [];
     if (opts.showNoonMarkers && data.length >= 2) {
-      const first = new Date(tStart);
-      first.setHours(12, 0, 0, 0);
-      if (first.getTime() < tStart) first.setDate(first.getDate() + 1);
+      const cursor = new Date(tStart);
+      cursor.setHours(12, 0, 0, 0);
+      if (cursor.getTime() < tStart) cursor.setDate(cursor.getDate() + 1);
 
-      for (let t = first.getTime(); t <= tEnd; t += 24 * 3600 * 1000) {
-        const x = xForTime(t);
+      // Re-derive each anchor from the Date rather than adding a fixed 24h of
+      // milliseconds: across a DST transition a day is 23 or 25 hours, so a
+      // fixed step drifts markers to 11:00/13:00. setDate + setHours pins
+      // every marker back to local 12:00.
+      for (; cursor.getTime() <= tEnd; cursor.setDate(cursor.getDate() + 1), cursor.setHours(12, 0, 0, 0)) {
+        const x = xForTime(cursor.getTime());
         if (x == null) continue;
         noonLines.push(svg`
           <line x1=${x.toFixed(1)} y1="0" x2=${x.toFixed(1)} y2=${HEIGHT}
