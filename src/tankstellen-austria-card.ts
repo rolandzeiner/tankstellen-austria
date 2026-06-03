@@ -89,6 +89,13 @@ interface WindowWithCustomCards extends Window {
     description: string;
     preview?: boolean;
     documentationURL?: string;
+    // Opt into the 2026.6 entity-first card picker. Additive key older HA
+    // ignores; returns a one-entity stub for this integration's own sensors
+    // (the user can extend `entities` afterwards).
+    getEntitySuggestion?: (
+      hass: HomeAssistant,
+      entityId: string,
+    ) => { config: Record<string, unknown> } | null;
   }>;
 }
 
@@ -101,6 +108,17 @@ interface WindowWithCustomCards extends Window {
     "Austrian fuel prices from E-Control with sparklines and best-refuel analytics.",
   preview: true,
   documentationURL: "https://github.com/rolandzeiner/tankstellen-austria",
+  getEntitySuggestion: (hass: HomeAssistant, entityId: string) => {
+    if (!entityId.startsWith("sensor.")) return null;
+    if (hass?.entities?.[entityId]?.platform !== "tankstellen_austria")
+      return null;
+    return {
+      config: {
+        type: "custom:tankstellen-austria-card",
+        entities: [entityId],
+      },
+    };
+  },
 });
 
 @customElement("tankstellen-austria-card")

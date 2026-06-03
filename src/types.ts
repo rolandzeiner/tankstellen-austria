@@ -28,8 +28,16 @@ export interface HassEntity {
  *  otherwise) and HA core has shipped both since well before our
  *  `requirements.txt` floor. Anything beyond these lives untyped and
  *  is read with a cast at the call site. */
+/** Minimal entity-registry shape — only `platform` is read, by the card
+ *  picker's `getEntitySuggestion` to gate suggestions to this integration's
+ *  own entities (registry platform === integration domain). */
+export interface RegistryEntity {
+  platform?: string;
+}
+
 export interface HomeAssistant {
   states: Record<string, HassEntity>;
+  entities?: Record<string, RegistryEntity>;
   language?: string;
   themes?: { darkMode?: boolean } & Record<string, unknown>;
   config?: { time_zone?: string } & Record<string, unknown>;
