@@ -234,7 +234,7 @@ class TankstellenConfigFlow(ConfigFlow, domain=DOMAIN):
                     await self.async_set_unique_id(
                         _compute_unique_id(dynamic_entity, lat, lng)
                     )
-                    self._abort_if_unique_id_configured()
+                    self._abort_if_unique_id_configured(reload_on_update=False)
 
                     title = user_input.get("name", "Tankstellen")
                     return self.async_create_entry(
@@ -278,7 +278,7 @@ class TankstellenConfigFlow(ConfigFlow, domain=DOMAIN):
                     # the new unique_id matches a *different* existing entry.
                     await self.async_set_unique_id(new_unique_id)
                     self._abort_if_unique_id_mismatch()
-                    return self.async_update_reload_and_abort(
+                    return self.async_update_and_abort(
                         entry,
                         data=_build_entry_data(user_input, lat, lng, fuel_types),
                     )
