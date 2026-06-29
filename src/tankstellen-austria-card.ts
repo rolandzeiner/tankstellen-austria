@@ -39,7 +39,7 @@ import {
   matchingPaymentMethods,
 } from "./utils/payment";
 import { isClosingSoon } from "./utils/station";
-import { formatPrice, mapsUrl } from "./utils/price";
+import { formatDistance, formatPrice, mapsUrl } from "./utils/price";
 import {
   getFuelName,
   getWeekdays,
@@ -136,6 +136,7 @@ export class TankstellenAustriaCard extends LitElement {
       max_stations: 5,
       show_index: true,
       show_map_links: true,
+      show_distance: true,
       show_opening_hours: true,
       show_payment_methods: true,
       show_history: true,
@@ -957,6 +958,7 @@ export class TankstellenAustriaCard extends LitElement {
   ): TemplateResult {
     const showIndex = this._config.show_index !== false;
     const showMapLinks = this._config.show_map_links !== false;
+    const showDistance = this._config.show_distance !== false;
     const showHours = this._config.show_opening_hours !== false;
     const showPayment = this._config.show_payment_methods !== false;
     const loc = s.location ?? {};
@@ -1055,31 +1057,46 @@ export class TankstellenAustriaCard extends LitElement {
           </div>
           <div class="price">${formatPrice(s.price)}</div>
           ${(() => {
-            if (!showMapLinks) return nothing;
-            const url = safeHttpsUri(mapsUrl(loc, s.name ?? ""));
-            // mapsUrl returns null when neither a station name nor any
-            // location field is available — and safeHttpsUri returns ""
-            // for non-https inputs. Either way, render nothing rather
-            // than an empty <a href> that would reload the page on click.
-            if (!url) return nothing;
-            return html`
-              <a
-                class="icon-action map"
-                href=${url}
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label=${`${this._t("map")}: ${s.name ?? ""}`}
-                title=${this._t("map")}
-                @click=${this._onMapLinkClick}
-              >
-                <ha-icon
-                  icon=${/\d/.test(loc.address ?? "")
-                    ? "mdi:map-marker"
-                    : "mdi:magnify"}
-                  aria-hidden="true"
-                ></ha-icon>
-              </a>
-            `;
+            // Map-pin link to Google Maps, with the Luftlinie distance as a
+            // caption beneath it. Both are optional and independently toggled.
+            let pin: TemplateResult | typeof nothing = nothing;
+            if (showMapLinks) {
+              const url = safeHttpsUri(mapsUrl(loc, s.name ?? ""));
+              // mapsUrl returns null when neither a station name nor any
+              // location field is available — and safeHttpsUri returns ""
+              // for non-https inputs. Either way, skip the <a> rather than
+              // emit an empty href that would reload the page on click.
+              if (url) {
+                pin = html`
+                  <a
+                    class="icon-action map"
+                    href=${url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label=${`${this._t("map")}: ${s.name ?? ""}`}
+                    title=${this._t("map")}
+                    @click=${this._onMapLinkClick}
+                  >
+                    <ha-icon
+                      icon=${/\d/.test(loc.address ?? "")
+                        ? "mdi:map-marker"
+                        : "mdi:magnify"}
+                      aria-hidden="true"
+                    ></ha-icon>
+                  </a>
+                `;
+              }
+            }
+
+            const distance =
+              showDistance && s.distance_m != null
+                ? html`<span class="distance" lang="de"
+                    >${formatDistance(s.distance_m)}</span
+                  >`
+                : nothing;
+
+            if (pin === nothing && distance === nothing) return nothing;
+            return html`<div class="map-action">${pin}${distance}</div>`;
           })()}
           ${hasDetail
             ? html`<ha-icon

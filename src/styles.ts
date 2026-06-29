@@ -230,6 +230,28 @@ export const cardStyles = css`
     color: var(--primary-color);
   }
 
+  /* Map-pin action and its distance caption stacked as one column, so the
+     Luftlinie value reads as an annotation to the pin rather than a
+     free-floating number. The pin keeps the only interactive affordance;
+     the caption stays quiet (muted, tabular so values align down the list,
+     tight line-height so it tucks under the 40px circle without adding row
+     height). */
+  .map-action {
+    flex-shrink: 0;
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1px;
+  }
+  .distance {
+    font-size: 0.68rem;
+    line-height: 1;
+    color: var(--secondary-text-color);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+  }
+
   /* ── Hero metric ────────────────────────────────────────────────── */
   .hero {
     display: flex;

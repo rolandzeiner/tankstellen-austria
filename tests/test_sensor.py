@@ -132,6 +132,7 @@ async def test_sensor_stations_attribute(hass: HomeAssistant) -> None:
     assert s["price"] == pytest.approx(1.459)
     assert s["open"] is True
     assert "location" in s
+    assert "distance_m" in s
     assert "opening_hours" in s
     assert "payment_methods" in s
 

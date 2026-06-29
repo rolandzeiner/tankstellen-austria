@@ -483,15 +483,39 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]
                 },
             ) from err
 
-        # API returns array of stations; first 5 have prices, rest don't
+        # API returns array of stations; first 5 have prices, rest don't.
+        # Stamp the as-the-crow-flies distance (Luftlinie) from the reference
+        # point onto each kept station (issue #61). `lat,lng` is the live fetch
+        # origin — the dynamic tracker position in dynamic mode, the configured
+        # point otherwise — so the value is correct in both modes for free.
         stations: list[dict[str, Any]] = []
         for station in data:
             if not station.get("prices"):
                 continue
+            self._stamp_distance(station, lat, lng)
             stations.append(station)
             if len(stations) >= 5:
                 break
         return stations
+
+    @staticmethod
+    def _stamp_distance(station: dict[str, Any], lat: float, lng: float) -> None:
+        """Add ``distance_m`` (rounded metres) to a station dict in place.
+
+        Reuses HA's haversine ``distance`` helper. Leaves the key absent when
+        the station lacks usable coordinates, so the card renders nothing
+        rather than a misleading "0 m".
+        """
+        loc = station.get("location") or {}
+        slat = loc.get("latitude")
+        slon = loc.get("longitude")
+        if not isinstance(slat, (int, float)) or isinstance(slat, bool):
+            return
+        if not isinstance(slon, (int, float)) or isinstance(slon, bool):
+            return
+        metres = distance(lat, lng, float(slat), float(slon))
+        if metres is not None:
+            station["distance_m"] = round(metres)
 
 
 # Typed ConfigEntry alias — parameterises the generic ConfigEntry with the

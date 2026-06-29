@@ -169,6 +169,60 @@ async def test_fetch_rejects_non_list_payload(hass: HomeAssistant) -> None:
     assert exc.value.translation_key == "api_invalid_response"
 
 
+async def test_fetch_stamps_distance_from_reference(hass: HomeAssistant) -> None:
+    """_fetch adds rounded `distance_m` (Luftlinie) from the reference point.
+
+    Distance is measured against the `lat,lng` passed into _fetch — the live
+    fetch origin — so the value tracks the dynamic position automatically.
+    """
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+    coordinator = TankstellenCoordinator(hass, entry)
+
+    # Two stations ~1.1 km apart; reference is the first station's coordinates,
+    # so station A is ~0 m and station B is a few hundred metres away.
+    payload = [
+        {"prices": [{"amount": 1.0}], "location": {"latitude": 48.20, "longitude": 16.40}},
+        {"prices": [{"amount": 1.1}], "location": {"latitude": 48.21, "longitude": 16.41}},
+    ]
+    resp = MagicMock()
+    resp.raise_for_status = MagicMock()
+    resp.json = AsyncMock(return_value=payload)
+    resp.status = 200
+    coordinator._session = MagicMock()
+    coordinator._session.get = MagicMock(return_value=make_response_cm(resp))
+
+    stations = await coordinator._fetch("DIE", 48.20, 16.40)
+
+    assert stations[0]["distance_m"] == 0
+    # Reference→B is ~1.2 km; assert it's a sane positive integer in range.
+    assert isinstance(stations[1]["distance_m"], int)
+    assert 1000 <= stations[1]["distance_m"] <= 1500
+
+
+async def test_fetch_omits_distance_when_coords_missing(hass: HomeAssistant) -> None:
+    """Stations without usable coordinates get no `distance_m` key (no crash)."""
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+    coordinator = TankstellenCoordinator(hass, entry)
+
+    payload = [
+        {"prices": [{"amount": 1.0}], "location": {}},
+        {"prices": [{"amount": 1.1}]},  # no location at all
+    ]
+    resp = MagicMock()
+    resp.raise_for_status = MagicMock()
+    resp.json = AsyncMock(return_value=payload)
+    resp.status = 200
+    coordinator._session = MagicMock()
+    coordinator._session.get = MagicMock(return_value=make_response_cm(resp))
+
+    stations = await coordinator._fetch("DIE", 48.0, 16.0)
+
+    assert "distance_m" not in stations[0]
+    assert "distance_m" not in stations[1]
+
+
 async def test_coordinator_fetch_sends_canonical_user_agent(hass: HomeAssistant) -> None:
     """coordinator._fetch sends RFC-9110 UA: HomeAssistant/<ver> tankstellen_austria/<int_ver>.
 

@@ -71,6 +71,7 @@
     "max_stations": "Number of stations",
     "show_index": "Show rank",
     "show_map_links": "Show Google Maps links",
+    "show_distance": "Show distance",
     "show_opening_hours": "Show opening hours",
     "show_payment_methods": "Show payment methods",
     "show_history": "Show price history",

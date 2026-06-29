@@ -12,6 +12,17 @@ export function formatPriceShort(price: number | null | undefined): string {
   return Number(price).toFixed(3).replace(".", ",");
 }
 
+// Format an as-the-crow-flies distance (Luftlinie). Metres under 1 km render
+// as a rounded integer ("850 m"); 1 km and above switch to one decimal with a
+// German decimal comma to match formatPrice ("12,3 km"). Returns "" for
+// missing/invalid input so the caller can render `nothing` rather than a
+// stray unit. Negative values are treated as invalid.
+export function formatDistance(meters: number | null | undefined): string {
+  if (meters == null || !Number.isFinite(meters) || meters < 0) return "";
+  if (meters < 1000) return `${Math.round(meters)} m`;
+  return `${(meters / 1000).toFixed(1).replace(".", ",")} km`;
+}
+
 // Build a Google Maps URL for a station, falling back to a web search when
 // the API address lacks a street number (many rural stations). Returns
 // null when the inputs would yield nothing useful — caller should render

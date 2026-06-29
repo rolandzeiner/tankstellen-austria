@@ -111,6 +111,7 @@ export interface TankstellenAustriaCardConfig extends LovelaceCardConfig {
 
   show_index?: boolean;
   show_map_links?: boolean;
+  show_distance?: boolean;
   show_opening_hours?: boolean;
   show_payment_methods?: boolean;
   show_history?: boolean;
@@ -180,6 +181,9 @@ export interface Station {
   price?: number;
   open?: boolean;
   location?: StationLocation;
+  // As-the-crow-flies distance (metres) from the reference point, stamped by
+  // the coordinator. Absent when the station has no usable coordinates.
+  distance_m?: number;
   opening_hours?: OpeningHours[];
   payment_methods?: PaymentMethods;
 }

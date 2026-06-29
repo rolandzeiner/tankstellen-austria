@@ -181,6 +181,7 @@ class TankstellenSensor(CoordinatorEntity[TankstellenCoordinator], SensorEntity)
                 "price": _extract_price(s),
                 "open": s.get("open"),
                 "location": s.get("location", {}),
+                "distance_m": s.get("distance_m"),
                 "opening_hours": s.get("openingHours", []),
                 "payment_methods": _parse_payment_methods(s.get("paymentMethods")),
             })
