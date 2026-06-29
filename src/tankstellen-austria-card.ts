@@ -958,7 +958,12 @@ export class TankstellenAustriaCard extends LitElement {
   ): TemplateResult {
     const showIndex = this._config.show_index !== false;
     const showMapLinks = this._config.show_map_links !== false;
-    const showDistance = this._config.show_distance !== false;
+    // Opt-in: render only when explicitly enabled. An existing card config
+    // predating this feature has no `show_distance` key, so it stays hidden
+    // (and the editor toggle, which reads absent as off, agrees). New cards
+    // get `show_distance: true` from getStubConfig, so the feature shows by
+    // default there while toggle and behaviour stay consistent.
+    const showDistance = this._config.show_distance === true;
     const showHours = this._config.show_opening_hours !== false;
     const showPayment = this._config.show_payment_methods !== false;
     const loc = s.location ?? {};
