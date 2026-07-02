@@ -112,6 +112,10 @@ export interface TankstellenAustriaCardConfig extends LovelaceCardConfig {
   show_index?: boolean;
   show_map_links?: boolean;
   show_distance?: boolean;
+  // Order the station list by `distance_m` (nearest first) instead of the
+  // integration's cheapest-first order. Independent of `show_distance` —
+  // sorting works even when the caption is hidden. Defaults to false.
+  sort_by_distance?: boolean;
   show_opening_hours?: boolean;
   show_payment_methods?: boolean;
   show_history?: boolean;

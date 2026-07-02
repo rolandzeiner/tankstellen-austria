@@ -172,6 +172,7 @@ export class TankstellenAustriaCardEditor
           { name: "show_index", selector: { boolean: {} } },
           { name: "show_map_links", selector: { boolean: {} } },
           { name: "show_distance", selector: { boolean: {} } },
+          { name: "sort_by_distance", selector: { boolean: {} } },
           { name: "show_opening_hours", selector: { boolean: {} } },
           { name: "show_payment_methods", selector: { boolean: {} } },
           { name: "show_history", selector: { boolean: {} } },

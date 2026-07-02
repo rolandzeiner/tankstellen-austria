@@ -939,7 +939,20 @@ export class TankstellenAustriaCard extends LitElement {
       return html`<div class="empty">${this._t("no_data")}</div>`;
     }
 
-    const display = filtered.slice(0, maxStations);
+    // Opt-in re-sort: the integration delivers stations cheapest-first;
+    // when enabled, order by Luftlinie instead. `sort` is stable, so
+    // stations without a stamped `distance_m` sink to the tail while
+    // keeping their cheapest-first order among themselves.
+    const ordered =
+      this._config.sort_by_distance === true
+        ? [...filtered].sort(
+            (a, b) =>
+              (a.distance_m ?? Number.POSITIVE_INFINITY) -
+              (b.distance_m ?? Number.POSITIVE_INFINITY),
+          )
+        : filtered;
+
+    const display = ordered.slice(0, maxStations);
     return html`
       <div class="stations">
         ${display.map((s, idx) =>

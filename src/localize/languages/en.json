@@ -72,6 +72,7 @@
     "show_index": "Show rank",
     "show_map_links": "Show Google Maps links",
     "show_distance": "Show distance",
+    "sort_by_distance": "Sort by distance",
     "show_opening_hours": "Show opening hours",
     "show_payment_methods": "Show payment methods",
     "show_history": "Show price history",
