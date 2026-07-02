@@ -1,3 +1,4 @@
+import type { MapLinkKind } from "../utils";
 import type { StationLocation } from "../types";
 
 // Format a price in EUR as "€ 1,749" (German-style decimal comma, 3 decimals).
@@ -23,15 +24,22 @@ export function formatDistance(meters: number | null | undefined): string {
   return `${(meters / 1000).toFixed(1).replace(".", ",")} km`;
 }
 
-// Build a Google Maps URL for a station, falling back to a web search when
+// Build a navigation URL for a station, falling back to a web search when
 // the API address lacks a street number (many rural stations). Returns
 // null when the inputs would yield nothing useful — caller should render
 // the link as `nothing` rather than an empty <a href> (which the
-// safeHttpsUri allowlist would otherwise collapse to "" → page reload
+// safeNavUri allowlist would otherwise collapse to "" → page reload
 // on click).
+//
+// Only the precise-address branch honours `linkKind` (resolved from the
+// `map_provider` config by `resolveMapLinkKind`); the fuzzy fallbacks
+// stay a Google *search* on every platform — a maps pin for a
+// number-less address would drop the user somewhere wrong, and the
+// magnify icon at the call site promises a search.
 export function mapsUrl(
   loc: StationLocation | null | undefined,
   stationName: string,
+  linkKind: MapLinkKind = "google",
 ): string | null {
   if (!loc) {
     if (!stationName) return null;
@@ -40,7 +48,10 @@ export function mapsUrl(
   const hasStreetNumber = /\d/.test(loc.address ?? "");
   if (hasStreetNumber) {
     const query = `${loc.postalCode ?? ""} ${loc.city ?? ""} ${loc.address ?? ""}`.trim();
-    return `https://maps.google.com/?q=${encodeURIComponent(query)}`;
+    const q = encodeURIComponent(query);
+    if (linkKind === "apple") return `https://maps.apple.com/?q=${q}`;
+    if (linkKind === "geo") return `geo:0,0?q=${q}`;
+    return `https://maps.google.com/?q=${q}`;
   }
   const parts = [stationName, loc.address, loc.postalCode, loc.city].filter(
     (p): p is string | number => p != null && p !== "",

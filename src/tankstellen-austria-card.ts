@@ -65,9 +65,12 @@ import {
   reloadAfterCacheWipe,
 } from "./shared-render";
 import {
+  detectNavPlatform,
   E_CONTROL_HOMEPAGE,
   E_CONTROL_LOGO_URL,
+  resolveMapLinkKind,
   safeHttpsUri,
+  safeNavUri,
 } from "./utils";
 
 // Eager-register the editor element. With `inlineDynamicImports: true` the
@@ -1079,17 +1082,27 @@ export class TankstellenAustriaCard extends LitElement {
             // caption beneath it. Both are optional and independently toggled.
             let pin: TemplateResult | typeof nothing = nothing;
             if (showMapLinks) {
-              const url = safeHttpsUri(mapsUrl(loc, s.name ?? ""));
+              const linkKind = resolveMapLinkKind(
+                this._config.map_provider ?? "auto",
+                detectNavPlatform(
+                  navigator.userAgent,
+                  navigator.maxTouchPoints,
+                ),
+              );
+              const url = safeNavUri(mapsUrl(loc, s.name ?? "", linkKind));
               // mapsUrl returns null when neither a station name nor any
-              // location field is available — and safeHttpsUri returns ""
-              // for non-https inputs. Either way, skip the <a> rather than
-              // emit an empty href that would reload the page on click.
+              // location field is available — and safeNavUri returns ""
+              // for URIs outside its allowlist. Either way, skip the <a>
+              // rather than emit an empty href that would reload the page
+              // on click. geo: URIs must navigate in-tab (`_self`) so the
+              // OS intercepts them as an intent; a new tab would be left
+              // blank even when the chooser opens.
               if (url) {
                 pin = html`
                   <a
                     class="icon-action map"
                     href=${url}
-                    target="_blank"
+                    target=${url.startsWith("geo:") ? "_self" : "_blank"}
                     rel="noopener noreferrer"
                     aria-label=${`${this._t("map")}: ${s.name ?? ""}`}
                     title=${this._t("map")}

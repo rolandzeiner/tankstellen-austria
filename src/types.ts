@@ -111,6 +111,11 @@ export interface TankstellenAustriaCardConfig extends LovelaceCardConfig {
 
   show_index?: boolean;
   show_map_links?: boolean;
+  // Where the navigation link opens. "auto" (also the absent-key default)
+  // routes per device: Apple Maps on iOS, geo: chooser on Android, Google
+  // Maps on desktop. "google" / "apple" force that provider everywhere
+  // (Apple Maps falls back to its web app on non-Apple devices).
+  map_provider?: "auto" | "google" | "apple";
   show_distance?: boolean;
   // Order the station list by `distance_m` (nearest first) instead of the
   // integration's cheapest-first order. Independent of `show_distance` —
