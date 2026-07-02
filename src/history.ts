@@ -89,8 +89,3 @@ export async function fetchHistory(
 export function getCachedHistory(entityId: string): HistoryPoint[] {
   return cache.get(entityId) ?? [];
 }
-
-export function clearHistoryCache(): void {
-  cache.clear();
-  inflight.clear();
-}

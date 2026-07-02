@@ -36,10 +36,12 @@ MIN_POLL_MINUTES: Final = 10
 MAX_POLL_MINUTES: Final = 720
 DEFAULT_INCLUDE_CLOSED = True
 
-# Dynamic mode rate-limiting
+# Dynamic mode rate-limiting. Manual-refresh cooldown lives card-side
+# (`DYNAMIC_MANUAL_COOLDOWN_MS` in src/const.ts) because that's where the
+# button and the countdown UI sit — the integration's `async_request_refresh`
+# is already debounced (15s) so a Python mirror would be redundant.
 DYNAMIC_DISTANCE_THRESHOLD_M = 1500    # metres moved before triggering update
 DYNAMIC_COOLDOWN_MINUTES = 10          # min between auto-updates per entry
-DYNAMIC_MANUAL_COOLDOWN_MINUTES = 2    # min between manual card refreshes
 DYNAMIC_DOMAIN_COOLDOWN_MINUTES = 5    # min between ANY update across all entries
 DYNAMIC_SAFETY_INTERVAL_HOURS = 6      # fallback timer when no movement detected
 
@@ -84,3 +86,12 @@ ATTRIBUTION: Final = "Datenquelle: E-Control"
 
 # Retry delay when the API returns no station data (e.g. mid-update window)
 NO_DATA_RETRY_MINUTES = 10
+
+# Exponential-backoff cap for consecutive `_async_update_data` failures.
+# Bound to MAX_POLL_MINUTES (12 h) so a sustained E-Control outage settles
+# into a slow poll instead of hammering the API every 30 min × 24 = 48
+# retries/day. The first failure stays at the user-configured cadence
+# (transient hiccups shouldn't slow down the loop); from the second failure
+# onwards the interval doubles each tick, capped here, until the next
+# success resets it.
+BACKOFF_CAP_SECONDS: Final = MAX_POLL_MINUTES * 60

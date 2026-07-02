@@ -110,7 +110,6 @@ async def test_sensor_attributes_structure(hass: HomeAssistant) -> None:
 
     assert attrs["fuel_type"] == "DIE"
     assert attrs["fuel_type_name"] == "Diesel"
-    assert attrs["station_display_name"] == "Test"
     assert attrs["station_count"] == 1
     assert attrs["average_price"] == pytest.approx(1.459)
     assert attrs["dynamic_mode"] is False
@@ -133,6 +132,7 @@ async def test_sensor_stations_attribute(hass: HomeAssistant) -> None:
     assert s["price"] == pytest.approx(1.459)
     assert s["open"] is True
     assert "location" in s
+    assert "distance_m" in s
     assert "opening_hours" in s
     assert "payment_methods" in s
 

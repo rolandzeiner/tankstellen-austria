@@ -210,7 +210,92 @@ async def test_connection_test_sends_canonical_user_agent(hass: HomeAssistant) -
 
     assert session.get.called
     headers = session.get.call_args.kwargs["headers"]
-    assert headers == {"User-Agent": USER_AGENT}
+    assert headers == {
+        "User-Agent": USER_AGENT,
+        "Accept-Encoding": "gzip",
+    }
+
+
+async def test_options_flow_syncs_unique_id_on_location_change(
+    hass: HomeAssistant, mock_fetch
+) -> None:
+    """Changing location via the options flow rewrites the entry's unique_id.
+
+    Regression guard: before this fix the options flow stored the new
+    location in entry.options but left the entry's unique_id pointing at
+    the old coordinates, so a subsequent ``async_step_user`` at the new
+    coordinates would not be recognised as duplicate. The reconfigure flow
+    has always kept this invariant; the options flow now mirrors it.
+    """
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    await hass.config_entries.flow.async_configure(result["flow_id"], VALID_USER_INPUT)
+    entry = hass.config_entries.async_entries(DOMAIN)[0]
+    original_unique_id = entry.unique_id
+
+    new_lat, new_lng = 47.0707, 15.4395  # Graz
+    options = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await hass.config_entries.options.async_configure(
+        options["flow_id"],
+        {
+            "location": {"latitude": new_lat, "longitude": new_lng},
+            CONF_FUEL_TYPES: ["DIE"],
+            CONF_INCLUDE_CLOSED: True,
+            CONF_SCAN_INTERVAL: 30,
+        },
+    )
+    assert result["type"] == FlowResultType.CREATE_ENTRY
+    assert entry.unique_id != original_unique_id
+    assert entry.unique_id == f"{round(new_lat, 3)}_{round(new_lng, 3)}"
+    await hass.async_block_till_done()
+
+
+async def test_options_flow_blocks_collision_with_other_entry(
+    hass: HomeAssistant, mock_fetch
+) -> None:
+    """Options flow refuses a location change that would collide with another entry.
+
+    Without the duplicate check the two entries would end up sharing the
+    same identity in spirit (location) while keeping distinct entry_ids —
+    a state HA's unique_id machinery isn't designed for.
+    """
+    # First entry at the Vienna coords.
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    await hass.config_entries.flow.async_configure(result["flow_id"], VALID_USER_INPUT)
+
+    # Second entry at Graz coords.
+    graz_lat, graz_lng = 47.0707, 15.4395
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {**VALID_USER_INPUT, "name": "Graz", "location": {"latitude": graz_lat, "longitude": graz_lng}},
+    )
+
+    entries = hass.config_entries.async_entries(DOMAIN)
+    assert len(entries) == 2
+    graz_entry = next(e for e in entries if e.title == "Graz")
+    graz_original_unique_id = graz_entry.unique_id
+
+    # Try to move the Graz entry onto the Vienna coords via options.
+    options = await hass.config_entries.options.async_init(graz_entry.entry_id)
+    result = await hass.config_entries.options.async_configure(
+        options["flow_id"],
+        {
+            "location": VALID_USER_INPUT["location"],
+            CONF_FUEL_TYPES: ["DIE"],
+            CONF_INCLUDE_CLOSED: True,
+            CONF_SCAN_INTERVAL: 30,
+        },
+    )
+    assert result["type"] == FlowResultType.FORM
+    assert result["errors"].get("base") == "already_configured"
+    # unique_id must not have been mutated on the collision path.
+    assert graz_entry.unique_id == graz_original_unique_id
 
 
 async def test_options_flow_no_fuel_type(hass: HomeAssistant, mock_fetch) -> None:
@@ -291,8 +376,9 @@ async def test_reconfigure_updates_entry_data_and_keeps_unique_id(
     assert refreshed.data[CONF_FUEL_TYPES] == ["DIE"]
     assert refreshed.data[CONF_SCAN_INTERVAL] == 60
     assert refreshed.data[CONF_INCLUDE_CLOSED] is False
-    # Drain the reload task spawned by async_update_reload_and_abort so
-    # its coordinator first-refresh completes before fixture teardown.
+    # Drain the single reload task spawned by the update listener (fired by
+    # async_update_and_abort's entry-data change) so its coordinator
+    # first-refresh completes before fixture teardown.
     await hass.async_block_till_done()
 
 

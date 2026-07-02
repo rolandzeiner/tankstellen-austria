@@ -28,8 +28,16 @@ export interface HassEntity {
  *  otherwise) and HA core has shipped both since well before our
  *  `requirements.txt` floor. Anything beyond these lives untyped and
  *  is read with a cast at the call site. */
+/** Minimal entity-registry shape — only `platform` is read, by the card
+ *  picker's `getEntitySuggestion` to gate suggestions to this integration's
+ *  own entities (registry platform === integration domain). */
+export interface RegistryEntity {
+  platform?: string;
+}
+
 export interface HomeAssistant {
   states: Record<string, HassEntity>;
+  entities?: Record<string, RegistryEntity>;
   language?: string;
   themes?: { darkMode?: boolean } & Record<string, unknown>;
   config?: { time_zone?: string } & Record<string, unknown>;
@@ -103,6 +111,16 @@ export interface TankstellenAustriaCardConfig extends LovelaceCardConfig {
 
   show_index?: boolean;
   show_map_links?: boolean;
+  // Where the navigation link opens. "auto" (also the absent-key default)
+  // routes per device: Apple Maps on iOS, geo: chooser on Android, Google
+  // Maps on desktop. "google" / "apple" force that provider everywhere
+  // (Apple Maps falls back to its web app on non-Apple devices).
+  map_provider?: "auto" | "google" | "apple";
+  show_distance?: boolean;
+  // Order the station list by `distance_m` (nearest first) instead of the
+  // integration's cheapest-first order. Independent of `show_distance` —
+  // sorting works even when the caption is hidden. Defaults to false.
+  sort_by_distance?: boolean;
   show_opening_hours?: boolean;
   show_payment_methods?: boolean;
   show_history?: boolean;
@@ -172,6 +190,9 @@ export interface Station {
   price?: number;
   open?: boolean;
   location?: StationLocation;
+  // As-the-crow-flies distance (metres) from the reference point, stamped by
+  // the coordinator. Absent when the station has no usable coordinates.
+  distance_m?: number;
   opening_hours?: OpeningHours[];
   payment_methods?: PaymentMethods;
 }
@@ -180,9 +201,6 @@ export interface TankstellenEntityAttributes {
   friendly_name?: string;
   fuel_type?: FuelType | string;
   fuel_type_name?: string;
-  // Locale-agnostic display name from the integration entry title.
-  // Card consumes this instead of regex-stripping `friendly_name`.
-  station_display_name?: string;
   stations?: Station[];
   average_price?: number;
   dynamic_mode?: boolean;

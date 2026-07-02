@@ -84,6 +84,68 @@ async def test_api_failure_raises_update_failed(hass: HomeAssistant) -> None:
         await coordinator._async_update_data()
 
 
+async def test_consecutive_failures_apply_exponential_backoff(
+    hass: HomeAssistant,
+) -> None:
+    """Sustained outages double the update_interval each tick, capped, then reset.
+
+    First failure stays at the user-configured cadence; from the second
+    onwards interval doubles and is capped at BACKOFF_CAP_SECONDS. A success
+    resets back to the normal interval. Without this gate, an extended
+    E-Control outage would burn 48 retries/day at the default 30-min cadence.
+    """
+    from datetime import timedelta
+
+    from custom_components.tankstellen_austria.const import BACKOFF_CAP_SECONDS
+
+    entry = _make_entry({CONF_SCAN_INTERVAL: 30})
+    entry.add_to_hass(hass)
+    coordinator = TankstellenCoordinator(hass, entry)
+    normal = coordinator._normal_interval
+    assert normal == timedelta(minutes=30)
+    assert coordinator.update_interval == normal
+
+    with patch(
+        "custom_components.tankstellen_austria.coordinator.TankstellenCoordinator._fetch",
+        side_effect=Exception("connection refused"),
+    ):
+        # 1st failure: still at normal cadence (transient hiccup, don't slow)
+        with pytest.raises(UpdateFailed):
+            await coordinator._async_update_data()
+        assert coordinator._consecutive_failures == 1
+        assert coordinator.update_interval == normal
+
+        # 2nd failure: 60 min (×2)
+        with pytest.raises(UpdateFailed):
+            await coordinator._async_update_data()
+        assert coordinator._consecutive_failures == 2
+        assert coordinator.update_interval == timedelta(minutes=60)
+
+        # 3rd failure: 120 min (×4)
+        with pytest.raises(UpdateFailed):
+            await coordinator._async_update_data()
+        assert coordinator.update_interval == timedelta(minutes=120)
+
+    # Recovery: a single success snaps back to normal
+    with patch(
+        "custom_components.tankstellen_austria.coordinator.TankstellenCoordinator._fetch",
+        return_value=[MOCK_STATION],
+    ):
+        await coordinator._async_update_data()
+    assert coordinator._consecutive_failures == 0
+    assert coordinator.update_interval == normal
+
+    # Cap exercise: drive the counter high enough to clamp
+    with patch(
+        "custom_components.tankstellen_austria.coordinator.TankstellenCoordinator._fetch",
+        side_effect=Exception("still down"),
+    ):
+        for _ in range(20):
+            with pytest.raises(UpdateFailed):
+                await coordinator._async_update_data()
+    assert coordinator.update_interval.total_seconds() == BACKOFF_CAP_SECONDS
+
+
 async def test_fetch_rejects_non_list_payload(hass: HomeAssistant) -> None:
     """Non-list JSON (e.g. a dict error envelope) must raise UpdateFailed.
 
@@ -105,6 +167,60 @@ async def test_fetch_rejects_non_list_payload(hass: HomeAssistant) -> None:
     with pytest.raises(UpdateFailed) as exc:
         await coordinator._fetch("DIE", 48.0, 16.0)
     assert exc.value.translation_key == "api_invalid_response"
+
+
+async def test_fetch_stamps_distance_from_reference(hass: HomeAssistant) -> None:
+    """_fetch adds rounded `distance_m` (Luftlinie) from the reference point.
+
+    Distance is measured against the `lat,lng` passed into _fetch — the live
+    fetch origin — so the value tracks the dynamic position automatically.
+    """
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+    coordinator = TankstellenCoordinator(hass, entry)
+
+    # Two stations ~1.1 km apart; reference is the first station's coordinates,
+    # so station A is ~0 m and station B is a few hundred metres away.
+    payload = [
+        {"prices": [{"amount": 1.0}], "location": {"latitude": 48.20, "longitude": 16.40}},
+        {"prices": [{"amount": 1.1}], "location": {"latitude": 48.21, "longitude": 16.41}},
+    ]
+    resp = MagicMock()
+    resp.raise_for_status = MagicMock()
+    resp.json = AsyncMock(return_value=payload)
+    resp.status = 200
+    coordinator._session = MagicMock()
+    coordinator._session.get = MagicMock(return_value=make_response_cm(resp))
+
+    stations = await coordinator._fetch("DIE", 48.20, 16.40)
+
+    assert stations[0]["distance_m"] == 0
+    # Reference→B is ~1.2 km; assert it's a sane positive integer in range.
+    assert isinstance(stations[1]["distance_m"], int)
+    assert 1000 <= stations[1]["distance_m"] <= 1500
+
+
+async def test_fetch_omits_distance_when_coords_missing(hass: HomeAssistant) -> None:
+    """Stations without usable coordinates get no `distance_m` key (no crash)."""
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+    coordinator = TankstellenCoordinator(hass, entry)
+
+    payload = [
+        {"prices": [{"amount": 1.0}], "location": {}},
+        {"prices": [{"amount": 1.1}]},  # no location at all
+    ]
+    resp = MagicMock()
+    resp.raise_for_status = MagicMock()
+    resp.json = AsyncMock(return_value=payload)
+    resp.status = 200
+    coordinator._session = MagicMock()
+    coordinator._session.get = MagicMock(return_value=make_response_cm(resp))
+
+    stations = await coordinator._fetch("DIE", 48.0, 16.0)
+
+    assert "distance_m" not in stations[0]
+    assert "distance_m" not in stations[1]
 
 
 async def test_coordinator_fetch_sends_canonical_user_agent(hass: HomeAssistant) -> None:
@@ -148,7 +264,10 @@ async def test_coordinator_fetch_sends_canonical_user_agent(hass: HomeAssistant)
 
     assert coordinator._session.get.called
     headers = coordinator._session.get.call_args.kwargs["headers"]
-    assert headers == {"User-Agent": USER_AGENT}
+    assert headers == {
+        "User-Agent": USER_AGENT,
+        "Accept-Encoding": "gzip",
+    }
 
 
 async def test_config_entry_not_ready_on_first_refresh_failure(

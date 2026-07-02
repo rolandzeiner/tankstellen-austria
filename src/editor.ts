@@ -171,6 +171,21 @@ export class TankstellenAustriaCardEditor
           { name: "hide_header_price", selector: { boolean: {} } },
           { name: "show_index", selector: { boolean: {} } },
           { name: "show_map_links", selector: { boolean: {} } },
+          {
+            name: "map_provider",
+            selector: {
+              select: {
+                mode: "dropdown",
+                options: [
+                  { value: "auto", label: this._et("map_provider_auto") },
+                  { value: "google", label: this._et("map_provider_google") },
+                  { value: "apple", label: this._et("map_provider_apple") },
+                ],
+              },
+            },
+          },
+          { name: "show_distance", selector: { boolean: {} } },
+          { name: "sort_by_distance", selector: { boolean: {} } },
           { name: "show_opening_hours", selector: { boolean: {} } },
           { name: "show_payment_methods", selector: { boolean: {} } },
           { name: "show_history", selector: { boolean: {} } },
@@ -283,6 +298,9 @@ export class TankstellenAustriaCardEditor
       ...this._config,
       ...(value as Partial<TankstellenAustriaCardConfig>),
     };
+    // "auto" is the absent-key default (render() injects it so the
+    // dropdown isn't empty) — don't let it leak into saved YAML.
+    if (next.map_provider === "auto") delete next.map_provider;
     this._config = next;
     fireEvent(this, "config-changed", { config: next });
   };
@@ -302,16 +320,41 @@ export class TankstellenAustriaCardEditor
     const showBestRefuel = this._config.show_best_refuel !== false;
     const showRecorderHint = showHistory && showBestRefuel;
 
+    // Saved entity_ids that no longer resolve in hass.states (integration
+    // removed, sensor disabled, typo in saved YAML). ha-form's entity
+    // selector only flags this with a red outline — silent for screen
+    // readers and easy to miss visually. WCAG 3.3.1 (Error
+    // Identification): surface each missing entity as a user-readable
+    // alert under the sensors selector. The card render path already
+    // skips them (see _renderTabLabelsSection's `!!x.state` filter).
+    const missingEntities = (this._config.entities ?? []).filter(
+      (eid) => !!this.hass && !this.hass.states[eid],
+    );
+
     return html`
       <div class="editor">
         <ha-form
           .hass=${this.hass}
-          .data=${this._config as Record<string, unknown>}
+          .data=${{
+            // Surface the effective default in the map-provider dropdown —
+            // an absent key means "auto", and an empty select would hide
+            // that from the user.
+            map_provider: "auto",
+            ...(this._config as Record<string, unknown>),
+          }}
           .schema=${this._schema()}
           .computeLabel=${this._computeLabel}
           .computeHelper=${this._computeHelper}
           @value-changed=${this._onFormChanged}
         ></ha-form>
+
+        ${missingEntities.map(
+          (eid) => html`
+            <ha-alert alert-type="warning">
+              ${this._et("entity_missing", { entity: eid })}
+            </ha-alert>
+          `,
+        )}
 
         ${showRecorderHint ? this._renderRecorderHint() : nothing}
         ${this._renderTabLabelsSection()}
@@ -328,15 +371,26 @@ export class TankstellenAustriaCardEditor
       <div class="recorder-hint">
         <div class="recorder-hint-text">${this._et("recorder_hint_intro")}</div>
         <pre class="recorder-snippet"><code>${snippet}</code></pre>
-        <button
-          class="recorder-copy-btn"
-          type="button"
-          aria-label=${this._et("copy_sensor_id")}
-          @click=${() => this._onCopyRecorderSnippet(snippet)}
-        >
-          <ha-icon icon="mdi:content-copy" aria-hidden="true"></ha-icon>
-          <span class="recorder-copy-label">${label}</span>
-        </button>
+        <div class="recorder-hint-actions">
+          <button
+            class="recorder-copy-btn"
+            type="button"
+            aria-label=${this._et("copy_sensor_id")}
+            @click=${() => this._onCopyRecorderSnippet(snippet)}
+          >
+            <ha-icon icon="mdi:content-copy" aria-hidden="true"></ha-icon>
+            <span class="recorder-copy-label">${label}</span>
+          </button>
+          <a
+            class="recorder-docs-link"
+            href="https://www.home-assistant.io/integrations/recorder/"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <ha-icon icon="mdi:open-in-new" aria-hidden="true"></ha-icon>
+            <span>${this._et("recorder_hint_docs")}</span>
+          </a>
+        </div>
       </div>
     `;
   }

@@ -49,6 +49,7 @@ from .const import (
     MIN_POLL_MINUTES,
     USER_AGENT,
 )
+from .http import base_request_headers
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -69,7 +70,7 @@ async def _test_api_connection(
         async with session.get(
             url,
             params=params,
-            headers={"User-Agent": USER_AGENT},
+            headers=base_request_headers(USER_AGENT),
             timeout=aiohttp.ClientTimeout(total=10),
         ) as resp:
             resp.raise_for_status()
@@ -194,7 +195,7 @@ def _build_entry_data(
 
 
 def _compute_unique_id(dynamic_entity: str | None, lat: float, lng: float) -> str:
-    """Same formula used since v1.0 — must not change or existing entries break."""
+    """Stable formula since v1.2.1 — must not change or existing entries break."""
     if dynamic_entity:
         return f"dynamic_{dynamic_entity}"
     return f"{round(lat, 3)}_{round(lng, 3)}"
@@ -233,7 +234,7 @@ class TankstellenConfigFlow(ConfigFlow, domain=DOMAIN):
                     await self.async_set_unique_id(
                         _compute_unique_id(dynamic_entity, lat, lng)
                     )
-                    self._abort_if_unique_id_configured()
+                    self._abort_if_unique_id_configured(reload_on_update=False)
 
                     title = user_input.get("name", "Tankstellen")
                     return self.async_create_entry(
@@ -277,7 +278,7 @@ class TankstellenConfigFlow(ConfigFlow, domain=DOMAIN):
                     # the new unique_id matches a *different* existing entry.
                     await self.async_set_unique_id(new_unique_id)
                     self._abort_if_unique_id_mismatch()
-                    return self.async_update_reload_and_abort(
+                    return self.async_update_and_abort(
                         entry,
                         data=_build_entry_data(user_input, lat, lng, fuel_types),
                     )
@@ -307,9 +308,29 @@ class TankstellenOptionsFlow(OptionsFlow):
                 if not await _test_api_connection(self.hass, lat, lng, fuel_types[0]):
                     errors["base"] = "cannot_connect"
                 else:
-                    return self.async_create_entry(
-                        data=_build_entry_data(user_input, lat, lng, fuel_types)
-                    )
+                    # Options-flow form lets the user change location and
+                    # dynamic_entity — both feed into `unique_id`. Reconfigure
+                    # already keeps unique_id in sync; mirror that here so the
+                    # two paths can't drift, otherwise a later "Add Entry" at
+                    # the new coordinates would not be recognised as duplicate.
+                    dynamic_entity = user_input.get(CONF_DYNAMIC_ENTITY) or None
+                    new_unique_id = _compute_unique_id(dynamic_entity, lat, lng)
+                    if new_unique_id != self.config_entry.unique_id:
+                        for other in self.hass.config_entries.async_entries(DOMAIN):
+                            if (
+                                other.entry_id != self.config_entry.entry_id
+                                and other.unique_id == new_unique_id
+                            ):
+                                errors["base"] = "already_configured"
+                                break
+                        else:
+                            self.hass.config_entries.async_update_entry(
+                                self.config_entry, unique_id=new_unique_id
+                            )
+                    if not errors:
+                        return self.async_create_entry(
+                            data=_build_entry_data(user_input, lat, lng, fuel_types)
+                        )
 
         return self.async_show_form(
             step_id="init",

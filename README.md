@@ -16,7 +16,8 @@ and CNG. No API key required.
 
 - **Config-flow setup** with map picker for coordinates and per-entry options
 - **One sensor per fuel type** — state = cheapest price, attributes carry all 5 stations (name, address, opening hours, payment methods, coordinates)
-- **Custom Lovelace card** with fuel-type tabs, expandable station detail, map links, 7-day price sparkline, hour-of-day envelope band, and a best-refuel-time **window** highlighted on the chart
+- **Custom Lovelace card** with fuel-type tabs, expandable station detail, navigation links that open your device's maps app (or one you pick) *(1.9.2)*, 7-day price sparkline, hour-of-day envelope band, and a best-refuel-time **window** highlighted on the chart
+- **Distance per station** — see how far each station is (as the crow flies) under its map pin, and optionally sort the list nearest-first *(1.9.2)*
 - **Dynamic mode** — bind a `device_tracker` so prices follow you as you drive (with distance threshold and rate-limit guards)
 - **Payment-method filter / highlight** — show only stations accepting your card, or keep all visible with matches highlighted in green
 - **Car fill-up cost widget** — define cars and see total fill-up cost (and €/100 km) at the cheapest station for that fuel type

@@ -23,10 +23,10 @@ export const cardStyles = css`
        :host also needs these — duplicated there. See ha-portfolio-design
        § 4 "Multi-card integrations — every shadow scope needs the
        tokens" for why. */
-    --tankst-rt:      var(--ha-color-success, #4caf50);
-    --tankst-warning: var(--ha-color-warning, #ffa000);
-    --tankst-error:   var(--ha-color-error,   #db4437);
-    --tankst-info:    var(--ha-color-info,    #1565c0);
+    --tankst-rt:      var(--success-color, #4caf50);
+    --tankst-warning: var(--warning-color, #ffa000);
+    --tankst-error:   var(--error-color,   #db4437);
+    --tankst-info:    var(--info-color,    #1565c0);
 
     /* Spacing / radius / sizing — layered over the HA Design System
        so the card moves with HA when tokens evolve. Hard-coded values
@@ -150,8 +150,8 @@ export const cardStyles = css`
   }
   .icon-tile {
     /* Modern HA tile-card vocabulary: rounded square, accent-tinted
-       background, accent-coloured icon. Replaces the old inline
-       fuel-icon and gives the card immediate visual identity. */
+       background, accent-coloured icon. Gives the card immediate visual
+       identity in dashboards. */
     width: var(--tankst-tile-size);
     height: var(--tankst-tile-size);
     border-radius: var(--tankst-radius-md);
@@ -228,6 +228,38 @@ export const cardStyles = css`
   .icon-action:hover {
     background: color-mix(in srgb, var(--primary-color) 12%, transparent);
     color: var(--primary-color);
+  }
+
+  /* Map-pin action and its distance caption stacked as one column, so the
+     Luftlinie value reads as an annotation to the pin rather than a
+     free-floating number. The pin keeps the only interactive affordance;
+     the caption stays quiet (muted, tabular so values align down the list,
+     tight line-height so it tucks under the pin circle — which shrinks via
+     .has-distance below so the column never exceeds the 40px standalone
+     pin and the row height stays put). */
+  .map-action {
+    flex-shrink: 0;
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1px;
+  }
+  .distance {
+    font-size: 0.68rem;
+    line-height: 1;
+    color: var(--secondary-text-color);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+  }
+  /* With the caption present, shrink the pin circle so the stacked column
+     (28px pin + 1px gap + ~11px caption) matches the 40px standalone pin —
+     toggling show_distance must not change the row height. 28px keeps the
+     tap target above the WCAG 2.2 24px minimum. */
+  .map-action.has-distance .icon-action {
+    width: 28px;
+    height: 28px;
+    --mdc-icon-size: 16px;
   }
 
   /* ── Hero metric ────────────────────────────────────────────────── */
@@ -665,10 +697,6 @@ export const cardStyles = css`
     white-space: nowrap;
     flex-shrink: 0;
   }
-  /* Map link — circular icon-action sized for touch (40×40). */
-  .icon-action.map {
-    /* Wrap the existing .icon-action surface to match prior placement. */
-  }
   /* Chevron arrow indicating collapsibility. Rotates 180° on
      aria-expanded="true" so the cue follows the WAI-ARIA state without
      a bespoke CSS class — same pattern as wiener-linien-austria. */
@@ -910,10 +938,10 @@ export const editorStyles = css`
     color-scheme: light dark;
     display: block;
 
-    --tankst-rt:      var(--ha-color-success, #4caf50);
-    --tankst-warning: var(--ha-color-warning, #ffa000);
-    --tankst-error:   var(--ha-color-error,   #db4437);
-    --tankst-info:    var(--ha-color-info,    #1565c0);
+    --tankst-rt:      var(--success-color, #4caf50);
+    --tankst-warning: var(--warning-color, #ffa000);
+    --tankst-error:   var(--error-color,   #db4437);
+    --tankst-info:    var(--info-color,    #1565c0);
   }
   .editor {
     padding: 16px;
@@ -969,8 +997,14 @@ export const editorStyles = css`
     overflow-x: auto;
     white-space: pre;
   }
-  .recorder-copy-btn {
+  .recorder-hint-actions {
     margin-top: 6px;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .recorder-copy-btn {
     display: inline-flex;
     align-items: center;
     gap: 4px;
@@ -986,8 +1020,20 @@ export const editorStyles = css`
   .recorder-copy-btn:hover {
     background: var(--primary-background-color);
   }
-  .recorder-copy-btn ha-icon {
+  .recorder-copy-btn ha-icon,
+  .recorder-docs-link ha-icon {
     --mdc-icon-size: 14px;
+  }
+  .recorder-docs-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.75rem;
+    color: var(--primary-color);
+    text-decoration: none;
+  }
+  .recorder-docs-link:hover {
+    text-decoration: underline;
   }
 
   /* Tab labels */

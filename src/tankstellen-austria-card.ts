@@ -39,8 +39,7 @@ import {
   matchingPaymentMethods,
 } from "./utils/payment";
 import { isClosingSoon } from "./utils/station";
-import { escHtml } from "./utils/html";
-import { formatPrice, mapsUrl } from "./utils/price";
+import { formatDistance, formatPrice, mapsUrl } from "./utils/price";
 import {
   getFuelName,
   getWeekdays,
@@ -48,7 +47,7 @@ import {
   translate,
   type TranslateContext,
 } from "./localize/localize";
-import { fetchHistory, type HistoryPoint } from "./history";
+import { fetchHistory, getCachedHistory, type HistoryPoint } from "./history";
 import {
   attachSparklineHover,
   buildSparkline,
@@ -66,9 +65,12 @@ import {
   reloadAfterCacheWipe,
 } from "./shared-render";
 import {
+  detectNavPlatform,
   E_CONTROL_HOMEPAGE,
   E_CONTROL_LOGO_URL,
+  resolveMapLinkKind,
   safeHttpsUri,
+  safeNavUri,
 } from "./utils";
 
 // Eager-register the editor element. With `inlineDynamicImports: true` the
@@ -90,6 +92,13 @@ interface WindowWithCustomCards extends Window {
     description: string;
     preview?: boolean;
     documentationURL?: string;
+    // Opt into the 2026.6 entity-first card picker. Additive key older HA
+    // ignores; returns a one-entity stub for this integration's own sensors
+    // (the user can extend `entities` afterwards).
+    getEntitySuggestion?: (
+      hass: HomeAssistant,
+      entityId: string,
+    ) => { config: Record<string, unknown> } | null;
   }>;
 }
 
@@ -102,6 +111,17 @@ interface WindowWithCustomCards extends Window {
     "Austrian fuel prices from E-Control with sparklines and best-refuel analytics.",
   preview: true,
   documentationURL: "https://github.com/rolandzeiner/tankstellen-austria",
+  getEntitySuggestion: (hass: HomeAssistant, entityId: string) => {
+    if (!entityId.startsWith("sensor.")) return null;
+    if (hass?.entities?.[entityId]?.platform !== "tankstellen_austria")
+      return null;
+    return {
+      config: {
+        type: "custom:tankstellen-austria-card",
+        entities: [entityId],
+      },
+    };
+  },
 });
 
 @customElement("tankstellen-austria-card")
@@ -119,6 +139,7 @@ export class TankstellenAustriaCard extends LitElement {
       max_stations: 5,
       show_index: true,
       show_map_links: true,
+      show_distance: true,
       show_opening_hours: true,
       show_payment_methods: true,
       show_history: true,
@@ -173,6 +194,24 @@ export class TankstellenAustriaCard extends LitElement {
       );
     }
     this._config = normaliseConfig(config);
+    // Editor-preview rebuilds the card instance on every config change.
+    // Without this seed, each rebuild starts with empty `_history` and
+    // the sparkline returns `nothing` until the async `_fetchAllHistory`
+    // completes — visible flicker. The module-scope cache in history.ts
+    // survives across instances, so reading it synchronously here means
+    // the FIRST render of a fresh instance already has data.
+    if (this._config.entities) {
+      const seed: Record<string, HistoryPoint[]> = {};
+      let any = false;
+      for (const eid of this._config.entities) {
+        const cached = getCachedHistory(eid);
+        if (cached.length >= 2) {
+          seed[eid] = cached;
+          any = true;
+        }
+      }
+      if (any) this._history = { ...this._history, ...seed };
+    }
   }
 
   public getCardSize(): number {
@@ -746,24 +785,21 @@ export class TankstellenAustriaCard extends LitElement {
     }
 
     const levelLabel = this._t(`confidence_${c.level}`);
-    const tooltipLines: string[] = [
-      `${this._t("confidence_title")}: ${levelLabel}`,
-      `• ${this._t("confidence_span")}: ${c.span_days} ${this._t("confidence_days")}`,
-      `• ${this._t("confidence_coverage")}: ${c.coverage_pct}%`,
-      `• ${this._t("confidence_gap")}: ${c.gap_cents.toFixed(1)} ${this._t("confidence_cents")}`,
-    ];
-    if (c.span_days < 14) {
-      tooltipLines.push("", this._t("confidence_short_history_hint"));
-    }
-    const tooltip = escHtml(tooltipLines.join("\n"));
-    const badgeClass = `refuel-confidence refuel-confidence-${c.level}`;
-
-    const badgeAriaLabel = [
+    // One breakdown string drives both `title` (desktop hover tooltip) and
+    // `aria-label` (screen-reader name). The HTML title attribute collapses
+    // newlines to spaces, so we use ". " as the visual separator and rely
+    // on the browser's own line-wrapping for the tooltip.
+    const breakdownParts: string[] = [
       `${this._t("confidence_title")}: ${levelLabel}`,
       `${this._t("confidence_span")}: ${c.span_days} ${this._t("confidence_days")}`,
       `${this._t("confidence_coverage")}: ${c.coverage_pct}%`,
       `${this._t("confidence_gap")}: ${c.gap_cents.toFixed(1)} ${this._t("confidence_cents")}`,
-    ].join(". ");
+    ];
+    if (c.span_days < 14) {
+      breakdownParts.push(this._t("confidence_short_history_hint"));
+    }
+    const breakdown = breakdownParts.join(". ");
+    const badgeClass = `refuel-confidence refuel-confidence-${c.level}`;
 
     return html`
       <div class="refuel-recommendation">
@@ -771,8 +807,8 @@ export class TankstellenAustriaCard extends LitElement {
         <span class="refuel-text">${text}</span>
         <span
           class=${badgeClass}
-          title=${tooltip}
-          aria-label=${badgeAriaLabel}
+          title=${breakdown}
+          aria-label=${breakdown}
         >${levelLabel}</span>
       </div>
     `;
@@ -906,7 +942,20 @@ export class TankstellenAustriaCard extends LitElement {
       return html`<div class="empty">${this._t("no_data")}</div>`;
     }
 
-    const display = filtered.slice(0, maxStations);
+    // Opt-in re-sort: the integration delivers stations cheapest-first;
+    // when enabled, order by Luftlinie instead. `sort` is stable, so
+    // stations without a stamped `distance_m` sink to the tail while
+    // keeping their cheapest-first order among themselves.
+    const ordered =
+      this._config.sort_by_distance === true
+        ? [...filtered].sort(
+            (a, b) =>
+              (a.distance_m ?? Number.POSITIVE_INFINITY) -
+              (b.distance_m ?? Number.POSITIVE_INFINITY),
+          )
+        : filtered;
+
+    const display = ordered.slice(0, maxStations);
     return html`
       <div class="stations">
         ${display.map((s, idx) =>
@@ -925,11 +974,24 @@ export class TankstellenAustriaCard extends LitElement {
   ): TemplateResult {
     const showIndex = this._config.show_index !== false;
     const showMapLinks = this._config.show_map_links !== false;
+    // Opt-in: render only when explicitly enabled. An existing card config
+    // predating this feature has no `show_distance` key, so it stays hidden
+    // (and the editor toggle, which reads absent as off, agrees). New cards
+    // get `show_distance: true` from getStubConfig, so the feature shows by
+    // default there while toggle and behaviour stay consistent.
+    const showDistance = this._config.show_distance === true;
     const showHours = this._config.show_opening_hours !== false;
     const showPayment = this._config.show_payment_methods !== false;
     const loc = s.location ?? {};
 
-    const key = `${activeTab}-${idx}`;
+    // Key the expanded-state on station identity, not list position.
+    // Stations are sorted cheapest-first by the integration, so position
+    // shifts whenever prices update — keying on `${activeTab}-${idx}` would
+    // leave the detail panel attached to whichever station now occupies the
+    // old slot. `name|address` is the stable identifier the API exposes; the
+    // tab prefix keeps state per-fuel-type even though `_onTabClick` already
+    // clears the set on tab switch (belt-and-braces).
+    const key = `${activeTab}|${s.name ?? ""}|${loc.address ?? ""}`;
     const isExpanded = this._expandedStations.has(key);
     const isClosed = s.open === false;
     const isClosingSoonFlag = !isClosed && isClosingSoon(s);
@@ -961,6 +1023,23 @@ export class TankstellenAustriaCard extends LitElement {
     const hasName = !!s.name;
     const cityText = loc.city ?? "";
     const addressText = loc.address ?? "";
+    // Build the address row from whichever parts the API supplied. Rural
+    // stations often have only a postal code (no city, no street); the
+    // previous template emitted a literal comma + space regardless, which
+    // rendered as e.g. "4310 ," for those. Locality (PLZ + city) and street
+    // each get their own `<span lang="de">` for screen-reader pronunciation
+    // and join with ", " only when both are present.
+    const localityText = [loc.postalCode, cityText]
+      .filter((p): p is string | number => p != null && p !== "")
+      .join(" ");
+    const localityTpl = localityText
+      ? html`<span lang="de">${localityText}</span>`
+      : nothing;
+    const addressTpl = addressText
+      ? html`<span lang="de">${addressText}</span>`
+      : nothing;
+    const addressSeparator =
+      localityTpl !== nothing && addressTpl !== nothing ? ", " : "";
     return html`
       <div class=${classMap({ station: true, "pm-highlight": highlighted })}>
         <div
@@ -994,41 +1073,68 @@ export class TankstellenAustriaCard extends LitElement {
               )}
             </div>
             <div class="address">
-              ${loc.postalCode ?? ""}${cityText
-                ? html` <span lang="de">${cityText}</span>`
-                : nothing},
-              ${addressText
-                ? html`<span lang="de">${addressText}</span>`
-                : nothing}
+              ${localityTpl}${addressSeparator}${addressTpl}
             </div>
           </div>
           <div class="price">${formatPrice(s.price)}</div>
           ${(() => {
-            if (!showMapLinks) return nothing;
-            const url = safeHttpsUri(mapsUrl(loc, s.name ?? ""));
-            // mapsUrl returns null when neither a station name nor any
-            // location field is available — and safeHttpsUri returns ""
-            // for non-https inputs. Either way, render nothing rather
-            // than an empty <a href> that would reload the page on click.
-            if (!url) return nothing;
-            return html`
-              <a
-                class="icon-action map"
-                href=${url}
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label=${`${this._t("map")}: ${s.name ?? ""}`}
-                title=${this._t("map")}
-                @click=${this._onMapLinkClick}
-              >
-                <ha-icon
-                  icon=${/\d/.test(loc.address ?? "")
-                    ? "mdi:map-marker"
-                    : "mdi:magnify"}
-                  aria-hidden="true"
-                ></ha-icon>
-              </a>
-            `;
+            // Map-pin link to Google Maps, with the Luftlinie distance as a
+            // caption beneath it. Both are optional and independently toggled.
+            let pin: TemplateResult | typeof nothing = nothing;
+            if (showMapLinks) {
+              const linkKind = resolveMapLinkKind(
+                this._config.map_provider ?? "auto",
+                detectNavPlatform(
+                  navigator.userAgent,
+                  navigator.maxTouchPoints,
+                ),
+              );
+              const url = safeNavUri(mapsUrl(loc, s.name ?? "", linkKind));
+              // mapsUrl returns null when neither a station name nor any
+              // location field is available — and safeNavUri returns ""
+              // for URIs outside its allowlist. Either way, skip the <a>
+              // rather than emit an empty href that would reload the page
+              // on click. geo: URIs must navigate in-tab (`_self`) so the
+              // OS intercepts them as an intent; a new tab would be left
+              // blank even when the chooser opens.
+              if (url) {
+                pin = html`
+                  <a
+                    class="icon-action map"
+                    href=${url}
+                    target=${url.startsWith("geo:") ? "_self" : "_blank"}
+                    rel="noopener noreferrer"
+                    aria-label=${`${this._t("map")}: ${s.name ?? ""}`}
+                    title=${this._t("map")}
+                    @click=${this._onMapLinkClick}
+                  >
+                    <ha-icon
+                      icon=${/\d/.test(loc.address ?? "")
+                        ? "mdi:map-marker"
+                        : "mdi:magnify"}
+                      aria-hidden="true"
+                    ></ha-icon>
+                  </a>
+                `;
+              }
+            }
+
+            const distance =
+              showDistance && s.distance_m != null
+                ? html`<span class="distance" lang="de"
+                    >${formatDistance(s.distance_m)}</span
+                  >`
+                : nothing;
+
+            if (pin === nothing && distance === nothing) return nothing;
+            return html`<div
+              class=${classMap({
+                "map-action": true,
+                "has-distance": distance !== nothing,
+              })}
+            >
+              ${pin}${distance}
+            </div>`;
           })()}
           ${hasDetail
             ? html`<ha-icon

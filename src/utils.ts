@@ -25,3 +25,53 @@ export function safeHttpsUri(raw: unknown): string {
   if (typeof raw !== "string") return "";
   return /^https?:\/\//i.test(raw) ? raw : "";
 }
+
+/** Trust-boundary guard for navigation links specifically. Same contract
+ *  as ``safeHttpsUri``, widened by exactly one non-http scheme: the
+ *  Android ``geo:0,0?q=`` maps-chooser URI that ``mapsUrl`` emits. The
+ *  prefix is matched verbatim (not ``geo:`` generally) so the allowlist
+ *  stays as narrow as what we actually generate. */
+export function safeNavUri(raw: unknown): string {
+  if (typeof raw !== "string") return "";
+  if (raw.startsWith("geo:0,0?q=")) return raw;
+  return safeHttpsUri(raw);
+}
+
+/** Where a navigation link should land, resolved from config + device. */
+export type MapLinkKind = "google" | "apple" | "geo";
+
+/** The card-config choice: force a provider, or pick per device. */
+export type MapProvider = "auto" | "google" | "apple";
+
+export type NavPlatform = "ios" | "android" | "desktop";
+
+/** Detect the device family for map-link routing. Pure — UA string and
+ *  touch-point count are injected so tests don't need to stub
+ *  ``navigator``. The ``Macintosh`` + multi-touch branch catches iPads,
+ *  which report a macOS UA since iPadOS 13 (real Macs report
+ *  ``maxTouchPoints`` 0). */
+export function detectNavPlatform(
+  ua: string,
+  maxTouchPoints: number,
+): NavPlatform {
+  if (/iPhone|iPad|iPod/.test(ua)) return "ios";
+  if (/Macintosh/.test(ua) && maxTouchPoints > 1) return "ios";
+  if (/Android/.test(ua)) return "android";
+  return "desktop";
+}
+
+/** Resolve the configured provider to a concrete link kind. ``auto``
+ *  routes per device: Apple Maps universal link on iOS (the HA iOS app
+ *  doesn't forward ``geo:`` URIs), the ``geo:`` chooser on Android
+ *  (native app picker, works in Chrome and the HA companion app), and
+ *  Google Maps on the desktop. A forced provider ignores the device —
+ *  Apple Maps degrades to its web app off-Apple. */
+export function resolveMapLinkKind(
+  provider: MapProvider,
+  platform: NavPlatform,
+): MapLinkKind {
+  if (provider === "google" || provider === "apple") return provider;
+  if (platform === "ios") return "apple";
+  if (platform === "android") return "geo";
+  return "google";
+}
