@@ -1101,7 +1101,14 @@ export class TankstellenAustriaCard extends LitElement {
                 : nothing;
 
             if (pin === nothing && distance === nothing) return nothing;
-            return html`<div class="map-action">${pin}${distance}</div>`;
+            return html`<div
+              class=${classMap({
+                "map-action": true,
+                "has-distance": distance !== nothing,
+              })}
+            >
+              ${pin}${distance}
+            </div>`;
           })()}
           ${hasDetail
             ? html`<ha-icon

@@ -296,8 +296,9 @@ function e(e,t,i,n){var r,a=arguments.length,o=a<3?t:null===n?n=Object.getOwnPro
      Luftlinie value reads as an annotation to the pin rather than a
      free-floating number. The pin keeps the only interactive affordance;
      the caption stays quiet (muted, tabular so values align down the list,
-     tight line-height so it tucks under the 40px circle without adding row
-     height). */
+     tight line-height so it tucks under the pin circle — which shrinks via
+     .has-distance below so the column never exceeds the 40px standalone
+     pin and the row height stays put). */
   .map-action {
     flex-shrink: 0;
     display: inline-flex;
@@ -312,6 +313,15 @@ function e(e,t,i,n){var r,a=arguments.length,o=a<3?t:null===n?n=Object.getOwnPro
     font-variant-numeric: tabular-nums;
     letter-spacing: 0.02em;
     white-space: nowrap;
+  }
+  /* With the caption present, shrink the pin circle so the stacked column
+     (28px pin + 1px gap + ~11px caption) matches the 40px standalone pin —
+     toggling show_distance must not change the row height. 28px keeps the
+     tap target above the WCAG 2.2 24px minimum. */
+  .map-action.has-distance .icon-action {
+    width: 28px;
+    height: 28px;
+    --mdc-icon-size: 16px;
   }
 
   /* ── Hero metric ────────────────────────────────────────────────── */
@@ -1777,7 +1787,11 @@ function e(e,t,i,n){var r,a=arguments.length,o=a<3?t:null===n?n=Object.getOwnPro
                   </a>
                 `)}const i=s&&null!=e.distance_m?V`<span class="distance" lang="de"
                     >${n=e.distance_m,null==n||!Number.isFinite(n)||n<0?"":n<1e3?`${Math.round(n)} m`:`${(n/1e3).toFixed(1).replace(".",",")} km`}</span
-                  >`:G;var n;return t===G&&i===G?G:V`<div class="map-action">${t}${i}</div>`})()}
+                  >`:G;var n;return t===G&&i===G?G:V`<div
+              class=${ye({"map-action":!0,"has-distance":i!==G})}
+            >
+              ${t}${i}
+            </div>`})()}
           ${b?V`<ha-icon
                 class="expander-chevron"
                 icon="mdi:chevron-down"
