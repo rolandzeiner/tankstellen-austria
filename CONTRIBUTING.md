@@ -3,13 +3,15 @@
 ## Dev setup
 
 ```bash
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements_test.txt pre-commit
+uv venv --python 3.14 && source .venv/bin/activate
+uv pip install -r requirements_test.txt pre-commit
 pre-commit install      # runs ruff + mypy + checks on every commit
 
 npm ci                  # Lovelace card deps
 npm run build           # produces custom_components/tankstellen_austria/www/tankstellen-austria-card.js
 ```
+
+CI installs the same way (`astral-sh/setup-uv` + `uv pip install --system`), so a locally passing gate matches what CI resolves. Plain `python -m venv` + `pip` still works if you don't have `uv`.
 
 ## Branching & releases
 
