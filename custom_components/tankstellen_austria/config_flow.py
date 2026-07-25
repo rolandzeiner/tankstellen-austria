@@ -1,4 +1,5 @@
 """Config flow for Tankstellen Austria."""
+
 from __future__ import annotations
 
 import asyncio
@@ -80,13 +81,17 @@ async def _test_api_connection(
     except aiohttp.ClientResponseError as err:
         _LOGGER.warning(
             "API connection test failed with HTTP %s: %s (%s)",
-            err.status, err.message, url,
+            err.status,
+            err.message,
+            url,
         )
         return False
     except aiohttp.ClientError as err:
         _LOGGER.warning(
             "API connection test failed: %s: %s (%s)",
-            type(err).__name__, err, url,
+            type(err).__name__,
+            err,
+            url,
         )
         return False
     except Exception:  # noqa: BLE001 - final safety net so UI still gets cannot_connect
@@ -119,7 +124,9 @@ def _build_schema(
         SelectOptionDict(value=k, label=v) for k, v in FUEL_TYPES.items()
     ]
     fields[
-        vol.Required(CONF_FUEL_TYPES, default=defaults.get(CONF_FUEL_TYPES, ["DIE", "SUP"]))
+        vol.Required(
+            CONF_FUEL_TYPES, default=defaults.get(CONF_FUEL_TYPES, ["DIE", "SUP"])
+        )
     ] = SelectSelector(
         SelectSelectorConfig(
             options=fuel_options,
@@ -128,10 +135,16 @@ def _build_schema(
         )
     )
     fields[
-        vol.Required(CONF_INCLUDE_CLOSED, default=defaults.get(CONF_INCLUDE_CLOSED, DEFAULT_INCLUDE_CLOSED))
+        vol.Required(
+            CONF_INCLUDE_CLOSED,
+            default=defaults.get(CONF_INCLUDE_CLOSED, DEFAULT_INCLUDE_CLOSED),
+        )
     ] = BooleanSelector()
     fields[
-        vol.Required(CONF_SCAN_INTERVAL, default=defaults.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL))
+        vol.Required(
+            CONF_SCAN_INTERVAL,
+            default=defaults.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
+        )
     ] = NumberSelector(
         NumberSelectorConfig(
             min=MIN_POLL_MINUTES,
@@ -187,9 +200,7 @@ def _build_entry_data(
         CONF_INCLUDE_CLOSED: user_input.get(
             CONF_INCLUDE_CLOSED, DEFAULT_INCLUDE_CLOSED
         ),
-        CONF_SCAN_INTERVAL: user_input.get(
-            CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL
-        ),
+        CONF_SCAN_INTERVAL: user_input.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
         CONF_DYNAMIC_ENTITY: user_input.get(CONF_DYNAMIC_ENTITY) or None,
     }
 
@@ -249,7 +260,9 @@ class TankstellenConfigFlow(ConfigFlow, domain=DOMAIN):
         }
         return self.async_show_form(
             step_id="user",
-            data_schema=_build_schema(defaults, include_name=True, include_dynamic=True),
+            data_schema=_build_schema(
+                defaults, include_name=True, include_dynamic=True
+            ),
             errors=errors,
         )
 

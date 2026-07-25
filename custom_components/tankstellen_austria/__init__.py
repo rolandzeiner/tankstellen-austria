@@ -1,4 +1,5 @@
 """Tankstellen Austria – fuel price integration for Austria."""
+
 from __future__ import annotations
 
 import logging
@@ -26,9 +27,7 @@ _LOGGER = logging.getLogger(__name__)
 PLATFORMS: list[Platform] = [Platform.SENSOR]
 
 
-@websocket_command(
-    {vol.Required("type"): "tankstellen_austria/card_version"}
-)
+@websocket_command({vol.Required("type"): "tankstellen_austria/card_version"})
 @async_response
 async def _websocket_card_version(
     hass: HomeAssistant,
@@ -97,17 +96,23 @@ async def async_setup_entry(hass: HomeAssistant, entry: TankstellenConfigEntry) 
     return True
 
 
-async def _async_reload_entry(hass: HomeAssistant, entry: TankstellenConfigEntry) -> None:
+async def _async_reload_entry(
+    hass: HomeAssistant, entry: TankstellenConfigEntry
+) -> None:
     """Reload the config entry when options are updated."""
     await hass.config_entries.async_reload(entry.entry_id)
 
 
-async def async_unload_entry(hass: HomeAssistant, entry: TankstellenConfigEntry) -> bool:
+async def async_unload_entry(
+    hass: HomeAssistant, entry: TankstellenConfigEntry
+) -> bool:
     """Unload a config entry."""
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
 
-async def async_remove_entry(hass: HomeAssistant, entry: TankstellenConfigEntry) -> None:
+async def async_remove_entry(
+    hass: HomeAssistant, entry: TankstellenConfigEntry
+) -> None:
     """Drop the Lovelace resource when the LAST config entry is removed.
 
     Card registration is component-level (one resource per HA install,

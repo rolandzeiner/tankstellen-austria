@@ -1,4 +1,5 @@
 """Tests for the Tankstellen Austria sensor platform."""
+
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -165,6 +166,7 @@ async def test_sensor_include_closed_false_saved(hass: HomeAssistant) -> None:
     """CONF_INCLUDE_CLOSED=False is correctly stored on the coordinator."""
     entry = await _setup_entry(hass, {CONF_INCLUDE_CLOSED: False})
     from custom_components.tankstellen_austria.coordinator import TankstellenCoordinator
+
     coordinator: TankstellenCoordinator = entry.runtime_data
     assert coordinator._include_closed is False
 
@@ -173,6 +175,7 @@ async def test_sensor_include_closed_true_saved(hass: HomeAssistant) -> None:
     """CONF_INCLUDE_CLOSED=True (the default) is correctly stored on the coordinator."""
     entry = await _setup_entry(hass, {CONF_INCLUDE_CLOSED: True})
     from custom_components.tankstellen_austria.coordinator import TankstellenCoordinator
+
     coordinator: TankstellenCoordinator = entry.runtime_data
     assert coordinator._include_closed is True
 
@@ -292,7 +295,8 @@ async def test_sensor_warns_once_on_price_drift(
         from custom_components.tankstellen_austria.sensor import TankstellenSensor
 
         sensor = next(
-            e for e in hass.data["entity_components"]["sensor"].entities  # type: ignore[attr-defined]
+            e
+            for e in hass.data["entity_components"]["sensor"].entities  # type: ignore[attr-defined]
             if isinstance(e, TankstellenSensor)
         )
         caplog.clear()
@@ -335,7 +339,9 @@ async def test_sensor_payment_methods_missing(hass: HomeAssistant) -> None:
         await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
 
-    pm = hass.states.get("sensor.test_diesel").attributes["stations"][0]["payment_methods"]
+    pm = hass.states.get("sensor.test_diesel").attributes["stations"][0][
+        "payment_methods"
+    ]
     assert pm["cash"] is False
     assert pm["debit_card"] is False
     assert pm["credit_card"] is False

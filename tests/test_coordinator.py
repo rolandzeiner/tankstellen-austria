@@ -1,4 +1,5 @@
 """Tests for the Tankstellen Austria coordinator."""
+
 import asyncio
 from datetime import timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -20,7 +21,11 @@ from custom_components.tankstellen_austria.const import (
 )
 from custom_components.tankstellen_austria.coordinator import TankstellenCoordinator
 
-from .conftest import BASE_ENTRY_DATA as _BASE_ENTRY_DATA, MOCK_STATION, make_response_cm
+from .conftest import (
+    BASE_ENTRY_DATA as _BASE_ENTRY_DATA,
+    MOCK_STATION,
+    make_response_cm,
+)
 
 
 def _make_entry(data: dict | None = None) -> MockConfigEntry:
@@ -48,7 +53,9 @@ async def test_fixed_mode_fetch_success(hass: HomeAssistant, mock_fetch) -> None
     assert coordinator.data["DIE"] == [MOCK_STATION]
 
 
-async def test_fixed_mode_uses_configured_coordinates(hass: HomeAssistant, mock_fetch) -> None:
+async def test_fixed_mode_uses_configured_coordinates(
+    hass: HomeAssistant, mock_fetch
+) -> None:
     """Coordinator fetches using the fixed lat/lng from config."""
     entry = _make_entry()
     entry.add_to_hass(hass)
@@ -182,8 +189,14 @@ async def test_fetch_stamps_distance_from_reference(hass: HomeAssistant) -> None
     # Two stations ~1.1 km apart; reference is the first station's coordinates,
     # so station A is ~0 m and station B is a few hundred metres away.
     payload = [
-        {"prices": [{"amount": 1.0}], "location": {"latitude": 48.20, "longitude": 16.40}},
-        {"prices": [{"amount": 1.1}], "location": {"latitude": 48.21, "longitude": 16.41}},
+        {
+            "prices": [{"amount": 1.0}],
+            "location": {"latitude": 48.20, "longitude": 16.40},
+        },
+        {
+            "prices": [{"amount": 1.1}],
+            "location": {"latitude": 48.21, "longitude": 16.41},
+        },
     ]
     resp = MagicMock()
     resp.raise_for_status = MagicMock()
@@ -223,7 +236,9 @@ async def test_fetch_omits_distance_when_coords_missing(hass: HomeAssistant) -> 
     assert "distance_m" not in stations[1]
 
 
-async def test_coordinator_fetch_sends_canonical_user_agent(hass: HomeAssistant) -> None:
+async def test_coordinator_fetch_sends_canonical_user_agent(
+    hass: HomeAssistant,
+) -> None:
     """coordinator._fetch sends RFC-9110 UA: HomeAssistant/<ver> tankstellen_austria/<int_ver>.
 
     Regression guard. Before v1.7.0 the integration's outbound User-Agent was
@@ -314,7 +329,9 @@ async def test_dynamic_mode_property_true_for_tracker(hass: HomeAssistant) -> No
 
 async def test_dynamic_mode_uses_safety_interval(hass: HomeAssistant) -> None:
     """Dynamic mode coordinator uses the 6-hour safety-net interval, not scan_interval."""
-    entry = _make_entry({CONF_DYNAMIC_ENTITY: "device_tracker.phone", CONF_SCAN_INTERVAL: 30})
+    entry = _make_entry(
+        {CONF_DYNAMIC_ENTITY: "device_tracker.phone", CONF_SCAN_INTERVAL: 30}
+    )
     entry.add_to_hass(hass)
     coordinator = TankstellenCoordinator(hass, entry)
     assert coordinator.update_interval == timedelta(hours=6)
@@ -530,7 +547,9 @@ async def test_no_data_without_previous_returns_empty(hass: HomeAssistant) -> No
     assert result == {"DIE": [], "SUP": []}
 
 
-async def test_async_teardown_cancels_pending_no_data_retry(hass: HomeAssistant) -> None:
+async def test_async_teardown_cancels_pending_no_data_retry(
+    hass: HomeAssistant,
+) -> None:
     """async_teardown cancels a scheduled no-data retry."""
     entry = _make_entry()
     entry.add_to_hass(hass)
@@ -660,7 +679,10 @@ async def test_tracker_restored_clears_repair_issue(hass: HomeAssistant) -> None
     # Raise the issue
     coordinator._get_entity_coords(None)
     registry = ir.async_get(hass)
-    assert registry.async_get_issue(DOMAIN, f"tracker_missing_{entry.entry_id}") is not None
+    assert (
+        registry.async_get_issue(DOMAIN, f"tracker_missing_{entry.entry_id}")
+        is not None
+    )
 
     # Now simulate the tracker returning with fresh coordinates
     state = MagicMock()
@@ -676,7 +698,9 @@ async def test_tracker_restored_clears_repair_issue(hass: HomeAssistant) -> None
 # ---------------------------------------------------------------------------
 
 
-def _stub_session_returning(coordinator: TankstellenCoordinator, payload: object) -> None:
+def _stub_session_returning(
+    coordinator: TankstellenCoordinator, payload: object
+) -> None:
     """Replace coordinator._session.get with a stub returning ``payload`` as JSON."""
     resp = MagicMock()
     resp.raise_for_status = MagicMock()
@@ -733,7 +757,9 @@ async def test_fetch_drops_priceless_stations(hass: HomeAssistant) -> None:
     assert [s["id"] for s in stations] == [1, 4]
 
 
-def _stub_session_raising(coordinator: TankstellenCoordinator, exc: BaseException) -> None:
+def _stub_session_raising(
+    coordinator: TankstellenCoordinator, exc: BaseException
+) -> None:
     """Mock coordinator._session.get so its async-context-manager __aenter__ raises ``exc``.
 
     Mirrors how aiohttp's ``_RequestContextManager`` actually surfaces transport
@@ -875,7 +901,8 @@ async def test_tracker_issue_raised_only_once(hass: HomeAssistant) -> None:
 
     registry = ir.async_get(hass)
     issues = [
-        i for i in registry.issues.values()
+        i
+        for i in registry.issues.values()
         if i.domain == DOMAIN and i.issue_id.startswith("tracker_missing_")
     ]
     assert len(issues) == 1

@@ -13,6 +13,7 @@ modern HTTP client sends it; if E-Control ever enables compression we
 get the wire-size win automatically with zero code changes). aiohttp
 decompresses transparently when the server does respond compressed.
 """
+
 from __future__ import annotations
 
 
