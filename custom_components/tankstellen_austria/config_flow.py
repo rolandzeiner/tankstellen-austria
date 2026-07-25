@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from typing import Any
 
 import aiohttp
 import voluptuous as vol
-
 from homeassistant.config_entries import (
     ConfigEntry,
     ConfigFlow,
@@ -75,7 +73,7 @@ async def _test_api_connection(
             timeout=aiohttp.ClientTimeout(total=10),
         ) as resp:
             resp.raise_for_status()
-    except asyncio.TimeoutError:
+    except TimeoutError:
         _LOGGER.warning("API connection test timed out after 10s (%s)", url)
         return False
     except aiohttp.ClientResponseError as err:
@@ -94,7 +92,7 @@ async def _test_api_connection(
             url,
         )
         return False
-    except Exception:  # noqa: BLE001 - final safety net so UI still gets cannot_connect
+    except Exception:
         _LOGGER.exception("Unexpected error in API connection test (%s)", url)
         return False
     return True

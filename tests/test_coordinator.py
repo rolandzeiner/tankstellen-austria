@@ -1,6 +1,5 @@
 """Tests for the Tankstellen Austria coordinator."""
 
-import asyncio
 from datetime import timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -23,6 +22,8 @@ from custom_components.tankstellen_austria.coordinator import TankstellenCoordin
 
 from .conftest import (
     BASE_ENTRY_DATA as _BASE_ENTRY_DATA,
+)
+from .conftest import (
     MOCK_STATION,
     make_response_cm,
 )
@@ -251,6 +252,8 @@ async def test_coordinator_fetch_sends_canonical_user_agent(
 
     from custom_components.tankstellen_austria.const import (
         DOMAIN as TS_DOMAIN,
+    )
+    from custom_components.tankstellen_austria.const import (
         INTEGRATION_VERSION,
         USER_AGENT,
     )
@@ -778,7 +781,7 @@ async def test_fetch_timeout_uses_translation_key(hass: HomeAssistant) -> None:
     entry.add_to_hass(hass)
     coordinator = TankstellenCoordinator(hass, entry)
 
-    _stub_session_raising(coordinator, asyncio.TimeoutError())
+    _stub_session_raising(coordinator, TimeoutError())
 
     with pytest.raises(UpdateFailed) as exc:
         await coordinator._fetch("DIE", 48.0, 16.0)

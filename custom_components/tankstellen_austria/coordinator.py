@@ -9,7 +9,6 @@ from datetime import datetime, timedelta
 from typing import Any
 
 import aiohttp
-
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import Event, HomeAssistant, State, callback
 from homeassistant.helpers import issue_registry as ir
@@ -322,13 +321,12 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]
                 },
             ) from first_err
 
-        if errors:
+        if errors and self.data:
             # Partial failure — keep previous data for failed types so entities
             # stay available with the last known values.
-            if self.data:
-                for fuel_type in errors:
-                    if self.data.get(fuel_type):
-                        results[fuel_type] = self.data[fuel_type]
+            for fuel_type in errors:
+                if self.data.get(fuel_type):
+                    results[fuel_type] = self.data[fuel_type]
 
         if not was_available:
             _LOGGER.info("E-Control API is back online")
@@ -455,7 +453,7 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]
                             "got": type(data).__name__,
                         },
                     )
-        except asyncio.TimeoutError as err:
+        except TimeoutError as err:
             raise UpdateFailed(
                 translation_domain=DOMAIN,
                 translation_key="api_timeout",
