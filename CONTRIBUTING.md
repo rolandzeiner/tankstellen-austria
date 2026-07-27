@@ -26,6 +26,7 @@ Bump `manifest.json` `version` and `src/const.ts` `CARD_VERSION` together — `c
 ## Tooling & config
 
 - `pyproject.toml` — source of truth for ruff (target-version, line-length), mypy (strict, ignore_missing_imports, files), and coverage config. Change rules here, not in CI flags.
+  - **`target-version` tracks the oldest Python we support, never the one CI runs.** `hacs.json` promises HA ≥ 2025.1.0, which runs on Python 3.12, so `target-version = "py312"` — even though the venv and CI are on 3.14. Pointing it at the CI interpreter lets ruff rewrite code into syntax our users cannot parse and then stay silent about it; that is how wiener-linien-austria v1.7.1 shipped a SyntaxError. The `compile-floor-python` CI job byte-compiles the shipped package on 3.12 as an independent backstop. Raise all three together or not at all.
 - `pytest.ini` — pytest config and the **`--cov-fail-under=90` coverage gate**. `pytest tests/` automatically runs with coverage; CI fails fast if a new commit drops coverage below the gate. Current measurement sits ~93%, so you have ~3pts of headroom before the gate bites.
 - `ATTRIBUTION` — canonical data-source statement (E-Control Spritpreisrechner) and licence terms; matches the `attribution` attribute every sensor emits. Update when the upstream API or licence wording changes.
 
