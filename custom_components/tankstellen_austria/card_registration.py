@@ -30,7 +30,9 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
-from homeassistant.components.http import StaticPathConfig
+from homeassistant.components.http import (  # type: ignore[attr-defined,unused-ignore]
+    StaticPathConfig,
+)
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.event import async_call_later
 
