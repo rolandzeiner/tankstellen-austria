@@ -1,4 +1,5 @@
 """Tests for the Tankstellen Austria diagnostics module."""
+
 from __future__ import annotations
 
 import json

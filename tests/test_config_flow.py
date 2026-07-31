@@ -1,4 +1,5 @@
 """Tests for the Tankstellen Austria config flow."""
+
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from homeassistant import config_entries
@@ -273,7 +274,11 @@ async def test_options_flow_blocks_collision_with_other_entry(
     )
     await hass.config_entries.flow.async_configure(
         result["flow_id"],
-        {**VALID_USER_INPUT, "name": "Graz", "location": {"latitude": graz_lat, "longitude": graz_lng}},
+        {
+            **VALID_USER_INPUT,
+            "name": "Graz",
+            "location": {"latitude": graz_lat, "longitude": graz_lng},
+        },
     )
 
     entries = hass.config_entries.async_entries(DOMAIN)
@@ -335,7 +340,10 @@ async def test_reconfigure_form_shows(hass: HomeAssistant, mock_fetch) -> None:
 
     result = await hass.config_entries.flow.async_init(
         DOMAIN,
-        context={"source": config_entries.SOURCE_RECONFIGURE, "entry_id": entry.entry_id},
+        context={
+            "source": config_entries.SOURCE_RECONFIGURE,
+            "entry_id": entry.entry_id,
+        },
     )
     assert result["type"] == FlowResultType.FORM
     assert result["step_id"] == "reconfigure"
@@ -356,7 +364,10 @@ async def test_reconfigure_updates_entry_data_and_keeps_unique_id(
     # Reconfigure with the same location but a different scan_interval + fuel types
     flow = await hass.config_entries.flow.async_init(
         DOMAIN,
-        context={"source": config_entries.SOURCE_RECONFIGURE, "entry_id": entry.entry_id},
+        context={
+            "source": config_entries.SOURCE_RECONFIGURE,
+            "entry_id": entry.entry_id,
+        },
     )
     result = await hass.config_entries.flow.async_configure(
         flow["flow_id"],
@@ -392,7 +403,10 @@ async def test_reconfigure_cannot_connect(hass: HomeAssistant, mock_fetch) -> No
 
     flow = await hass.config_entries.flow.async_init(
         DOMAIN,
-        context={"source": config_entries.SOURCE_RECONFIGURE, "entry_id": entry.entry_id},
+        context={
+            "source": config_entries.SOURCE_RECONFIGURE,
+            "entry_id": entry.entry_id,
+        },
     )
     with patch(
         "custom_components.tankstellen_austria.config_flow._test_api_connection",

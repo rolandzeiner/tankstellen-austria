@@ -8,6 +8,7 @@ user on an old card. If CARD_VERSION drifts from manifest.json, a
 manifest-only release ships a stale card. Locking both equalities in CI
 catches one-sided bumps before they ship.
 """
+
 from __future__ import annotations
 
 import re

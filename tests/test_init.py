@@ -7,6 +7,7 @@ config-flow or coordinator tests:
 * ``async_unload_entry`` happy path,
 * ``JSModuleRegistration`` static-path + Lovelace-resource branches.
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -256,9 +257,9 @@ async def test_register_card_warns_when_card_missing(
     with caplog.at_level("WARNING"):
         await JSModuleRegistration(hass).async_register()
 
-    assert any(
-        "Card JS not found" in rec.message for rec in caplog.records
-    ), "expected warning when card JS file is missing"
+    assert any("Card JS not found" in rec.message for rec in caplog.records), (
+        "expected warning when card JS file is missing"
+    )
     static.assert_not_awaited()
     lovelace.resources.async_create_item.assert_not_awaited()
     lovelace.resources.async_update_item.assert_not_awaited()
@@ -298,7 +299,11 @@ async def test_remove_entry_deletes_lovelace_resource_when_last(
     entry = _make_entry()
     entry.add_to_hass(hass)
 
-    existing = {"id": "abc", "url": f"{CARD_URL}?v={CARD_VERSION}", "res_type": "module"}
+    existing = {
+        "id": "abc",
+        "url": f"{CARD_URL}?v={CARD_VERSION}",
+        "res_type": "module",
+    }
     lovelace = _build_lovelace([existing])
     hass.data["lovelace"] = lovelace
 
@@ -322,7 +327,11 @@ async def test_remove_entry_keeps_resource_when_other_entries_exist(
     )
     other.add_to_hass(hass)
 
-    existing = {"id": "abc", "url": f"{CARD_URL}?v={CARD_VERSION}", "res_type": "module"}
+    existing = {
+        "id": "abc",
+        "url": f"{CARD_URL}?v={CARD_VERSION}",
+        "res_type": "module",
+    }
     lovelace = _build_lovelace([existing])
     hass.data["lovelace"] = lovelace
 
@@ -336,7 +345,11 @@ async def test_remove_entry_noop_in_yaml_mode(hass: HomeAssistant) -> None:
     entry = _make_entry()
     entry.add_to_hass(hass)
 
-    existing = {"id": "abc", "url": f"{CARD_URL}?v={CARD_VERSION}", "res_type": "module"}
+    existing = {
+        "id": "abc",
+        "url": f"{CARD_URL}?v={CARD_VERSION}",
+        "res_type": "module",
+    }
     lovelace = _build_lovelace([existing], mode="yaml")
     hass.data["lovelace"] = lovelace
 

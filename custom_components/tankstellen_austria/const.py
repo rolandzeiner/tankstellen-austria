@@ -1,4 +1,5 @@
 """Constants for Tankstellen Austria."""
+
 from __future__ import annotations
 
 import json
@@ -40,10 +41,10 @@ DEFAULT_INCLUDE_CLOSED = True
 # (`DYNAMIC_MANUAL_COOLDOWN_MS` in src/const.ts) because that's where the
 # button and the countdown UI sit — the integration's `async_request_refresh`
 # is already debounced (15s) so a Python mirror would be redundant.
-DYNAMIC_DISTANCE_THRESHOLD_M = 1500    # metres moved before triggering update
-DYNAMIC_COOLDOWN_MINUTES = 10          # min between auto-updates per entry
-DYNAMIC_DOMAIN_COOLDOWN_MINUTES = 5    # min between ANY update across all entries
-DYNAMIC_SAFETY_INTERVAL_HOURS = 6      # fallback timer when no movement detected
+DYNAMIC_DISTANCE_THRESHOLD_M = 1500  # metres moved before triggering update
+DYNAMIC_COOLDOWN_MINUTES = 10  # min between auto-updates per entry
+DYNAMIC_DOMAIN_COOLDOWN_MINUTES = 5  # min between ANY update across all entries
+DYNAMIC_SAFETY_INTERVAL_HOURS = 6  # fallback timer when no movement detected
 
 # Key inside hass.data[DOMAIN] for cross-entry rate limiting
 DOMAIN_LAST_API_CALL_KEY = "last_api_call"

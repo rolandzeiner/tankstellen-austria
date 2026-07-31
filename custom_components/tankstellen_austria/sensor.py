@@ -1,4 +1,5 @@
 """Sensor platform for Tankstellen Austria."""
+
 from __future__ import annotations
 
 import logging
@@ -75,10 +76,7 @@ async def async_setup_entry(
     config = {**entry.data, **entry.options}
     fuel_types: list[str] = config[CONF_FUEL_TYPES]
 
-    entities = [
-        TankstellenSensor(coordinator, entry, ft)
-        for ft in fuel_types
-    ]
+    entities = [TankstellenSensor(coordinator, entry, ft) for ft in fuel_types]
     async_add_entities(entities)
 
 
@@ -175,16 +173,18 @@ class TankstellenSensor(CoordinatorEntity[TankstellenCoordinator], SensorEntity)
         for s in stations:
             if not isinstance(s, dict):
                 continue
-            attr_stations.append({
-                "id": s.get("id"),
-                "name": s.get("name"),
-                "price": _extract_price(s),
-                "open": s.get("open"),
-                "location": s.get("location", {}),
-                "distance_m": s.get("distance_m"),
-                "opening_hours": s.get("openingHours", []),
-                "payment_methods": _parse_payment_methods(s.get("paymentMethods")),
-            })
+            attr_stations.append(
+                {
+                    "id": s.get("id"),
+                    "name": s.get("name"),
+                    "price": _extract_price(s),
+                    "open": s.get("open"),
+                    "location": s.get("location", {}),
+                    "distance_m": s.get("distance_m"),
+                    "opening_hours": s.get("openingHours", []),
+                    "payment_methods": _parse_payment_methods(s.get("paymentMethods")),
+                }
+            )
         self._attr_extra_state_attributes = self._build_attrs(attr_stations)
 
     def _build_attrs(self, attr_stations: list[dict[str, Any]]) -> dict[str, Any]:

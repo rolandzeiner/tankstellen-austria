@@ -3,7 +3,15 @@
 # redundant with this file but harmless. Trim them as confidence grows.
 
 [tool.ruff]
-target-version = "py314"
+# MUST track the OLDEST Python we support, not the one CI runs. `hacs.json`
+# promises Home Assistant >= 2025.1.0, which runs on Python 3.12. Pointing this
+# at the CI interpreter (3.14) authorises ruff to rewrite code into syntax those
+# users cannot parse, and then leaves it unflagged: that is how
+# wiener-linien-austria v1.7.1 shipped PEP 758 unparenthesized `except A, B:`
+# and failed to import below Python 3.14 (rolandzeiner/wiener-linien-austria#91).
+# This repo carried the same rewrite, caught before it reached a release.
+# Raise this only together with the `homeassistant` floor in `hacs.json`.
+target-version = "py312"
 line-length = 88
 
 [tool.mypy]

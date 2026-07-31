@@ -1,4 +1,5 @@
 """DataUpdateCoordinator for Tankstellen Austria."""
+
 from __future__ import annotations
 
 import asyncio
@@ -8,7 +9,6 @@ from datetime import datetime, timedelta
 from typing import Any
 
 import aiohttp
-
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import Event, HomeAssistant, State, callback
 from homeassistant.helpers import issue_registry as ir
@@ -162,12 +162,12 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]
         # actually runs) on purpose — failed requests should still rate-limit
         # the next attempt, otherwise a flapping API would burst-fire on
         # every tracker tick.
-        self.hass.data.setdefault(DOMAIN, {})[DOMAIN_LAST_API_CALL_KEY] = dt_util.utcnow()
+        self.hass.data.setdefault(DOMAIN, {})[DOMAIN_LAST_API_CALL_KEY] = (
+            dt_util.utcnow()
+        )
         self.hass.async_create_task(self.async_refresh())
 
-    def _get_entity_coords(
-        self, state: State | None
-    ) -> tuple[float, float]:
+    def _get_entity_coords(self, state: State | None) -> tuple[float, float]:
         """Extract lat/lng from an entity state, with fallback to HA defaults.
 
         Always returns a usable pair — if the tracker has no coordinates we
@@ -250,9 +250,7 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]
 
         # 3. Distance threshold (skip on very first call when no prior position)
         if self._last_fetch_lat is not None and self._last_fetch_lng is not None:
-            dist_m = distance(
-                lat, lng, self._last_fetch_lat, self._last_fetch_lng
-            )
+            dist_m = distance(lat, lng, self._last_fetch_lat, self._last_fetch_lng)
             if dist_m is not None and dist_m < DYNAMIC_DISTANCE_THRESHOLD_M:
                 _LOGGER.debug(
                     "Dynamic update skipped: only moved %.0f m (threshold %d m)",
@@ -301,9 +299,7 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]
                 raise outcome
             if isinstance(outcome, Exception):
                 errors[fuel_type] = outcome
-                _LOGGER.warning(
-                    "Fetch failed for fuel type %s: %s", fuel_type, outcome
-                )
+                _LOGGER.warning("Fetch failed for fuel type %s: %s", fuel_type, outcome)
             else:
                 results[fuel_type] = outcome
 
@@ -325,13 +321,12 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]
                 },
             ) from first_err
 
-        if errors:
+        if errors and self.data:
             # Partial failure — keep previous data for failed types so entities
             # stay available with the last known values.
-            if self.data:
-                for fuel_type in errors:
-                    if self.data.get(fuel_type):
-                        results[fuel_type] = self.data[fuel_type]
+            for fuel_type in errors:
+                if self.data.get(fuel_type):
+                    results[fuel_type] = self.data[fuel_type]
 
         if not was_available:
             _LOGGER.info("E-Control API is back online")
@@ -435,7 +430,9 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]
                             "reason": err.message,
                         },
                     ) from err
-                except ValueError as err:  # json.JSONDecodeError is a ValueError subclass
+                except (
+                    ValueError
+                ) as err:  # json.JSONDecodeError is a ValueError subclass
                     raise UpdateFailed(
                         translation_domain=DOMAIN,
                         translation_key="api_invalid_json",
@@ -456,7 +453,7 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]
                             "got": type(data).__name__,
                         },
                     )
-        except asyncio.TimeoutError as err:
+        except TimeoutError as err:
             raise UpdateFailed(
                 translation_domain=DOMAIN,
                 translation_key="api_timeout",
