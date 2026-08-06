@@ -18,12 +18,18 @@ rules:
   docs-actions:
     status: exempt
     comment: This integration does not provide any service actions.
+  docs-conditions:
+    status: exempt
+    comment: This integration does not have any conditions.
   docs-high-level-description:
     status: done
   docs-installation-instructions:
     status: done
   docs-removal-instructions:
     status: done
+  docs-triggers:
+    status: exempt
+    comment: This integration does not have any triggers.
   entity-event-setup:
     status: exempt
     comment: Sensor entities do not subscribe to events directly. The coordinator handles device_tracker state changes internally.
