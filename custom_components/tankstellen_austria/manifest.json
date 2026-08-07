@@ -12,5 +12,5 @@
   "loggers": ["custom_components.tankstellen_austria"],
   "quality_scale": "platinum",
   "requirements": [],
-  "version": "1.9.3"
+  "version": "1.9.4"
 }
