@@ -140,18 +140,16 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]
     def async_teardown(self) -> None:
         """Unsubscribe the device_tracker listener on unload.
 
-        Deliberately does NOT call `super().async_shutdown()`.
-        `DataUpdateCoordinator.__init__` already does
-        `config_entry.async_on_unload(self.async_shutdown)` whenever it is
-        constructed with `config_entry=` — which this coordinator is, and
-        has been since HA 2025.1.0 (verified against core tags 2025.1.0,
-        2025.6.0, 2026.1.0 and 2026.8.0). Adding an explicit call would be
-        a harmless but redundant second registration.
+        Deliberately does NOT call `super().async_shutdown()`: core wires
+        it to unload for us in `DataUpdateCoordinator.__init__` —
+        `if self.config_entry: self.config_entry.async_on_unload(
+        self.async_shutdown)` (update_coordinator.py:148-149) — and this
+        coordinator is constructed with `config_entry=`.
 
-        The `_unsub_shutdown` EVENT_HOMEASSISTANT_STOP listener is a
-        separate mechanism, registered only by `async_register_shutdown()`,
-        which is for coordinators NOT backed by a config entry and raises
-        RuntimeError if one is present. It is never set here.
+        The exception, for anyone porting this: a coordinator built
+        WITHOUT `config_entry=` gets neither that registration nor the
+        EVENT_HOMEASSISTANT_STOP listener, and must call
+        `async_register_shutdown()` itself.
         """
         if self._unsubscribe_tracker:
             self._unsubscribe_tracker()
@@ -179,11 +177,18 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]
         self.hass.data.setdefault(DOMAIN, {})[DOMAIN_LAST_API_CALL_KEY] = (
             dt_util.utcnow()
         )
-        # Entry-owned and named, not a bare `hass.async_create_task`. Owned
-        # so a tracker tick landing during a reload is cancelled with the
-        # entry instead of running a full E-Control fetch against a
-        # torn-down coordinator; named so it is identifiable in HA's task
-        # list rather than showing up as "Task-123".
+        # Entry-owned and named, not a bare `hass.async_create_task`.
+        # Owned so unload WAITS for the fetch (config_entries.py:1250
+        # awaits `_tasks` with timeout=10) instead of orphaning it — note
+        # unload cancels only `_background_tasks`, so this is a wait, not
+        # a cancel. Named so it is identifiable in HA's task list rather
+        # than showing up as "Task-123".
+        #
+        # The coordinator is independently safe against a torn-down
+        # refresh: `async_shutdown` is registered as an `async_on_unload`
+        # callback (update_coordinator.py:148-149) and so runs BEFORE the
+        # task wait, setting `_shutdown_requested`, which `_async_refresh`
+        # short-circuits on (update_coordinator.py:212, :424).
         self._entry.async_create_task(
             self.hass,
             self.async_refresh(),
@@ -386,8 +391,9 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]
         _LOGGER.info("Retrying fetch after no-data response")
         # async_request_refresh debounces against any concurrent refresh
         # (e.g. a card-side manual refresh that landed during the retry
-        # window) so we don't double-fire. Entry-owned + named for the same
-        # reasons as the tracker refresh above.
+        # window) so we don't double-fire. Entry-owned + named for the
+        # same reasons as the tracker refresh above: unload waits for it
+        # rather than orphaning it, and it is named in HA's task list.
         self._entry.async_create_task(
             self.hass,
             self.async_request_refresh(),
