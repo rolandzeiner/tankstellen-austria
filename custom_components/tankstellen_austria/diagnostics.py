@@ -21,6 +21,14 @@ from .coordinator import TankstellenConfigEntry
 # in the config flow; redacting it keeps automations the user wires
 # around the integration from being discoverable in shared diag dumps.
 # Treat the set as monotonically growing — never shrink.
+#
+# `entry.title` is deliberately NOT redacted, even though it is coarse
+# location data of the same kind as the coordinates above. The two are
+# not inconsistent: coordinates pin a household to a few metres, whereas
+# the title is a user-chosen label that is what makes a shared dump
+# readable at all — "which entry is this?" is the first question every
+# triage starts with. Redacting it buys little and costs the dump most of
+# its usefulness. Decision reviewed and ratified 2026-08-07.
 TO_REDACT = {
     "latitude",
     "longitude",
