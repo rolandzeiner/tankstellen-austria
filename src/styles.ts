@@ -31,12 +31,31 @@ export const cardStyles = css`
     /* Spacing / radius / sizing — layered over the HA Design System
        so the card moves with HA when tokens evolve. Hard-coded values
        are the fallback for older HA versions. */
-    --tankst-radius-sm: var(--ha-radius-sm, 6px);
-    --tankst-radius-md: var(--ha-radius-md, 10px);
-    --tankst-radius-lg: var(--ha-card-border-radius, var(--ha-radius-lg, 12px));
-    --tankst-pad-x:     var(--ha-spacing-4, 16px);
-    --tankst-pad-y:     var(--ha-spacing-3, 14px);
-    --tankst-row-gap:   var(--ha-spacing-3, 12px);
+    /* These names were wrong until v1.9.4 and nothing complained: var()
+       on a token HA does not define is not an error, it just resolves to
+       the fallback. So the card ran entirely on its own literals while
+       looking theme-aware — which is how --ha-spacing-3 came to mean
+       14px on one line and 12px on the next.
+
+       Verified against the frontend's src/resources/theme/core.globals.ts:
+         --ha-space-N          4px grid, 1…14   (was --ha-spacing-N)
+         --ha-border-radius-*  sm 4 / md 8 / lg 12 / xl 16 / pill / circle
+                                                (was --ha-radius-*)
+         --ha-animation-duration-*  none 1 / instant 75 / fast 150 /
+                                    normal 250 / slow 350ms
+                                                (was --ha-transition-duration-*)
+       There is no easing token — --ha-transition-easing-standard never
+       existed either, so easings are now named directly.
+
+       Fallbacks are kept and now match the token they stand in for.
+       Adopting a new --ha-* token means checking core.globals.ts first;
+       a typo here is invisible. */
+    --tankst-radius-sm: var(--ha-border-radius-sm, 4px);
+    --tankst-radius-md: var(--ha-border-radius-md, 8px);
+    --tankst-radius-lg: var(--ha-card-border-radius, var(--ha-border-radius-lg, 12px));
+    --tankst-pad-x:     var(--ha-space-4, 16px);
+    --tankst-pad-y:     var(--ha-space-3, 12px);
+    --tankst-row-gap:   var(--ha-space-3, 12px);
     --tankst-tile-size: 40px;
   }
   ha-card {
@@ -122,9 +141,9 @@ export const cardStyles = css`
     overflow: hidden;
     text-overflow: ellipsis;
     transition:
-      color var(--ha-transition-duration-fast, 160ms) var(--ha-transition-easing-standard, ease),
-      box-shadow var(--ha-transition-duration-fast, 160ms) var(--ha-transition-easing-standard, ease),
-      background-color var(--ha-transition-duration-fast, 160ms) var(--ha-transition-easing-standard, ease);
+      color var(--ha-animation-duration-fast, 150ms) ease,
+      box-shadow var(--ha-animation-duration-fast, 150ms) ease,
+      background-color var(--ha-animation-duration-fast, 150ms) ease;
     font-family: inherit;
   }
   .tab:hover {
@@ -220,8 +239,8 @@ export const cardStyles = css`
     border: none;
     cursor: pointer;
     transition:
-      background-color var(--ha-transition-duration-fast, 160ms) var(--ha-transition-easing-standard, ease),
-      color var(--ha-transition-duration-fast, 160ms) var(--ha-transition-easing-standard, ease);
+      background-color var(--ha-animation-duration-fast, 150ms) ease,
+      color var(--ha-animation-duration-fast, 150ms) ease;
     --mdc-icon-size: 20px;
     font-family: inherit;
   }
@@ -381,9 +400,9 @@ export const cardStyles = css`
     text-decoration: none;
     box-shadow: 0 1px 2px color-mix(in srgb, #000 12%, transparent);
     transition:
-      filter var(--ha-transition-duration-fast, 160ms) var(--ha-transition-easing-standard, ease),
-      transform var(--ha-transition-duration-fast, 160ms) var(--ha-transition-easing-standard, ease),
-      opacity var(--ha-transition-duration-fast, 160ms) var(--ha-transition-easing-standard, ease);
+      filter var(--ha-animation-duration-fast, 150ms) ease,
+      transform var(--ha-animation-duration-fast, 150ms) ease,
+      opacity var(--ha-animation-duration-fast, 150ms) ease;
     flex-shrink: 0;
     font-family: inherit;
     font-variant-numeric: tabular-nums;
@@ -446,10 +465,13 @@ export const cardStyles = css`
   }
   .sparkline-hover-dot {
     background: var(--primary-color);
+    /* The dot follows the pointer, so it wants the shortest real
+       duration HA ships — instant, not fast. The old 60ms literal
+       was aiming at the same thing. */
     transition:
-      left var(--ha-transition-duration-fast, 60ms) linear,
-      top var(--ha-transition-duration-fast, 60ms) linear,
-      opacity var(--ha-transition-duration-fast, 120ms) var(--ha-transition-easing-standard, ease);
+      left var(--ha-animation-duration-instant, 75ms) linear,
+      top var(--ha-animation-duration-instant, 75ms) linear,
+      opacity var(--ha-animation-duration-fast, 150ms) ease;
   }
   .sparkline-tooltip {
     position: absolute;
@@ -646,7 +668,7 @@ export const cardStyles = css`
     gap: 12px;
     padding: 12px var(--tankst-pad-x);
     cursor: pointer;
-    transition: background-color var(--ha-transition-duration-fast, 160ms) var(--ha-transition-easing-standard, ease);
+    transition: background-color var(--ha-animation-duration-fast, 150ms) ease;
   }
   .station-main:hover {
     background: color-mix(in srgb, var(--primary-color) 6%, transparent);
@@ -703,7 +725,7 @@ export const cardStyles = css`
   .expander-chevron {
     --mdc-icon-size: 20px;
     color: var(--secondary-text-color);
-    transition: transform var(--ha-transition-duration-fast, 160ms) var(--ha-transition-easing-standard, ease);
+    transition: transform var(--ha-animation-duration-fast, 150ms) ease;
     flex-shrink: 0;
   }
   .station-main[aria-expanded="true"] .expander-chevron {
@@ -1081,7 +1103,7 @@ export const editorStyles = css`
     border: 1px solid var(--divider-color);
     background: var(--card-background-color, #fff);
     color: var(--primary-text-color);
-    transition: all var(--ha-transition-duration-fast, 160ms) var(--ha-transition-easing-standard, ease);
+    transition: all var(--ha-animation-duration-fast, 150ms) ease;
     font-family: inherit;
   }
   .pm-filter-chip.active {
@@ -1186,7 +1208,7 @@ export const editorStyles = css`
     padding: 8px 14px;
     width: 100%;
     font-family: inherit;
-    transition: background var(--ha-transition-duration-fast, 160ms) var(--ha-transition-easing-standard, ease);
+    transition: background var(--ha-animation-duration-fast, 150ms) ease;
   }
   .car-add-btn:hover {
     background: rgba(0, 0, 0, 0.04);
@@ -1202,7 +1224,7 @@ export const editorStyles = css`
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
-    transition: background var(--ha-transition-duration-fast, 160ms) var(--ha-transition-easing-standard, ease), border-color var(--ha-transition-duration-fast, 160ms) var(--ha-transition-easing-standard, ease);
+    transition: background var(--ha-animation-duration-fast, 150ms) ease, border-color var(--ha-animation-duration-fast, 150ms) ease;
     --mdc-icon-size: 20px;
   }
   .car-icon-btn.active {
@@ -1233,7 +1255,7 @@ export const editorStyles = css`
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: all var(--ha-transition-duration-fast, 160ms) var(--ha-transition-easing-standard, ease);
+    transition: all var(--ha-animation-duration-fast, 150ms) ease;
     --mdc-icon-size: 20px;
   }
   .car-icon-option:hover {
