@@ -29,6 +29,17 @@
 //     - Payment-filter chips: live keys from sensor + custom add
 //     - Cars roster: Add / Delete / per-row inputs / icon picker
 //   Same pattern wiener-linien-austria uses for its per-line section.
+//
+// * **Never `ha-textfield`** — it was deleted from the HA frontend on
+//   2026-04-01 (frontend PR #30349, "Migrate all from ha-textfield to
+//   ha-input"). An unregistered custom element is not an error: the
+//   browser renders it as an unknown inline element with no box and logs
+//   nothing, so the field is simply absent from the editor. Free-form
+//   text goes through `<ha-selector>` with a `{ text: {} }` selector,
+//   which delegates to whatever HA's current text control is (today
+//   `<ha-input>`) and lazy-loads it itself. Going through the selector
+//   layer rather than naming a concrete tag is what survives the next
+//   rename.
 
 import {
   LitElement,
@@ -63,6 +74,11 @@ function sanitizeShort(raw: string): string {
   return raw.replace(/[<>"'&]/g, "").slice(0, 50).trim();
 }
 
+// Hoisted so the object identity is stable across renders — ha-selector
+// memoises its element resolution on the selector reference, and a fresh
+// literal each render defeats that.
+const PM_CUSTOM_SELECTOR = { text: {} } as const;
+
 @customElement("tankstellen-austria-card-editor")
 export class TankstellenAustriaCardEditor
   extends LitElement
@@ -84,6 +100,12 @@ export class TankstellenAustriaCardEditor
   // Two-click-confirm gate for removing a *custom* (user-typed) payment
   // filter chip — built-in chips toggle immediately.
   @state() private _pendingRemove: string | null = null;
+
+  // Draft text in the "add custom payment method" field. ha-selector is a
+  // controlled input — it reports through `value-changed` and renders back
+  // whatever we bind, so the draft has to live here rather than being read
+  // off the DOM node at submit time.
+  @state() private _pmDraft = "";
 
   // Transient "Copied" state for the recorder-snippet copy button.
   @state() private _copiedPulse = false;
@@ -484,14 +506,17 @@ export class TankstellenAustriaCardEditor
           )}
         </div>
         <div class="pm-custom-row">
-          <ha-textfield
-            id="pm-custom-input"
-            label=${this._et("payment_filter_custom_placeholder")}
-            autocomplete="off"
+          <ha-selector
+            .hass=${this.hass}
+            .selector=${PM_CUSTOM_SELECTOR}
+            .value=${this._pmDraft}
+            .label=${this._et("payment_filter_custom_placeholder")}
+            .required=${false}
+            @value-changed=${this._onCustomPmChanged}
             @keydown=${this._onCustomPmKeydown}
             @keyup=${this._stop}
             @keypress=${this._stop}
-          ></ha-textfield>
+          ></ha-selector>
           <ha-icon-button
             .label=${this._et("payment_filter_add_custom")}
             title=${this._et("payment_filter_add_custom")}
@@ -764,6 +789,14 @@ export class TankstellenAustriaCardEditor
     this._fireChanged();
   }
 
+  private _onCustomPmChanged(e: CustomEvent<{ value?: string }>): void {
+    // ha-selector re-fires its child's event; let it stop here rather than
+    // bubbling on to the editor's own config-changed listeners.
+    e.stopPropagation();
+    // Clearing the field reports `undefined`, not "" — normalise.
+    this._pmDraft = e.detail?.value ?? "";
+  }
+
   private _onCustomPmKeydown(e: KeyboardEvent): void {
     // Stop HA global shortcuts from stealing focus when typing here.
     e.stopPropagation();
@@ -771,11 +804,7 @@ export class TankstellenAustriaCardEditor
   }
 
   private _onAddCustomPm(): void {
-    const input = this.shadowRoot?.getElementById(
-      "pm-custom-input",
-    ) as (HTMLElement & { value?: string }) | null;
-    if (!input) return;
-    const val = sanitizeShort(String(input.value ?? ""));
+    const val = sanitizeShort(this._pmDraft);
     if (!val) return;
 
     this._pendingRemove = null;
@@ -785,7 +814,7 @@ export class TankstellenAustriaCardEditor
       this._config = { ...this._config, payment_filter: current };
       this._fireChanged();
     }
-    input.value = "";
+    this._pmDraft = "";
   }
 
   private _onToggleIconPicker(e: Event, idx: number): void {

@@ -152,7 +152,7 @@ export const cardStyles = css`
   }
   .tab.active {
     color: var(--primary-color);
-    font-weight: var(--ha-font-weight-bold, 600);
+    font-weight: var(--ha-font-weight-bold, 700);
     box-shadow: inset 0 -2px 0 var(--primary-color);
   }
 
@@ -303,7 +303,7 @@ export const cardStyles = css`
   }
   .metric-num {
     font-size: 2.25rem;
-    font-weight: var(--ha-font-weight-bold, 600);
+    font-weight: var(--ha-font-weight-bold, 700);
     color: var(--primary-text-color);
     font-variant-numeric: tabular-nums;
     letter-spacing: -0.5px;
@@ -615,7 +615,7 @@ export const cardStyles = css`
   }
   .car-fillup-cost {
     font-size: 0.9375rem;
-    font-weight: var(--ha-font-weight-bold, 600);
+    font-weight: var(--ha-font-weight-bold, 700);
     color: var(--primary-text-color);
     font-variant-numeric: tabular-nums;
     flex-shrink: 0;
@@ -686,7 +686,7 @@ export const cardStyles = css`
     background: color-mix(in srgb, var(--tankst-accent) 18%, transparent);
     color: var(--tankst-accent);
     font-size: 0.8125rem;
-    font-weight: var(--ha-font-weight-bold, 600);
+    font-weight: var(--ha-font-weight-bold, 700);
     font-variant-numeric: tabular-nums;
   }
   .info {
@@ -712,7 +712,7 @@ export const cardStyles = css`
     text-overflow: ellipsis;
   }
   .price {
-    font-weight: var(--ha-font-weight-bold, 600);
+    font-weight: var(--ha-font-weight-bold, 700);
     font-size: 1.125rem;
     color: var(--primary-text-color);
     font-variant-numeric: tabular-nums;
@@ -1124,8 +1124,11 @@ export const editorStyles = css`
     align-items: center;
     gap: 6px;
   }
-  .pm-custom-row ha-textfield {
+  .pm-custom-row ha-selector {
     flex: 1;
+    /* Flex items default to min-width:auto; the selector's input has an
+       intrinsic minimum that would otherwise push the + button off-row. */
+    min-width: 0;
   }
   .pm-custom-row ha-icon-button {
     color: var(--primary-color);
