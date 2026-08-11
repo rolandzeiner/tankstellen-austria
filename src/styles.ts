@@ -38,7 +38,11 @@ export const cardStyles = css`
        14px on one line and 12px on the next.
 
        Verified against the frontend's src/resources/theme/core.globals.ts:
-         --ha-space-N          4px grid, 1…14   (was --ha-spacing-N)
+         --ha-space-N          4px grid, 1…20   (was --ha-spacing-N)
+         --ha-font-size-*      xs 10 / s 12 / m 14 / l 16 / xl 20px.
+                               typography.globals.ts sets the root to
+                               font-size:14px, so -m is 1rem, NOT 0.875 —
+                               do the rem maths at 14px or just write px.
          --ha-border-radius-*  sm 4 / md 8 / lg 12 / xl 16 / pill / circle
                                                 (was --ha-radius-*)
          --ha-animation-duration-*  none 1 / instant 75 / fast 150 /
