@@ -15,6 +15,7 @@ CONF_FUEL_TYPES = "fuel_types"
 CONF_INCLUDE_CLOSED = "include_closed"
 CONF_SCAN_INTERVAL = "scan_interval"
 CONF_DYNAMIC_ENTITY = "dynamic_entity"
+CONF_LONG_TERM_STATISTICS = "long_term_statistics"
 
 API_BASE_URL = "https://api.e-control.at/sprit/1.0"
 API_ENDPOINT = "/search/gas-stations/by-address"
@@ -36,6 +37,15 @@ DEFAULT_SCAN_INTERVAL: Final = 30
 MIN_POLL_MINUTES: Final = 10
 MAX_POLL_MINUTES: Final = 720
 DEFAULT_INCLUDE_CLOSED = True
+
+# Long-term statistics are opt-in and default off. Enabling swaps the price
+# sensors from `device_class: monetary` to `state_class: measurement`: HA's
+# DEVICE_CLASS_STATE_CLASSES maps MONETARY to {TOTAL} only, so the pair
+# monetary + measurement logs a per-entity "impossible state class" warning,
+# and `total` is meaningless for a unit price. Measurement is the correct
+# state class for a price series, so the device class is the one that gives
+# way. Off by default keeps the entities exactly as shipped since v1.0.0.
+DEFAULT_LONG_TERM_STATISTICS = False
 
 # Dynamic mode rate-limiting. Manual-refresh cooldown lives card-side
 # (`DYNAMIC_MANUAL_COOLDOWN_MS` in src/const.ts) because that's where the

@@ -117,7 +117,11 @@ rules:
     comment: All entities are primary price sensors; there are no diagnostic or configuration entities.
   entity-device-class:
     status: done
-    comment: Sensors set SensorDeviceClass.MONETARY.
+    comment: >-
+      Sensors set SensorDeviceClass.MONETARY by default. With the opt-in
+      long_term_statistics option they publish SensorStateClass.MEASUREMENT
+      instead, because DEVICE_CLASS_STATE_CLASSES pairs MONETARY only with
+      TOTAL and TOTAL is meaningless for a unit price.
   entity-disabled-by-default:
     status: exempt
     comment: Every configured fuel-type sensor is primary data; disabling any by default would hide what the user explicitly opted in to.

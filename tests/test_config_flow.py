@@ -10,6 +10,7 @@ from custom_components.tankstellen_austria.const import (
     CONF_FUEL_TYPES,
     CONF_INCLUDE_CLOSED,
     CONF_LATITUDE,
+    CONF_LONG_TERM_STATISTICS,
     CONF_LONGITUDE,
     CONF_SCAN_INTERVAL,
     DOMAIN,
@@ -424,3 +425,47 @@ async def test_reconfigure_cannot_connect(hass: HomeAssistant, mock_fetch) -> No
         )
     assert result["type"] == FlowResultType.FORM
     assert result["errors"].get("base") == "cannot_connect"
+
+
+async def test_user_flow_defaults_statistics_off(
+    hass: HomeAssistant, mock_fetch
+) -> None:
+    """Submitting the form without the toggle stores the safe default.
+
+    The field is `vol.Required` with `default=False`, so voluptuous fills it
+    in — new entries must never silently opt into statistics.
+    """
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], VALID_USER_INPUT
+    )
+    assert result["type"] == FlowResultType.CREATE_ENTRY
+    assert result["data"][CONF_LONG_TERM_STATISTICS] is False
+
+
+async def test_options_flow_toggles_statistics(hass: HomeAssistant, mock_fetch) -> None:
+    """The options flow can turn long-term statistics on."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    await hass.config_entries.flow.async_configure(result["flow_id"], VALID_USER_INPUT)
+
+    entry = hass.config_entries.async_entries(DOMAIN)[0]
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        {
+            "location": {"latitude": 48.1478, "longitude": 16.5147},
+            CONF_FUEL_TYPES: ["DIE"],
+            CONF_INCLUDE_CLOSED: False,
+            CONF_SCAN_INTERVAL: 60,
+            CONF_LONG_TERM_STATISTICS: True,
+        },
+    )
+    assert result["type"] == FlowResultType.CREATE_ENTRY
+    assert entry.options[CONF_LONG_TERM_STATISTICS] is True
+    # Drain the reload task spawned by the update listener so its
+    # coordinator first-refresh completes before fixture teardown.
+    await hass.async_block_till_done()

@@ -15,6 +15,7 @@ from custom_components.tankstellen_austria.const import (
     CONF_FUEL_TYPES,
     CONF_INCLUDE_CLOSED,
     CONF_LATITUDE,
+    CONF_LONG_TERM_STATISTICS,
     CONF_LONGITUDE,
     CONF_SCAN_INTERVAL,
     DOMAIN,
@@ -70,6 +71,7 @@ BASE_ENTRY_DATA: dict[str, Any] = {
     CONF_FUEL_TYPES: ["DIE"],
     CONF_INCLUDE_CLOSED: True,
     CONF_SCAN_INTERVAL: 30,
+    CONF_LONG_TERM_STATISTICS: False,
     CONF_DYNAMIC_ENTITY: None,
 }
 

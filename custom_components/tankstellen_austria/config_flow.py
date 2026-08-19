@@ -38,9 +38,11 @@ from .const import (
     CONF_FUEL_TYPES,
     CONF_INCLUDE_CLOSED,
     CONF_LATITUDE,
+    CONF_LONG_TERM_STATISTICS,
     CONF_LONGITUDE,
     CONF_SCAN_INTERVAL,
     DEFAULT_INCLUDE_CLOSED,
+    DEFAULT_LONG_TERM_STATISTICS,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
     FUEL_TYPES,
@@ -152,6 +154,14 @@ def _build_schema(
             mode=NumberSelectorMode.BOX,
         )
     )
+    fields[
+        vol.Required(
+            CONF_LONG_TERM_STATISTICS,
+            default=defaults.get(
+                CONF_LONG_TERM_STATISTICS, DEFAULT_LONG_TERM_STATISTICS
+            ),
+        )
+    ] = BooleanSelector()
     if include_dynamic:
         existing = defaults.get(CONF_DYNAMIC_ENTITY) or None
         key = (
@@ -199,6 +209,9 @@ def _build_entry_data(
             CONF_INCLUDE_CLOSED, DEFAULT_INCLUDE_CLOSED
         ),
         CONF_SCAN_INTERVAL: user_input.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
+        CONF_LONG_TERM_STATISTICS: user_input.get(
+            CONF_LONG_TERM_STATISTICS, DEFAULT_LONG_TERM_STATISTICS
+        ),
         CONF_DYNAMIC_ENTITY: user_input.get(CONF_DYNAMIC_ENTITY) or None,
     }
 

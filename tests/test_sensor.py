@@ -11,6 +11,7 @@ from custom_components.tankstellen_austria.const import (
     CONF_DYNAMIC_ENTITY,
     CONF_FUEL_TYPES,
     CONF_INCLUDE_CLOSED,
+    CONF_LONG_TERM_STATISTICS,
 )
 
 from .conftest import MOCK_STATION, MOCK_STATION_2, make_entry
@@ -346,3 +347,88 @@ async def test_sensor_payment_methods_missing(hass: HomeAssistant) -> None:
     assert pm["debit_card"] is False
     assert pm["credit_card"] is False
     assert pm["others"] == []
+
+
+# ---------------------------------------------------------------------------
+# Long-term statistics opt-in
+# ---------------------------------------------------------------------------
+
+
+async def test_long_term_statistics_off_by_default(hass: HomeAssistant) -> None:
+    """Default entities keep the monetary device class and get no state class."""
+    await _setup_entry(hass)
+    state = hass.states.get("sensor.test_diesel")
+    assert state is not None
+    assert state.attributes.get("device_class") == "monetary"
+    assert "state_class" not in state.attributes
+
+
+async def test_long_term_statistics_enabled_swaps_classes(hass: HomeAssistant) -> None:
+    """Opting in trades the monetary device class for measurement statistics.
+
+    HA's DEVICE_CLASS_STATE_CLASSES allows MONETARY only with TOTAL, so the
+    two must never be published together — that pairing logs an "impossible
+    state class" warning per entity.
+    """
+    await _setup_entry(hass, data={CONF_LONG_TERM_STATISTICS: True})
+    state = hass.states.get("sensor.test_diesel")
+    assert state is not None
+    assert state.attributes.get("state_class") == "measurement"
+    assert "device_class" not in state.attributes
+
+
+async def test_long_term_statistics_read_from_options(hass: HomeAssistant) -> None:
+    """The options flow value wins over entry.data, as for every other option."""
+    entry = make_entry(
+        data={CONF_LONG_TERM_STATISTICS: False},
+        options={CONF_LONG_TERM_STATISTICS: True},
+    )
+    entry.add_to_hass(hass)
+
+    with patch(
+        "custom_components.tankstellen_austria.coordinator.TankstellenCoordinator._fetch",
+        new_callable=AsyncMock,
+        return_value=[MOCK_STATION],
+    ):
+        await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    state = hass.states.get("sensor.test_diesel")
+    assert state is not None
+    assert state.attributes.get("state_class") == "measurement"
+
+
+async def test_long_term_statistics_missing_key_is_off(hass: HomeAssistant) -> None:
+    """Entries created before the option existed must not gain statistics.
+
+    Older entries have no `long_term_statistics` key at all; the sensor must
+    fall back to the shipped behaviour rather than raise or opt them in.
+    """
+    entry = make_entry()
+    entry.add_to_hass(hass)
+    hass.config_entries.async_update_entry(
+        entry,
+        data={k: v for k, v in entry.data.items() if k != CONF_LONG_TERM_STATISTICS},
+    )
+    assert CONF_LONG_TERM_STATISTICS not in entry.data
+
+    with patch(
+        "custom_components.tankstellen_austria.coordinator.TankstellenCoordinator._fetch",
+        new_callable=AsyncMock,
+        return_value=[MOCK_STATION],
+    ):
+        await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    state = hass.states.get("sensor.test_diesel")
+    assert state is not None
+    assert state.attributes.get("device_class") == "monetary"
+    assert "state_class" not in state.attributes
+
+
+async def test_unique_id_unchanged_by_statistics_option(hass: HomeAssistant) -> None:
+    """Toggling the option must not disturb entity identity."""
+    entry = await _setup_entry(hass, data={CONF_LONG_TERM_STATISTICS: True})
+    registry = er.async_get(hass)
+    entities = er.async_entries_for_config_entry(registry, entry.entry_id)
+    assert [e.unique_id for e in entities] == [f"{entry.entry_id}_DIE"]
