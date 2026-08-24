@@ -169,7 +169,15 @@ def _build_schema(
             if existing
             else vol.Optional(CONF_DYNAMIC_ENTITY)
         )
-        fields[key] = EntitySelector(EntitySelectorConfig(domain="device_tracker"))
+        # Filters belong under `filter`; the flat `domain=` kwarg is the
+        # legacy shape core keeps only for backwards compatibility. A dict
+        # literal rather than EntityFilterSelectorConfig(...) on purpose: core
+        # retypes this field to EntityWithDeviceFilterSelectorConfig in 2026.8,
+        # and a parent TypedDict is not assignable to the child under
+        # mypy --strict. The literal satisfies both.
+        fields[key] = EntitySelector(
+            EntitySelectorConfig(filter={"domain": "device_tracker"})
+        )
     return vol.Schema(fields)
 
 
