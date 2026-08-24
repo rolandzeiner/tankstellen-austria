@@ -166,9 +166,8 @@ export class TankstellenAustriaCardEditor
         name: "entities",
         selector: {
           entity: {
-            domain: "sensor",
-            integration: "tankstellen_austria",
             multiple: true,
+            filter: { domain: "sensor", integration: "tankstellen_austria" },
           },
         },
       },
