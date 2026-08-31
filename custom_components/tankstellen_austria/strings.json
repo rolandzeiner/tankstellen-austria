@@ -15,7 +15,7 @@
         },
         "data_description": {
           "dynamic_entity": "Optional: select a device_tracker entity to update prices based on your current GPS position. Leave empty for fixed location mode. Note: in dynamic mode the update interval above is ignored — a 6-hour safety-net timer is used instead.",
-          "long_term_statistics": "Keeps hourly min, max and average prices beyond the recorder's purge window, so price charts can span months. Replaces the monetary device class with a measurement state class, because Home Assistant does not allow both."
+          "long_term_statistics": "Optional and off by default — the integration works fine without it. Turn it on only to keep hourly minimum, maximum and average prices longer than Home Assistant's recorder keeps them. That swaps the monetary device class for a measurement state class, because Home Assistant does not allow both."
         }
       },
       "reconfigure": {
@@ -31,7 +31,7 @@
         },
         "data_description": {
           "dynamic_entity": "Optional: select a device_tracker entity to update prices based on your current GPS position. Leave empty for fixed location mode. Note: in dynamic mode the update interval above is ignored — a 6-hour safety-net timer is used instead.",
-          "long_term_statistics": "Keeps hourly min, max and average prices beyond the recorder's purge window, so price charts can span months. Replaces the monetary device class with a measurement state class, because Home Assistant does not allow both."
+          "long_term_statistics": "Optional and off by default — the integration works fine without it. Turn it on only to keep hourly minimum, maximum and average prices longer than Home Assistant's recorder keeps them. That swaps the monetary device class for a measurement state class, because Home Assistant does not allow both."
         }
       }
     },
@@ -60,7 +60,7 @@
         },
         "data_description": {
           "dynamic_entity": "Optional: select a device_tracker entity to update prices based on your current GPS position. Leave empty for fixed location mode. Note: in dynamic mode the update interval above is ignored — a 6-hour safety-net timer is used instead.",
-          "long_term_statistics": "Keeps hourly min, max and average prices beyond the recorder's purge window, so price charts can span months. Replaces the monetary device class with a measurement state class, because Home Assistant does not allow both."
+          "long_term_statistics": "Optional and off by default — the integration works fine without it. Turn it on only to keep hourly minimum, maximum and average prices longer than Home Assistant's recorder keeps them. That swaps the monetary device class for a measurement state class, because Home Assistant does not allow both."
         }
       }
     },

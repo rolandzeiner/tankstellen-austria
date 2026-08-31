@@ -15,7 +15,7 @@
         },
         "data_description": {
           "dynamic_entity": "Optional: Wähle eine device_tracker-Entität, um Preise basierend auf deinem aktuellen GPS-Standort zu aktualisieren. Leer lassen für fixen Standortmodus. Hinweis: Im dynamischen Modus wird das Aktualisierungsintervall oben ignoriert – stattdessen gilt ein 6-Stunden-Sicherheitsintervall.",
-          "long_term_statistics": "Speichert stündliche Minimal-, Maximal- und Durchschnittspreise über den Aufbewahrungszeitraum des Recorders hinaus, sodass Preisdiagramme Monate umfassen können. Ersetzt die Geräteklasse „monetary“ durch die Zustandsklasse „measurement“, da Home Assistant beides nicht zulässt."
+          "long_term_statistics": "Optional und standardmäßig deaktiviert – die Integration funktioniert auch ohne. Aktiviere sie nur, wenn du stündliche Minimal-, Maximal- und Durchschnittspreise länger behalten möchtest, als der Recorder von Home Assistant sie aufbewahrt. Dabei wird die Geräteklasse „monetary“ durch die Zustandsklasse „measurement“ ersetzt, da Home Assistant beides nicht zulässt."
         }
       },
       "reconfigure": {
@@ -31,7 +31,7 @@
         },
         "data_description": {
           "dynamic_entity": "Optional: Wähle eine device_tracker-Entität, um Preise basierend auf deinem aktuellen GPS-Standort zu aktualisieren. Leer lassen für fixen Standortmodus. Hinweis: Im dynamischen Modus wird das Aktualisierungsintervall oben ignoriert – stattdessen gilt ein 6-Stunden-Sicherheitsintervall.",
-          "long_term_statistics": "Speichert stündliche Minimal-, Maximal- und Durchschnittspreise über den Aufbewahrungszeitraum des Recorders hinaus, sodass Preisdiagramme Monate umfassen können. Ersetzt die Geräteklasse „monetary“ durch die Zustandsklasse „measurement“, da Home Assistant beides nicht zulässt."
+          "long_term_statistics": "Optional und standardmäßig deaktiviert – die Integration funktioniert auch ohne. Aktiviere sie nur, wenn du stündliche Minimal-, Maximal- und Durchschnittspreise länger behalten möchtest, als der Recorder von Home Assistant sie aufbewahrt. Dabei wird die Geräteklasse „monetary“ durch die Zustandsklasse „measurement“ ersetzt, da Home Assistant beides nicht zulässt."
         }
       }
     },
@@ -60,7 +60,7 @@
         },
         "data_description": {
           "dynamic_entity": "Optional: Wähle eine device_tracker-Entität, um Preise basierend auf deinem aktuellen GPS-Standort zu aktualisieren. Leer lassen für fixen Standortmodus. Hinweis: Im dynamischen Modus wird das Aktualisierungsintervall oben ignoriert – stattdessen gilt ein 6-Stunden-Sicherheitsintervall.",
-          "long_term_statistics": "Speichert stündliche Minimal-, Maximal- und Durchschnittspreise über den Aufbewahrungszeitraum des Recorders hinaus, sodass Preisdiagramme Monate umfassen können. Ersetzt die Geräteklasse „monetary“ durch die Zustandsklasse „measurement“, da Home Assistant beides nicht zulässt."
+          "long_term_statistics": "Optional und standardmäßig deaktiviert – die Integration funktioniert auch ohne. Aktiviere sie nur, wenn du stündliche Minimal-, Maximal- und Durchschnittspreise länger behalten möchtest, als der Recorder von Home Assistant sie aufbewahrt. Dabei wird die Geräteklasse „monetary“ durch die Zustandsklasse „measurement“ ersetzt, da Home Assistant beides nicht zulässt."
         }
       }
     },
