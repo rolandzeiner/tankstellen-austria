@@ -8,6 +8,7 @@ from typing import Any
 from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorEntity,
+    SensorStateClass,
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
@@ -15,7 +16,14 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import ATTRIBUTION, CONF_FUEL_TYPES, DOMAIN, FUEL_TYPES
+from .const import (
+    ATTRIBUTION,
+    CONF_FUEL_TYPES,
+    CONF_LONG_TERM_STATISTICS,
+    DEFAULT_LONG_TERM_STATISTICS,
+    DOMAIN,
+    FUEL_TYPES,
+)
 from .coordinator import TankstellenConfigEntry, TankstellenCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -75,8 +83,14 @@ async def async_setup_entry(
     coordinator = entry.runtime_data
     config = {**entry.data, **entry.options}
     fuel_types: list[str] = config[CONF_FUEL_TYPES]
+    long_term_statistics: bool = config.get(
+        CONF_LONG_TERM_STATISTICS, DEFAULT_LONG_TERM_STATISTICS
+    )
 
-    entities = [TankstellenSensor(coordinator, entry, ft) for ft in fuel_types]
+    entities = [
+        TankstellenSensor(coordinator, entry, ft, long_term_statistics)
+        for ft in fuel_types
+    ]
     async_add_entities(entities)
 
 
@@ -84,7 +98,6 @@ class TankstellenSensor(CoordinatorEntity[TankstellenCoordinator], SensorEntity)
     """Sensor for one fuel type – state is cheapest price, attrs hold all stations."""
 
     _attr_attribution = ATTRIBUTION
-    _attr_device_class = SensorDeviceClass.MONETARY
     _attr_native_unit_of_measurement = "€/l"
     _attr_has_entity_name = True
 
@@ -103,11 +116,22 @@ class TankstellenSensor(CoordinatorEntity[TankstellenCoordinator], SensorEntity)
         coordinator: TankstellenCoordinator,
         entry: ConfigEntry,
         fuel_type: str,
+        long_term_statistics: bool = DEFAULT_LONG_TERM_STATISTICS,
     ) -> None:
         """Initialise the sensor."""
         super().__init__(coordinator)
         self._fuel_type = fuel_type
         self._entry = entry
+        # Device class and state class are mutually exclusive here, so they
+        # are set per-instance rather than on the class. HA's
+        # DEVICE_CLASS_STATE_CLASSES allows MONETARY only with TOTAL, which
+        # is wrong for a unit price — so opting into long-term statistics
+        # trades the monetary device class for `measurement`. Default off
+        # leaves every existing entity byte-identical to v1.0.0.
+        if long_term_statistics:
+            self._attr_state_class = SensorStateClass.MEASUREMENT
+        else:
+            self._attr_device_class = SensorDeviceClass.MONETARY
         self._price_drift_warned = False
         self._attr_unique_id = f"{entry.entry_id}_{fuel_type}"
         self._attr_translation_key = f"fuel_{fuel_type.lower()}"

@@ -10,10 +10,12 @@
           "fuel_types": "Kraftstoffarten",
           "include_closed": "Geschlossene Tankstellen anzeigen",
           "scan_interval": "Aktualisierungsintervall (Minuten)",
+          "long_term_statistics": "Langzeitstatistiken",
           "dynamic_entity": "Dynamischer Standort-Tracker"
         },
         "data_description": {
-          "dynamic_entity": "Optional: Wähle eine device_tracker-Entität, um Preise basierend auf deinem aktuellen GPS-Standort zu aktualisieren. Leer lassen für fixen Standortmodus. Hinweis: Im dynamischen Modus wird das Aktualisierungsintervall oben ignoriert – stattdessen gilt ein 6-Stunden-Sicherheitsintervall."
+          "dynamic_entity": "Optional: Wähle eine device_tracker-Entität, um Preise basierend auf deinem aktuellen GPS-Standort zu aktualisieren. Leer lassen für fixen Standortmodus. Hinweis: Im dynamischen Modus wird das Aktualisierungsintervall oben ignoriert – stattdessen gilt ein 6-Stunden-Sicherheitsintervall.",
+          "long_term_statistics": "Optional und standardmäßig deaktiviert – die Integration funktioniert auch ohne. Aktiviere sie nur, wenn du stündliche Minimal-, Maximal- und Durchschnittspreise länger behalten möchtest, als der Recorder von Home Assistant sie aufbewahrt. Dabei wird die Geräteklasse „monetary“ durch die Zustandsklasse „measurement“ ersetzt, da Home Assistant beides nicht zulässt."
         }
       },
       "reconfigure": {
@@ -24,10 +26,12 @@
           "fuel_types": "Kraftstoffarten",
           "include_closed": "Geschlossene Tankstellen anzeigen",
           "scan_interval": "Aktualisierungsintervall (Minuten)",
+          "long_term_statistics": "Langzeitstatistiken",
           "dynamic_entity": "Dynamischer Standort-Tracker"
         },
         "data_description": {
-          "dynamic_entity": "Optional: Wähle eine device_tracker-Entität, um Preise basierend auf deinem aktuellen GPS-Standort zu aktualisieren. Leer lassen für fixen Standortmodus. Hinweis: Im dynamischen Modus wird das Aktualisierungsintervall oben ignoriert – stattdessen gilt ein 6-Stunden-Sicherheitsintervall."
+          "dynamic_entity": "Optional: Wähle eine device_tracker-Entität, um Preise basierend auf deinem aktuellen GPS-Standort zu aktualisieren. Leer lassen für fixen Standortmodus. Hinweis: Im dynamischen Modus wird das Aktualisierungsintervall oben ignoriert – stattdessen gilt ein 6-Stunden-Sicherheitsintervall.",
+          "long_term_statistics": "Optional und standardmäßig deaktiviert – die Integration funktioniert auch ohne. Aktiviere sie nur, wenn du stündliche Minimal-, Maximal- und Durchschnittspreise länger behalten möchtest, als der Recorder von Home Assistant sie aufbewahrt. Dabei wird die Geräteklasse „monetary“ durch die Zustandsklasse „measurement“ ersetzt, da Home Assistant beides nicht zulässt."
         }
       }
     },
@@ -51,10 +55,12 @@
           "fuel_types": "Kraftstoffarten",
           "include_closed": "Geschlossene Tankstellen anzeigen",
           "scan_interval": "Aktualisierungsintervall (Minuten)",
+          "long_term_statistics": "Langzeitstatistiken",
           "dynamic_entity": "Dynamischer Standort-Tracker"
         },
         "data_description": {
-          "dynamic_entity": "Optional: Wähle eine device_tracker-Entität, um Preise basierend auf deinem aktuellen GPS-Standort zu aktualisieren. Leer lassen für fixen Standortmodus. Hinweis: Im dynamischen Modus wird das Aktualisierungsintervall oben ignoriert – stattdessen gilt ein 6-Stunden-Sicherheitsintervall."
+          "dynamic_entity": "Optional: Wähle eine device_tracker-Entität, um Preise basierend auf deinem aktuellen GPS-Standort zu aktualisieren. Leer lassen für fixen Standortmodus. Hinweis: Im dynamischen Modus wird das Aktualisierungsintervall oben ignoriert – stattdessen gilt ein 6-Stunden-Sicherheitsintervall.",
+          "long_term_statistics": "Optional und standardmäßig deaktiviert – die Integration funktioniert auch ohne. Aktiviere sie nur, wenn du stündliche Minimal-, Maximal- und Durchschnittspreise länger behalten möchtest, als der Recorder von Home Assistant sie aufbewahrt. Dabei wird die Geräteklasse „monetary“ durch die Zustandsklasse „measurement“ ersetzt, da Home Assistant beides nicht zulässt."
         }
       }
     },
@@ -67,9 +73,15 @@
   },
   "entity": {
     "sensor": {
-      "fuel_die": { "name": "Diesel" },
-      "fuel_sup": { "name": "Super 95" },
-      "fuel_gas": { "name": "CNG Erdgas" }
+      "fuel_die": {
+        "name": "Diesel"
+      },
+      "fuel_sup": {
+        "name": "Super 95"
+      },
+      "fuel_gas": {
+        "name": "CNG Erdgas"
+      }
     }
   },
   "exceptions": {

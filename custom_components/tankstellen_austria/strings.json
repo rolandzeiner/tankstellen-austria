@@ -10,10 +10,12 @@
           "fuel_types": "Fuel types",
           "include_closed": "Include closed stations",
           "scan_interval": "Update interval (minutes)",
+          "long_term_statistics": "Long-term statistics",
           "dynamic_entity": "Dynamic location tracker"
         },
         "data_description": {
-          "dynamic_entity": "Optional: select a device_tracker entity to update prices based on your current GPS position. Leave empty for fixed location mode. Note: in dynamic mode the update interval above is ignored — a 6-hour safety-net timer is used instead."
+          "dynamic_entity": "Optional: select a device_tracker entity to update prices based on your current GPS position. Leave empty for fixed location mode. Note: in dynamic mode the update interval above is ignored — a 6-hour safety-net timer is used instead.",
+          "long_term_statistics": "Optional and off by default — the integration works fine without it. Turn it on only to keep hourly minimum, maximum and average prices longer than Home Assistant's recorder keeps them. That swaps the monetary device class for a measurement state class, because Home Assistant does not allow both."
         }
       },
       "reconfigure": {
@@ -24,10 +26,12 @@
           "fuel_types": "Fuel types",
           "include_closed": "Include closed stations",
           "scan_interval": "Update interval (minutes)",
+          "long_term_statistics": "Long-term statistics",
           "dynamic_entity": "Dynamic location tracker"
         },
         "data_description": {
-          "dynamic_entity": "Optional: select a device_tracker entity to update prices based on your current GPS position. Leave empty for fixed location mode. Note: in dynamic mode the update interval above is ignored — a 6-hour safety-net timer is used instead."
+          "dynamic_entity": "Optional: select a device_tracker entity to update prices based on your current GPS position. Leave empty for fixed location mode. Note: in dynamic mode the update interval above is ignored — a 6-hour safety-net timer is used instead.",
+          "long_term_statistics": "Optional and off by default — the integration works fine without it. Turn it on only to keep hourly minimum, maximum and average prices longer than Home Assistant's recorder keeps them. That swaps the monetary device class for a measurement state class, because Home Assistant does not allow both."
         }
       }
     },
@@ -51,10 +55,12 @@
           "fuel_types": "Fuel types",
           "include_closed": "Include closed stations",
           "scan_interval": "Update interval (minutes)",
+          "long_term_statistics": "Long-term statistics",
           "dynamic_entity": "Dynamic location tracker"
         },
         "data_description": {
-          "dynamic_entity": "Optional: select a device_tracker entity to update prices based on your current GPS position. Leave empty for fixed location mode. Note: in dynamic mode the update interval above is ignored — a 6-hour safety-net timer is used instead."
+          "dynamic_entity": "Optional: select a device_tracker entity to update prices based on your current GPS position. Leave empty for fixed location mode. Note: in dynamic mode the update interval above is ignored — a 6-hour safety-net timer is used instead.",
+          "long_term_statistics": "Optional and off by default — the integration works fine without it. Turn it on only to keep hourly minimum, maximum and average prices longer than Home Assistant's recorder keeps them. That swaps the monetary device class for a measurement state class, because Home Assistant does not allow both."
         }
       }
     },
@@ -67,9 +73,15 @@
   },
   "entity": {
     "sensor": {
-      "fuel_die": { "name": "Diesel" },
-      "fuel_sup": { "name": "Super 95" },
-      "fuel_gas": { "name": "CNG Erdgas" }
+      "fuel_die": {
+        "name": "Diesel"
+      },
+      "fuel_sup": {
+        "name": "Super 95"
+      },
+      "fuel_gas": {
+        "name": "CNG Erdgas"
+      }
     }
   },
   "exceptions": {

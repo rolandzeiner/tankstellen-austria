@@ -22,6 +22,7 @@ and CNG. No API key required.
 - **Payment-method filter / highlight** — show only stations accepting your card, or keep all visible with matches highlighted in green
 - **Car fill-up cost widget** — define cars and see total fill-up cost (and €/100 km) at the cheapest station for that fuel type
 - **Closed / Closing-Soon flags** on stations that won't be open when you arrive
+- **Long-term statistics** — opt in per entry to record hourly min / max / average prices, so price charts can span months instead of the recorder's purge window *(1.10.0)*
 - **German + English** translations and visual card editor
 
 ## Screenshots
@@ -72,6 +73,7 @@ Copy `custom_components/tankstellen_austria/` to your HA `config/custom_componen
 | Fuel types | Any combination of Diesel / Super 95 / CNG |
 | Update interval | 10–720 min (default 30) |
 | Include closed | Include currently closed stations in results |
+| Long-term statistics | Off by default — see [Long-term statistics](#long-term-statistics) |
 | Dynamic location tracker | Optional `device_tracker` for follow-me mode |
 
 ## Lovelace card
@@ -177,6 +179,27 @@ Entity IDs follow HA's `_attr_has_entity_name` + `translation_key` pattern: the 
 | `attribution` | `Datenquelle: E-Control` |
 
 `payment_methods` per station: `cash`, `debit_card`, `credit_card` (booleans), and `others` (list of API strings like `Austrocard`, `UTA`).
+
+## Long-term statistics
+
+Off by default. Turn it on per entry in **Settings → Devices & Services → Tankstellen
+Austria → Configure**.
+
+Without it, the price sensors keep only state history, which the recorder purges after
+`purge_keep_days` (10 by default). With it on, Home Assistant also records hourly
+minimum, maximum and average prices, which survive the purge — so you can chart a season
+of prices, not just a fortnight.
+
+There is one trade-off. Home Assistant pairs the `monetary` device class with
+`state_class: total` only, and `total` is meaningless for a unit price. Enabling
+statistics therefore drops `device_class: monetary` and publishes
+`state_class: measurement` instead. Entity IDs, unique IDs and attributes are untouched,
+and the card is unaffected — it reads state history, not statistics.
+
+Turning the option back off leaves the collected statistics in place, and Home Assistant
+raises a repair notice — *"… no longer has a state class"* — that links to **Developer
+Tools → Statistics**, where you can delete them. Deleting is safe: it removes only the
+statistics, not the sensor.
 
 ## Data updates
 
@@ -286,6 +309,7 @@ The helper stores its config in HA's internal storage (not `configuration.yaml`)
 - Austrian public holidays are not modelled separately in the best-refuel pipeline.
 - The DST transitions twice a year alias the local-clock label of one hour (skipped in spring, doubled in autumn). Real elapsed time is counted correctly; the label aliasing is negligible over a 28-day window.
 - `average_price` is the average of the 5 cheapest only — not a regional average.
+- Long-term statistics record whatever the entry currently watches. In dynamic mode that is a radius that moves with you, so a long series mixes locations — the numbers are only comparable for a fixed location.
 
 ## Removal
 
