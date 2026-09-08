@@ -319,7 +319,7 @@ The helper stores its config in HA's internal storage (not `configuration.yaml`)
 
 ## Development
 
-Card sources live in `src/`, bundled by Rollup into `custom_components/tankstellen_austria/www/tankstellen-austria-card.js`. End users install via HACS and never run `npm`; contributors:
+Card sources live in `src/`, bundled by Rolldown into `custom_components/tankstellen_austria/www/tankstellen-austria-card.js`. End users install via HACS and never run `npm`; contributors:
 
 ```bash
 npm install

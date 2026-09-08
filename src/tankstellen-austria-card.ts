@@ -1,7 +1,7 @@
 // Tankstellen Austria — Lovelace custom card
 // https://github.com/rolandzeiner/tankstellen-austria
 //
-// Architecture: Lit 3 + Shadow DOM + Rollup, single-file HACS bundle.
+// Architecture: Lit 3 + Shadow DOM + Rolldown, single-file HACS bundle.
 // Built from the ha-lovelace-card skill (which is faithfully derived from
 // custom-cards/boilerplate-card).
 
