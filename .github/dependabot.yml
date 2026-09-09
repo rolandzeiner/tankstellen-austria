@@ -61,6 +61,14 @@ updates:
       npm-security:
         applies-to: security-updates
         patterns: ["*"]
+    ignore:
+      # TypeScript is pinned deliberately, not blocked. The original reason
+      # (TS 7 drops the JS compiler API, breaking @rollup/plugin-typescript)
+      # died with the 2026-09 move to Rolldown, which needs no such plugin.
+      # Kept as a plain major-version pin so a major cannot land unreviewed.
+      # Revisit when convenient.
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: pre-commit
     directory: /
