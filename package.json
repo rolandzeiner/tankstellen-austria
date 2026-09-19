@@ -13,7 +13,7 @@
   "devDependencies": {
     "rolldown": "1.2.9",
     "typescript": "7.0.2",
-    "vitest": "4.1.11"
+    "vitest": "5.0.1"
   },
   "dependencies": {
     "lit": "^3.3.3"
