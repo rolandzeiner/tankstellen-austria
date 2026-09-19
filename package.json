@@ -11,7 +11,7 @@
     "test": "vitest run"
   },
   "devDependencies": {
-    "rolldown": "1.2.7",
+    "rolldown": "1.2.9",
     "typescript": "7.0.2",
     "vitest": "4.1.11"
   },
