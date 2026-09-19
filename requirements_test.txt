@@ -14,7 +14,7 @@ pytest-timeout>=2.4,<3
 # floor here either matches PHACC (redundant) or contradicts it (unresolvable).
 # Let PHACC's transitive pin govern; dependabot bumps of syrupy can't apply.
 mypy==2.3.1
-ruff==0.16.5
+ruff==0.16.8
 # Floors track PHACC 0.13.361's hard pins (pytest-cov==7.1.0,
 # syrupy==6.0.0, pytest-asyncio==1.4.0). PHACC 0.13.361 wraps HA core
 # 2026.9.0b4 and requires Python ≥3.14, so the CI workflow tracks 3.14
