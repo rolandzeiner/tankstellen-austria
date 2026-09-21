@@ -53,6 +53,7 @@
     "median_delta_above": "{c}¢ above median",
     "median_delta_equal": "at median",
     "loading": "Loading…",
+    "no_data": "No data available",
     "sparkline_open_more_info": "Open price history",
     "sparkline_aria_summary": "Price history last 7 days: minimum {min}, maximum {max}, median {median}",
     "sparkline_aria_simple": "Price history last 7 days: minimum {min}, maximum {max}",

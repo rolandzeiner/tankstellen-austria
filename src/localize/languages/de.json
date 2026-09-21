@@ -53,6 +53,7 @@
     "median_delta_above": "{c}¢ über Median",
     "median_delta_equal": "auf Median",
     "loading": "Wird geladen…",
+    "no_data": "Keine Daten verfügbar",
     "sparkline_open_more_info": "Preisverlauf öffnen",
     "sparkline_aria_summary": "Preisverlauf der letzten 7 Tage: Minimum {min}, Maximum {max}, Median {median}",
     "sparkline_aria_simple": "Preisverlauf der letzten 7 Tage: Minimum {min}, Maximum {max}",
