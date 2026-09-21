@@ -11,6 +11,7 @@ from typing import Any
 import aiohttp
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import CoreState, Event, HomeAssistant, State, callback
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.debounce import Debouncer
@@ -46,6 +47,32 @@ from .const import (
 from .http import base_request_headers
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _describe_error(err: BaseException) -> str:
+    """Render an exception for the log with its translation placeholders.
+
+    `HomeAssistantError.__str__` resolves the message through the *cached*
+    `exceptions` translation category. For a custom integration that category
+    is generally not loaded when a coordinator refresh fails, so it falls back
+    to the bare translation key — and memoises it on the exception, so it stays
+    bare even once translations are cached. Every raise in this module carries
+    `translation_key=` + `translation_placeholders=` (the
+    `exception-translations` quality-scale rule), which meant the status code
+    and reason the raise site collected never reached the log: a lone
+    `api_http_error` cannot tell a 429 from a 503, which is exactly the
+    question an outage raises.
+
+    Re-attaching the placeholders keeps the log diagnosable without
+    duplicating the English copy from `strings.json` in Python.
+    """
+    if isinstance(err, HomeAssistantError) and err.translation_placeholders:
+        detail = ", ".join(
+            f"{key}={value}" for key, value in err.translation_placeholders.items()
+        )
+        if detail:
+            return f"{err} ({detail})"
+    return str(err)
 
 
 class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]]]]):
@@ -345,7 +372,7 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]
                 raise outcome
             if isinstance(outcome, Exception):
                 errors[fuel_type] = outcome
-                _LOGGER.warning("Fetch failed for fuel type %s: %s", fuel_type, outcome)
+                _LOGGER.warning("Fetch failed: %s", _describe_error(outcome))
             else:
                 results[fuel_type] = outcome
 
@@ -354,7 +381,9 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]
             # Report the first error for the UI; per-type errors were logged above.
             first_ft, first_err = next(iter(errors.items()))
             if was_available:
-                _LOGGER.warning("E-Control API unavailable: %s", first_err)
+                _LOGGER.warning(
+                    "E-Control API unavailable: %s", _describe_error(first_err)
+                )
             self._note_failure()
             raise UpdateFailed(
                 translation_domain=DOMAIN,
@@ -363,7 +392,7 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]
                     "failed_count": str(len(errors)),
                     "total_count": str(len(self._fuel_types)),
                     "fuel_type": first_ft,
-                    "error": str(first_err),
+                    "error": _describe_error(first_err),
                 },
             ) from first_err
 

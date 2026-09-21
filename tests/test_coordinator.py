@@ -18,7 +18,10 @@ from custom_components.tankstellen_austria.const import (
     DOMAIN_LAST_API_CALL_KEY,
     DYNAMIC_COOLDOWN_MINUTES,
 )
-from custom_components.tankstellen_austria.coordinator import TankstellenCoordinator
+from custom_components.tankstellen_austria.coordinator import (
+    TankstellenCoordinator,
+    _describe_error,
+)
 
 from .conftest import (
     BASE_ENTRY_DATA as _BASE_ENTRY_DATA,
@@ -1018,3 +1021,56 @@ async def test_tracker_issue_raised_only_once(hass: HomeAssistant) -> None:
         if i.domain == DOMAIN and i.issue_id.startswith("tracker_missing_")
     ]
     assert len(issues) == 1
+
+
+# ---------------------------------------------------------------------------
+# Failure logging — translation placeholders must survive into the log
+# ---------------------------------------------------------------------------
+
+
+def _http_error(status: str = "503") -> UpdateFailed:
+    return UpdateFailed(
+        translation_domain=DOMAIN,
+        translation_key="api_http_error",
+        translation_placeholders={
+            "status": status,
+            "fuel_type": "DIE",
+            "reason": "Service Unavailable",
+        },
+    )
+
+
+def test_describe_error_appends_placeholders() -> None:
+    """The status and reason the raise site collected reach the log line."""
+    described = _describe_error(_http_error())
+
+    assert "status=503" in described
+    assert "reason=Service Unavailable" in described
+
+
+def test_describe_error_passes_plain_exceptions_through() -> None:
+    """An exception without translation placeholders is rendered unchanged."""
+    assert _describe_error(ValueError("boom")) == "boom"
+
+
+async def test_failure_log_carries_http_status(
+    hass: HomeAssistant, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A failed refresh logs the HTTP status, not just the translation key.
+
+    Regression guard: `str(UpdateFailed)` falls back to the bare key when the
+    `exceptions` translation category is not cached, which made every outage
+    log an undiagnosable `api_http_error`.
+    """
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+    coordinator = TankstellenCoordinator(hass, entry)
+
+    with patch.object(
+        TankstellenCoordinator, "_fetch", new_callable=AsyncMock
+    ) as fetch:
+        fetch.side_effect = _http_error()
+        await coordinator.async_refresh()
+
+    assert coordinator.last_update_success is False
+    assert "status=503" in caplog.text
