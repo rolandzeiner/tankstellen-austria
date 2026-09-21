@@ -10,7 +10,7 @@ from typing import Any
 
 import aiohttp
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import Event, HomeAssistant, State, callback
+from homeassistant.core import CoreState, Event, HomeAssistant, State, callback
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.debounce import Debouncer
@@ -216,7 +216,17 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]
                 "device_tracker %s missing coordinates — using HA home location",
                 self._dynamic_entity,
             )
-            self._raise_tracker_issue()
+            # Only flag it once HA is up. During startup the tracker's own
+            # integration may not have been set up yet, so "no coordinates"
+            # is indistinguishable from "not loaded yet" and is almost always
+            # the latter — `async_config_entry_first_refresh()` routinely wins
+            # that race by a few seconds and used to raise a Repairs issue the
+            # user could do nothing about. The state-change listener
+            # registered in `async_setup()` picks the tracker up the moment it
+            # appears, so a genuinely missing tracker is still flagged on the
+            # next update.
+            if self.hass.state is CoreState.running:
+                self._raise_tracker_issue()
         return self.hass.config.latitude, self.hass.config.longitude
 
     def _raise_tracker_issue(self) -> None:
@@ -243,9 +253,15 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]
         )
 
     def _clear_tracker_issue(self) -> None:
-        """Clear the tracker-missing Repairs issue once coordinates return."""
-        if not self._tracker_issue_raised:
-            return
+        """Clear the tracker-missing Repairs issue once coordinates return.
+
+        The delete is unconditional on purpose. `_tracker_issue_raised` is
+        per-coordinator state, but the Repairs issue is global and outlives a
+        config-entry reload — so a fresh coordinator, with the flag back at
+        False, would early-return and orphan the issue its predecessor raised,
+        leaving a warning the user can only dismiss by hand. `async_delete_issue`
+        is a no-op when the issue is absent, so calling it every time is cheap.
+        """
         self._tracker_issue_raised = False
         ir.async_delete_issue(
             self.hass, DOMAIN, f"tracker_missing_{self._entry.entry_id}"
@@ -298,8 +314,10 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]
         if self._dynamic_entity:
             state = self.hass.states.get(self._dynamic_entity)
             lat, lng = self._get_entity_coords(state)
-            self._last_fetch_lat = lat
-            self._last_fetch_lng = lng
+            # The timestamp is recorded optimistically: a failed attempt still
+            # counts against the per-entry cooldown so a flapping API can't be
+            # hammered on every tracker tick. The *position* is not — it is
+            # recorded further down, once data is actually in hand.
             self._last_fetch_time = dt_util.utcnow()
         else:
             lat = self._latitude
@@ -359,6 +377,17 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]
         if not was_available:
             _LOGGER.info("E-Control API is back online")
         self._note_success()
+
+        if self._dynamic_entity:
+            # Only now does this position become the reference the distance
+            # guard measures against. Recording it before the fetch pinned the
+            # guard to a position we never received data for: with the phone
+            # sitting still afterwards, `_should_update` saw "hasn't moved
+            # 1500 m" and suppressed every retry until the 6 h safety interval
+            # came round. Leaving it None after a failure makes the guard skip
+            # the distance check entirely, so the cooldown alone paces retries.
+            self._last_fetch_lat = lat
+            self._last_fetch_lng = lng
 
         # If the API returned no stations for any fuel type, it may be in the
         # middle of its own data update (~12:05–12:07). Schedule a retry in
