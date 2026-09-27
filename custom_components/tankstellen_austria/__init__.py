@@ -19,7 +19,11 @@ from homeassistant.helpers import device_registry as dr
 
 from .card_registration import JSModuleRegistration
 from .const import CARD_VERSION, DOMAIN
-from .coordinator import TankstellenConfigEntry, TankstellenCoordinator
+from .coordinator import (
+    TankstellenConfigEntry,
+    TankstellenCoordinator,
+    maintenance_window,
+)
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
@@ -38,6 +42,24 @@ async def _websocket_card_version(
     connection.send_result(msg["id"], {"version": CARD_VERSION})
 
 
+@websocket_command({vol.Required("type"): "tankstellen_austria/api_status"})
+@async_response
+async def _websocket_api_status(
+    hass: HomeAssistant,
+    connection: ActiveConnection,
+    msg: dict[str, Any],
+) -> None:
+    """Tell the card whether E-Control is down for maintenance.
+
+    An unavailable entity carries no attributes, and an entry stuck in setup
+    retry has no entities at all, so the card can't read the reason off a
+    state object. The window lives in `hass.data`, which both cases share.
+    """
+    connection.send_result(
+        msg["id"], {"maintenance": maintenance_window(hass) is not None}
+    )
+
+
 async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
     """Register the card JS and WebSocket command once when the domain is loaded."""
     hass.data.setdefault(DOMAIN, {})
@@ -48,6 +70,7 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
     # registration is HA-core internal; we never reach that branch
     # since `async_setup` only runs once per HA startup.
     async_register_command(hass, _websocket_card_version)
+    async_register_command(hass, _websocket_api_status)
 
     registration = JSModuleRegistration(hass)
 

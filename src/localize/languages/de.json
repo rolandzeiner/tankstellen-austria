@@ -53,10 +53,12 @@
     "median_delta_above": "{c}¢ über Median",
     "median_delta_equal": "auf Median",
     "loading": "Wird geladen…",
+    "no_data": "Keine Daten verfügbar",
     "sparkline_open_more_info": "Preisverlauf öffnen",
     "sparkline_aria_summary": "Preisverlauf der letzten 7 Tage: Minimum {min}, Maximum {max}, Median {median}",
     "sparkline_aria_simple": "Preisverlauf der letzten 7 Tage: Minimum {min}, Maximum {max}",
-    "history_fetch_error": "Preisverlauf konnte nicht geladen werden"
+    "history_fetch_error": "Preisverlauf konnte nicht geladen werden",
+    "api_maintenance": "E-Control führt Wartungsarbeiten durch. Die Preise kommen automatisch zurück, sobald der Dienst wieder läuft."
   },
   "fuel_types": {
     "DIE": "Diesel",
@@ -67,7 +69,7 @@
   "editor": {
     "entities": "Sensoren",
     "entities_hint": "Leer lassen für automatische Erkennung",
-    "entity_missing": "Sensor {entity} existiert nicht mehr. Wählen Sie einen anderen Sensor oder entfernen Sie ihn aus den Entitäten dieser Karte.",
+    "entity_missing": "Sensor {entity} existiert nicht mehr. Wähle einen anderen Sensor oder entferne ihn aus den Entitäten dieser Karte.",
     "max_stations": "Anzahl Tankstellen",
     "show_index": "Platzierung anzeigen",
     "show_map_links": "Navigations-Links anzeigen",

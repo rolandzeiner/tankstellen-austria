@@ -5,8 +5,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import aiohttp
 import pytest
-from homeassistant.core import HomeAssistant
+from homeassistant.core import CoreState, HomeAssistant
 from homeassistant.helpers.update_coordinator import UpdateFailed
+from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.tankstellen_austria.const import (
@@ -16,9 +17,16 @@ from custom_components.tankstellen_austria.const import (
     CONF_SCAN_INTERVAL,
     DOMAIN,
     DOMAIN_LAST_API_CALL_KEY,
+    DOMAIN_MAINTENANCE_KEY,
     DYNAMIC_COOLDOWN_MINUTES,
+    MAINTENANCE_PROBE_MINUTES,
 )
-from custom_components.tankstellen_austria.coordinator import TankstellenCoordinator
+from custom_components.tankstellen_austria.coordinator import (
+    MaintenanceWindow,
+    TankstellenCoordinator,
+    _describe_error,
+    maintenance_window,
+)
 
 from .conftest import (
     BASE_ENTRY_DATA as _BASE_ENTRY_DATA,
@@ -696,6 +704,115 @@ async def test_tracker_restored_clears_repair_issue(hass: HomeAssistant) -> None
     assert coordinator._tracker_issue_raised is False
 
 
+async def test_tracker_missing_during_startup_raises_no_issue(
+    hass: HomeAssistant,
+) -> None:
+    """No Repairs issue while HA is starting — the tracker may just be late.
+
+    `async_config_entry_first_refresh()` routinely runs before the tracker's
+    own integration has restored its state, so "no coordinates" at that point
+    means "not loaded yet", not "misconfigured". The home-location fallback
+    still applies.
+    """
+    from homeassistant.helpers import issue_registry as ir
+
+    entry = _make_entry({CONF_DYNAMIC_ENTITY: "device_tracker.phone"})
+    entry.add_to_hass(hass)
+    coordinator = TankstellenCoordinator(hass, entry)
+
+    hass.set_state(CoreState.starting)
+    try:
+        lat, lng = coordinator._get_entity_coords(None)
+    finally:
+        hass.set_state(CoreState.running)
+
+    assert (lat, lng) == (hass.config.latitude, hass.config.longitude)
+    assert coordinator._tracker_issue_raised is False
+    registry = ir.async_get(hass)
+    assert registry.async_get_issue(DOMAIN, f"tracker_missing_{entry.entry_id}") is None
+
+
+async def test_tracker_issue_cleared_by_later_coordinator(hass: HomeAssistant) -> None:
+    """A reload's fresh coordinator still clears its predecessor's issue.
+
+    `_tracker_issue_raised` is per-instance while the Repairs issue is global,
+    so the clear must not be gated on the flag or a config-entry reload orphans
+    the issue permanently.
+    """
+    from homeassistant.helpers import issue_registry as ir
+
+    entry = _make_entry({CONF_DYNAMIC_ENTITY: "device_tracker.phone"})
+    entry.add_to_hass(hass)
+
+    first = TankstellenCoordinator(hass, entry)
+    first._get_entity_coords(None)
+    registry = ir.async_get(hass)
+    assert (
+        registry.async_get_issue(DOMAIN, f"tracker_missing_{entry.entry_id}")
+        is not None
+    )
+
+    # Reload: a brand-new coordinator for the same entry, flag back at False.
+    second = TankstellenCoordinator(hass, entry)
+    assert second._tracker_issue_raised is False
+
+    state = MagicMock()
+    state.attributes = {"latitude": 48.2, "longitude": 16.4}
+    second._get_entity_coords(state)
+
+    assert registry.async_get_issue(DOMAIN, f"tracker_missing_{entry.entry_id}") is None
+
+
+# ---------------------------------------------------------------------------
+# Dynamic mode — the distance guard's reference position
+# ---------------------------------------------------------------------------
+
+
+async def test_failed_fetch_does_not_record_position(hass: HomeAssistant) -> None:
+    """A failed fetch leaves the distance guard's reference position unset.
+
+    Recording it up-front pinned the guard to a position no data was ever
+    received for: a stationary phone then never cleared the 1500 m threshold
+    and every retry was suppressed until the safety interval came round.
+    """
+    entry = _make_entry({CONF_DYNAMIC_ENTITY: "device_tracker.phone"})
+    entry.add_to_hass(hass)
+    hass.states.async_set(
+        "device_tracker.phone", "not_home", {"latitude": 48.2, "longitude": 16.4}
+    )
+
+    coordinator = TankstellenCoordinator(hass, entry)
+    with patch.object(
+        TankstellenCoordinator, "_fetch", new_callable=AsyncMock
+    ) as fetch:
+        fetch.side_effect = UpdateFailed("boom")
+        await coordinator.async_refresh()
+
+    assert coordinator.last_update_success is False
+    assert coordinator._last_fetch_lat is None
+    assert coordinator._last_fetch_lng is None
+    # The cooldown timestamp is deliberately still armed — a flapping API must
+    # not be re-hit on every tracker tick.
+    assert coordinator._last_fetch_time is not None
+
+
+async def test_successful_fetch_records_position(
+    hass: HomeAssistant, mock_fetch
+) -> None:
+    """A successful fetch records the position the data belongs to."""
+    entry = _make_entry({CONF_DYNAMIC_ENTITY: "device_tracker.phone"})
+    entry.add_to_hass(hass)
+    hass.states.async_set(
+        "device_tracker.phone", "not_home", {"latitude": 48.2, "longitude": 16.4}
+    )
+
+    coordinator = TankstellenCoordinator(hass, entry)
+    await coordinator.async_refresh()
+
+    assert coordinator.last_update_success is True
+    assert (coordinator._last_fetch_lat, coordinator._last_fetch_lng) == (48.2, 16.4)
+
+
 # ---------------------------------------------------------------------------
 # _fetch — payload shaping + error translation keys
 # ---------------------------------------------------------------------------
@@ -909,3 +1026,271 @@ async def test_tracker_issue_raised_only_once(hass: HomeAssistant) -> None:
         if i.domain == DOMAIN and i.issue_id.startswith("tracker_missing_")
     ]
     assert len(issues) == 1
+
+
+# ---------------------------------------------------------------------------
+# Failure logging — translation placeholders must survive into the log
+# ---------------------------------------------------------------------------
+
+
+def _http_error(status: str = "503") -> UpdateFailed:
+    return UpdateFailed(
+        translation_domain=DOMAIN,
+        translation_key="api_http_error",
+        translation_placeholders={
+            "status": status,
+            "fuel_type": "DIE",
+            "reason": "Service Unavailable",
+        },
+    )
+
+
+def test_describe_error_appends_placeholders() -> None:
+    """The status and reason the raise site collected reach the log line."""
+    described = _describe_error(_http_error())
+
+    assert "status=503" in described
+    assert "reason=Service Unavailable" in described
+
+
+def test_describe_error_passes_plain_exceptions_through() -> None:
+    """An exception without translation placeholders is rendered unchanged."""
+    assert _describe_error(ValueError("boom")) == "boom"
+
+
+async def test_failure_log_carries_http_status(
+    hass: HomeAssistant, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A failed refresh logs the HTTP status, not just the translation key.
+
+    Regression guard: `str(UpdateFailed)` falls back to the bare key when the
+    `exceptions` translation category is not cached, which made every outage
+    log an undiagnosable `api_http_error`.
+    """
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+    coordinator = TankstellenCoordinator(hass, entry)
+
+    with patch.object(
+        TankstellenCoordinator, "_fetch", new_callable=AsyncMock
+    ) as fetch:
+        fetch.side_effect = _http_error()
+        await coordinator.async_refresh()
+
+    assert coordinator.last_update_success is False
+    assert "status=503" in caplog.text
+
+
+# ---------------------------------------------------------------------------
+# E-Control maintenance
+# ---------------------------------------------------------------------------
+
+# Abridged from the page E-Control served on every /sprit/1.0 path during the
+# 2026-09-26/27 window (HTTP/1.0 507, text/html).
+MAINTENANCE_PAGE = (
+    b"<html>\n<head>\n<title>E-control Wartungsarbeiten</title>\n"
+    b'<meta http-equiv="refresh" content="15">\n</head>\n<body>'
+    b"Aufgrund von Wartungsarbeiten ist unser Service aktuell nicht "
+    b"verf&uuml;gbar</body></html>"
+)
+
+
+def _stub_session_html(
+    coordinator: TankstellenCoordinator, body: bytes, status: int = 507
+) -> MagicMock:
+    """Stub coordinator._session.get with an HTML error response.
+
+    ``raise_for_status`` raises like aiohttp would, so a page the detector
+    doesn't recognise still ends up on the ordinary HTTP-error path.
+    """
+    resp = MagicMock()
+    resp.status = status
+    resp.content_type = "text/html"
+    resp.content.read = AsyncMock(return_value=body)
+    resp.raise_for_status = MagicMock(
+        side_effect=aiohttp.ClientResponseError(
+            request_info=MagicMock(), history=(), status=status, message="error"
+        )
+    )
+    coordinator._session = MagicMock()
+    coordinator._session.get = MagicMock(return_value=make_response_cm(resp))
+    return coordinator._session.get
+
+
+def _open_window(hass: HomeAssistant, *, next_probe_in: timedelta) -> None:
+    now = dt_util.utcnow()
+    hass.data.setdefault(DOMAIN, {})[DOMAIN_MAINTENANCE_KEY] = MaintenanceWindow(
+        since=now - timedelta(hours=1), next_probe=now + next_probe_in
+    )
+
+
+async def test_fetch_maintenance_page_uses_translation_key(
+    hass: HomeAssistant,
+) -> None:
+    """The maintenance page maps to api_maintenance, whatever its status."""
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+    coordinator = TankstellenCoordinator(hass, entry)
+    _stub_session_html(coordinator, MAINTENANCE_PAGE)
+
+    with pytest.raises(UpdateFailed) as exc:
+        await coordinator._fetch("DIE", 48.0, 16.0)
+    assert exc.value.translation_key == "api_maintenance"
+    assert exc.value.translation_placeholders == {"fuel_type": "DIE", "status": "507"}
+
+
+async def test_fetch_html_error_without_marker_stays_http_error(
+    hass: HomeAssistant,
+) -> None:
+    """Any other HTML error page is still an ordinary HTTP error."""
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+    coordinator = TankstellenCoordinator(hass, entry)
+    _stub_session_html(
+        coordinator, b"<html><title>502 Bad Gateway</title></html>", status=502
+    )
+
+    with pytest.raises(UpdateFailed) as exc:
+        await coordinator._fetch("DIE", 48.0, 16.0)
+    assert exc.value.translation_key == "api_http_error"
+
+
+async def test_maintenance_opens_one_window_for_all_entries(
+    hass: HomeAssistant, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The first entry to see the page probes; the next one fails fast.
+
+    Also locks the logging shape: one warning for the install, and no
+    per-fuel-type "Fetch failed" line for the maintenance page.
+    """
+    entry_a, entry_b = _make_entry(), _make_entry()
+    entry_a.add_to_hass(hass)
+    entry_b.add_to_hass(hass)
+    coord_a = TankstellenCoordinator(hass, entry_a)
+    coord_b = TankstellenCoordinator(hass, entry_b)
+    get_a = _stub_session_html(coord_a, MAINTENANCE_PAGE)
+    get_b = _stub_session_html(coord_b, MAINTENANCE_PAGE)
+
+    await coord_a.async_refresh()
+    await coord_b.async_refresh()
+
+    assert get_a.call_count == 2  # one request per fuel type
+    get_b.assert_not_called()
+    for coord in (coord_a, coord_b):
+        assert not coord.last_update_success
+        assert coord.last_exception.translation_key == "api_maintenance"
+
+    window = maintenance_window(hass)
+    assert window is not None
+    assert window.next_probe - window.since == timedelta(
+        minutes=MAINTENANCE_PROBE_MINUTES
+    )
+    assert caplog.text.count("E-Control reports maintenance") == 1
+    assert "Fetch failed" not in caplog.text
+
+
+async def test_maintenance_probe_after_window_keeps_first_seen(
+    hass: HomeAssistant,
+) -> None:
+    """A probe that still sees the page moves next_probe, not since."""
+    _open_window(hass, next_probe_in=timedelta(seconds=-1))
+    opened = maintenance_window(hass)
+    assert opened is not None
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+    coordinator = TankstellenCoordinator(hass, entry)
+    get = _stub_session_html(coordinator, MAINTENANCE_PAGE)
+
+    await coordinator.async_refresh()
+
+    assert get.call_count == 2
+    window = maintenance_window(hass)
+    assert window is not None
+    assert window.since == opened.since
+    assert window.next_probe > dt_util.utcnow()
+
+
+async def test_successful_probe_closes_maintenance_window(
+    hass: HomeAssistant, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Once E-Control answers again the window closes and data flows."""
+    _open_window(hass, next_probe_in=timedelta(seconds=-1))
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+    coordinator = TankstellenCoordinator(hass, entry)
+    _stub_session_returning(coordinator, [MOCK_STATION])
+
+    await coordinator.async_refresh()
+
+    assert coordinator.last_update_success
+    assert maintenance_window(hass) is None
+    assert "E-Control maintenance is over" in caplog.text
+
+
+async def test_other_error_after_maintenance_closes_window(
+    hass: HomeAssistant,
+) -> None:
+    """A probe that gets any other answer closes the window.
+
+    Otherwise the card would keep saying "maintenance" while E-Control is
+    failing in some other way.
+    """
+    _open_window(hass, next_probe_in=timedelta(seconds=-1))
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+    coordinator = TankstellenCoordinator(hass, entry)
+    _stub_session_raising(coordinator, TimeoutError())
+
+    await coordinator.async_refresh()
+
+    assert not coordinator.last_update_success
+    assert coordinator.last_exception.translation_key == "api_all_failed"
+    assert maintenance_window(hass) is None
+
+
+async def test_maintenance_holds_normal_interval(hass: HomeAssistant) -> None:
+    """Maintenance undoes earlier backoff and never escalates it.
+
+    At the 12 h backoff cap an entry would otherwise stay unavailable for up
+    to half a day after E-Control is back.
+    """
+    entry = _make_entry({CONF_SCAN_INTERVAL: 30})
+    entry.add_to_hass(hass)
+    coordinator = TankstellenCoordinator(hass, entry)
+    coordinator._consecutive_failures = 4
+    coordinator.update_interval = timedelta(hours=8)
+    _stub_session_html(coordinator, MAINTENANCE_PAGE)
+
+    await coordinator.async_refresh()  # probes and opens the window
+    await coordinator.async_refresh()  # fails fast inside it
+
+    assert coordinator.update_interval == timedelta(minutes=30)
+    assert coordinator._consecutive_failures == 0
+
+
+async def test_setup_during_maintenance_reports_maintenance(
+    hass: HomeAssistant,
+) -> None:
+    """The setup-retry reason is the maintenance message, not api_all_failed.
+
+    HA copies the UpdateFailed translation key onto ConfigEntryNotReady, and
+    the frontend renders it as "Failed setup, will retry: <message>".
+    """
+    from homeassistant.config_entries import ConfigEntryState
+
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+
+    with patch(
+        "custom_components.tankstellen_austria.coordinator.TankstellenCoordinator._fetch",
+        side_effect=UpdateFailed(
+            translation_domain=DOMAIN,
+            translation_key="api_maintenance",
+            translation_placeholders={"fuel_type": "DIE", "status": "507"},
+        ),
+    ):
+        await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    assert entry.state is ConfigEntryState.SETUP_RETRY
+    assert entry.error_reason_translation_key == "api_maintenance"

@@ -144,6 +144,36 @@ function groupByWeek(chunks: Chunk[]): Map<number, Chunk[]> {
   return weeks;
 }
 
+interface WinsorisedWeek {
+  weekChunks: Chunk[];
+  totalMs: number; // observed time in the week, already >= MIN_WEEK_MS
+  p05: number; // duration-weighted 5th percentile of the week's prices
+  p95: number; // duration-weighted 95th percentile
+}
+
+// Weeks with enough observed time to be representative, each paired with its
+// duration-weighted winsorise bounds. The recommendation and the hourly
+// envelope qualify weeks identically and clip against the same p05/p95 — only
+// what they do with the clipped prices differs — so the rule lives here once.
+function* winsorisedWeeks(chunks: Chunk[]): Generator<WinsorisedWeek> {
+  for (const weekChunks of groupByWeek(chunks).values()) {
+    let totalMs = 0;
+    for (const c of weekChunks) totalMs += c.durationMs;
+    if (totalMs < MIN_WEEK_MS) continue;
+
+    const priceEntries: WeightedEntry[] = weekChunks.map((c) => ({
+      value: c.price,
+      weight: c.durationMs,
+    }));
+    yield {
+      weekChunks,
+      totalMs,
+      p05: weightedPercentile(priceEntries, 0.05),
+      p95: weightedPercentile(priceEntries, 0.95),
+    };
+  }
+}
+
 interface BestPick {
   medians: number[];
   bestIdx: number; // index of the seed bucket (may have been shifted by tiebreaker)
@@ -259,26 +289,13 @@ export function analyzeBestRefuel(data: HistoryPoint[]): BestRefuelResult | null
   const chunks = walkChunks(data, now);
   if (chunks.length === 0) return { hasEnoughData: false };
 
-  const weeks = groupByWeek(chunks);
-
   // Per-week duration-weighted winsorise (p05/p95) → normalise as
   // (clipped_price − week_mean) → bucket entry weighted by
   // duration × recency-decay (14-day half-life).
   const hourBuckets: WeightedEntry[][] = Array.from({ length: 24 }, () => []);
   const weekdayBuckets: WeightedEntry[][] = Array.from({ length: 7 }, () => []);
 
-  for (const weekChunks of weeks.values()) {
-    let totalMs = 0;
-    for (const c of weekChunks) totalMs += c.durationMs;
-    if (totalMs < MIN_WEEK_MS) continue;
-
-    const priceEntries: WeightedEntry[] = weekChunks.map((c) => ({
-      value: c.price,
-      weight: c.durationMs,
-    }));
-    const p05 = weightedPercentile(priceEntries, 0.05);
-    const p95 = weightedPercentile(priceEntries, 0.95);
-
+  for (const { weekChunks, totalMs, p05, p95 } of winsorisedWeeks(chunks)) {
     let weightedSum = 0;
     for (const c of weekChunks) {
       weightedSum += clamp(c.price, p05, p95) * c.durationMs;
@@ -373,21 +390,8 @@ export function buildHourlyEnvelope(
   const chunks = walkChunks(allData, now);
   if (chunks.length === 0) return null;
 
-  const weeks = groupByWeek(chunks);
-
   const byHour: WeightedEntry[][] = Array.from({ length: 24 }, () => []);
-  for (const weekChunks of weeks.values()) {
-    let totalMs = 0;
-    for (const c of weekChunks) totalMs += c.durationMs;
-    if (totalMs < MIN_WEEK_MS) continue;
-
-    const priceEntries: WeightedEntry[] = weekChunks.map((c) => ({
-      value: c.price,
-      weight: c.durationMs,
-    }));
-    const p05 = weightedPercentile(priceEntries, 0.05);
-    const p95 = weightedPercentile(priceEntries, 0.95);
-
+  for (const { weekChunks, p05, p95 } of winsorisedWeeks(chunks)) {
     for (const c of weekChunks) {
       byHour[c.hour]!.push({
         value: clamp(c.price, p05, p95),

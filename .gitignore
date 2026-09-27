@@ -1,5 +1,5 @@
 # Unified .gitignore for the *-austria HACS portfolio (6 integrations,
-# all Lit 3 + TypeScript + Rollup card + HA Python integration).
+# all Lit 3 + TypeScript + Rolldown card + HA Python integration).
 # Reviewed 2026-05-08 — composed from the union of all 6 existing files,
 # de-duplicated, with per-repo paths replaced by globbed equivalents.
 
@@ -21,7 +21,11 @@ __pycache__/
 .coverage
 .coverage.*
 coverage.xml
+coverage.json
 htmlcov/
+# vitest --coverage output. Lives at the repo root, outside the
+# custom_components/<domain>/ tree that scripts/dev-push.sh rsyncs.
+coverage/
 .tox/
 
 # Build / dist / packaging
@@ -39,9 +43,9 @@ env/
 ENV/
 .python-version
 .HA_VERSION
-# uv lockfile — local-dev artifact only. CI installs from
-# requirements_test.txt (pip), not uv. Committing it would tie all
-# contributors to uv and produce a noisy diff on every dep sync.
+# uv lockfile — local-dev artifact only. CI resolves from
+# requirements_test.txt (`uv pip install`), never from a lockfile, so
+# committing one would only add a noisy diff on every dep sync.
 uv.lock
 
 # ───────────────────────────────────────────────────────────────────
@@ -52,7 +56,7 @@ node_modules/
 *.js.map
 
 # Bundler caches
-.rollup.cache/
+.rolldown.cache/
 .vite-cache/
 .parcel-cache/
 

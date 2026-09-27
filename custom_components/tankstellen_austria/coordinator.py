@@ -5,12 +5,14 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any
 
 import aiohttp
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import Event, HomeAssistant, State, callback
+from homeassistant.core import CoreState, Event, HomeAssistant, State, callback
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.debounce import Debouncer
@@ -36,16 +38,83 @@ from .const import (
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
     DOMAIN_LAST_API_CALL_KEY,
+    DOMAIN_MAINTENANCE_KEY,
     DYNAMIC_COOLDOWN_MINUTES,
     DYNAMIC_DISTANCE_THRESHOLD_M,
     DYNAMIC_DOMAIN_COOLDOWN_MINUTES,
     DYNAMIC_SAFETY_INTERVAL_HOURS,
+    MAINTENANCE_MARKER,
+    MAINTENANCE_PROBE_MINUTES,
+    MAINTENANCE_SNIFF_BYTES,
     NO_DATA_RETRY_MINUTES,
     USER_AGENT,
 )
 from .http import base_request_headers
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _describe_error(err: BaseException) -> str:
+    """Render an exception for the log with its translation placeholders.
+
+    `HomeAssistantError.__str__` resolves the message through the *cached*
+    `exceptions` translation category. For a custom integration that category
+    is generally not loaded when a coordinator refresh fails, so it falls back
+    to the bare translation key — and memoises it on the exception, so it stays
+    bare even once translations are cached. Every raise in this module carries
+    `translation_key=` + `translation_placeholders=` (the
+    `exception-translations` quality-scale rule), which meant the status code
+    and reason the raise site collected never reached the log: a lone
+    `api_http_error` cannot tell a 429 from a 503, which is exactly the
+    question an outage raises.
+
+    Re-attaching the placeholders keeps the log diagnosable without
+    duplicating the English copy from `strings.json` in Python.
+    """
+    if isinstance(err, HomeAssistantError) and err.translation_placeholders:
+        detail = ", ".join(
+            f"{key}={value}" for key, value in err.translation_placeholders.items()
+        )
+        if detail:
+            return f"{err} ({detail})"
+    return str(err)
+
+
+@dataclass(frozen=True, slots=True)
+class MaintenanceWindow:
+    """E-Control's maintenance state, shared by every entry via `hass.data`.
+
+    Maintenance takes the whole service down, so it is one fact per install,
+    not per entry: whichever entry sees the page first opens the window, and
+    the others fail fast inside it instead of each probing on their own.
+    """
+
+    since: datetime  # first probe that saw the maintenance page
+    next_probe: datetime  # refreshes before this fail without a request
+
+
+def maintenance_window(hass: HomeAssistant) -> MaintenanceWindow | None:
+    """Return the open maintenance window, or None while E-Control is up."""
+    window = hass.data.get(DOMAIN, {}).get(DOMAIN_MAINTENANCE_KEY)
+    return window if isinstance(window, MaintenanceWindow) else None
+
+
+def _is_maintenance(err: BaseException) -> bool:
+    """Return True for the UpdateFailed raised on E-Control's maintenance page."""
+    return isinstance(err, UpdateFailed) and err.translation_key == "api_maintenance"
+
+
+async def _is_maintenance_page(resp: aiohttp.ClientResponse) -> bool:
+    """Return True when E-Control answered with its maintenance page.
+
+    Only an HTML response is read, so the JSON happy path pays nothing. The
+    status code is deliberately ignored (see MAINTENANCE_MARKER in const.py).
+    A short read is fine: the marker sits in the page's <title>.
+    """
+    if resp.content_type != "text/html":
+        return False
+    head = await resp.content.read(MAINTENANCE_SNIFF_BYTES)
+    return MAINTENANCE_MARKER in head.decode("utf-8", errors="replace")
 
 
 class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]]]]):
@@ -143,8 +212,8 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]
         Deliberately does NOT call `super().async_shutdown()`: core wires
         it to unload for us in `DataUpdateCoordinator.__init__` —
         `if self.config_entry: self.config_entry.async_on_unload(
-        self.async_shutdown)` (update_coordinator.py:148-149) — and this
-        coordinator is constructed with `config_entry=`.
+        self.async_shutdown)` — and this coordinator is constructed with
+        `config_entry=`.
 
         The exception, for anyone porting this: a coordinator built
         WITHOUT `config_entry=` gets neither that registration nor the
@@ -178,17 +247,17 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]
             dt_util.utcnow()
         )
         # Entry-owned and named, not a bare `hass.async_create_task`.
-        # Owned so unload WAITS for the fetch (config_entries.py:1250
-        # awaits `_tasks` with timeout=10) instead of orphaning it — note
-        # unload cancels only `_background_tasks`, so this is a wait, not
-        # a cancel. Named so it is identifiable in HA's task list rather
-        # than showing up as "Task-123".
+        # Owned so unload WAITS for the fetch (`ConfigEntry.
+        # _async_process_on_unload` waits up to 10 s on `_tasks`) instead of
+        # orphaning it — note unload cancels only `_background_tasks`, so
+        # this is a wait, not a cancel. Named so it is identifiable in HA's
+        # task list rather than showing up as "Task-123".
         #
         # The coordinator is independently safe against a torn-down
-        # refresh: `async_shutdown` is registered as an `async_on_unload`
-        # callback (update_coordinator.py:148-149) and so runs BEFORE the
-        # task wait, setting `_shutdown_requested`, which `_async_refresh`
-        # short-circuits on (update_coordinator.py:212, :424).
+        # refresh: `DataUpdateCoordinator.__init__` registers
+        # `async_shutdown` as an `async_on_unload` callback, so it runs
+        # BEFORE the task wait and sets `_shutdown_requested`, which
+        # `_async_refresh` checks before fetching.
         self._entry.async_create_task(
             self.hass,
             self.async_refresh(),
@@ -216,7 +285,17 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]
                 "device_tracker %s missing coordinates — using HA home location",
                 self._dynamic_entity,
             )
-            self._raise_tracker_issue()
+            # Only flag it once HA is up. During startup the tracker's own
+            # integration may not have been set up yet, so "no coordinates"
+            # is indistinguishable from "not loaded yet" and is almost always
+            # the latter — `async_config_entry_first_refresh()` routinely wins
+            # that race by a few seconds and used to raise a Repairs issue the
+            # user could do nothing about. The state-change listener
+            # registered in `async_setup()` picks the tracker up the moment it
+            # appears, so a genuinely missing tracker is still flagged on the
+            # next update.
+            if self.hass.state is CoreState.running:
+                self._raise_tracker_issue()
         return self.hass.config.latitude, self.hass.config.longitude
 
     def _raise_tracker_issue(self) -> None:
@@ -243,9 +322,15 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]
         )
 
     def _clear_tracker_issue(self) -> None:
-        """Clear the tracker-missing Repairs issue once coordinates return."""
-        if not self._tracker_issue_raised:
-            return
+        """Clear the tracker-missing Repairs issue once coordinates return.
+
+        The delete is unconditional on purpose. `_tracker_issue_raised` is
+        per-coordinator state, but the Repairs issue is global and outlives a
+        config-entry reload — so a fresh coordinator, with the flag back at
+        False, would early-return and orphan the issue its predecessor raised,
+        leaving a warning the user can only dismiss by hand. `async_delete_issue`
+        is a no-op when the issue is absent, so calling it every time is cheap.
+        """
         self._tracker_issue_raised = False
         ir.async_delete_issue(
             self.hass, DOMAIN, f"tracker_missing_{self._entry.entry_id}"
@@ -298,14 +383,29 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]
         if self._dynamic_entity:
             state = self.hass.states.get(self._dynamic_entity)
             lat, lng = self._get_entity_coords(state)
-            self._last_fetch_lat = lat
-            self._last_fetch_lng = lng
+            # The timestamp is recorded optimistically: a failed attempt still
+            # counts against the per-entry cooldown so a flapping API can't be
+            # hammered on every tracker tick. The *position* is not — it is
+            # recorded further down, once data is actually in hand.
             self._last_fetch_time = dt_util.utcnow()
         else:
             lat = self._latitude
             lng = self._longitude
 
+        # Inside E-Control's maintenance window, fail without a request: one
+        # probe per window serves every entry (see MAINTENANCE_PROBE_MINUTES).
+        window = maintenance_window(self.hass)
+        if window is not None and dt_util.utcnow() < window.next_probe:
+            self._note_maintenance()
+            raise UpdateFailed(
+                translation_domain=DOMAIN,
+                translation_key="api_maintenance",
+            )
+
         was_available = self.last_update_success
+        # Stamped before the requests go out, so the next maintenance probe is
+        # timed from this attempt rather than from however long it took.
+        probe_started = dt_util.utcnow()
 
         # Fan out per fuel type in parallel — they are independent requests
         # against the same host. Sequentially awaiting each adds up (3 fuel
@@ -327,16 +427,36 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]
                 raise outcome
             if isinstance(outcome, Exception):
                 errors[fuel_type] = outcome
-                _LOGGER.warning("Fetch failed for fuel type %s: %s", fuel_type, outcome)
+                # Maintenance gets one install-wide warning when the window
+                # opens, not one per fuel type on every probe.
+                if not _is_maintenance(outcome):
+                    _LOGGER.warning("Fetch failed: %s", _describe_error(outcome))
             else:
                 results[fuel_type] = outcome
 
+        maintenance_err = next(
+            (err for err in errors.values() if _is_maintenance(err)), None
+        )
+        if maintenance_err is None:
+            # Any answer other than the maintenance page closes the window,
+            # an error included: the card must stop saying "maintenance" then.
+            self._leave_maintenance()
+
         if errors and not results:
             # All fuel types failed — coordinator goes unavailable.
+            if maintenance_err is not None:
+                # Raised as-is so the entry reports "maintenance" (it becomes
+                # the ConfigEntryNotReady reason during setup) instead of the
+                # generic all-failed message wrapping a bare translation key.
+                self._enter_maintenance(probe_started, maintenance_err)
+                self._note_maintenance()
+                raise maintenance_err
             # Report the first error for the UI; per-type errors were logged above.
             first_ft, first_err = next(iter(errors.items()))
             if was_available:
-                _LOGGER.warning("E-Control API unavailable: %s", first_err)
+                _LOGGER.warning(
+                    "E-Control API unavailable: %s", _describe_error(first_err)
+                )
             self._note_failure()
             raise UpdateFailed(
                 translation_domain=DOMAIN,
@@ -345,7 +465,7 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]
                     "failed_count": str(len(errors)),
                     "total_count": str(len(self._fuel_types)),
                     "fuel_type": first_ft,
-                    "error": str(first_err),
+                    "error": _describe_error(first_err),
                 },
             ) from first_err
 
@@ -359,6 +479,17 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]
         if not was_available:
             _LOGGER.info("E-Control API is back online")
         self._note_success()
+
+        if self._dynamic_entity:
+            # Only now does this position become the reference the distance
+            # guard measures against. Recording it before the fetch pinned the
+            # guard to a position we never received data for: with the phone
+            # sitting still afterwards, `_should_update` saw "hasn't moved
+            # 1500 m" and suppressed every retry until the 6 h safety interval
+            # came round. Leaving it None after a failure makes the guard skip
+            # the distance check entirely, so the cooldown alone paces retries.
+            self._last_fetch_lat = lat
+            self._last_fetch_lng = lng
 
         # If the API returned no stations for any fuel type, it may be in the
         # middle of its own data update (~12:05–12:07). Schedule a retry in
@@ -429,6 +560,48 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]
         if self.update_interval != new_interval:
             self.update_interval = new_interval
 
+    def _enter_maintenance(self, started: datetime, err: Exception) -> None:
+        """Open, or extend, the install-wide maintenance window.
+
+        Logs once when the window opens rather than once per entry or probe:
+        the `log-when-unavailable` shape, applied to a failure every entry
+        shares.
+        """
+        current = maintenance_window(self.hass)
+        if current is None:
+            _LOGGER.warning(
+                "E-Control reports maintenance (%s); checking again every %d min",
+                _describe_error(err),
+                MAINTENANCE_PROBE_MINUTES,
+            )
+        self.hass.data.setdefault(DOMAIN, {})[DOMAIN_MAINTENANCE_KEY] = (
+            MaintenanceWindow(
+                since=current.since if current is not None else started,
+                next_probe=started + timedelta(minutes=MAINTENANCE_PROBE_MINUTES),
+            )
+        )
+
+    def _leave_maintenance(self) -> None:
+        """Close the install-wide maintenance window, if one is open."""
+        store = self.hass.data.get(DOMAIN, {})
+        if store.pop(DOMAIN_MAINTENANCE_KEY, None) is not None:
+            _LOGGER.info("E-Control maintenance is over")
+
+    def _note_maintenance(self) -> None:
+        """Hold the configured cadence while E-Control reports maintenance.
+
+        Exponential backoff is for failures we can't explain. Maintenance is
+        announced and temporary, and the shared window already limits the
+        install to one probe per MAINTENANCE_PROBE_MINUTES, so backing off
+        further only delays recovery: at the 12 h cap an entry could stay
+        unavailable for half a day after E-Control is back. Clearing the
+        counter also restarts backoff from scratch for a later, unexplained
+        failure.
+        """
+        self._consecutive_failures = 0
+        if self.update_interval != self._normal_interval:
+            self.update_interval = self._normal_interval
+
     async def _fetch(
         self, fuel_type: str, lat: float, lng: float
     ) -> list[dict[str, Any]]:
@@ -451,6 +624,15 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]
             async with self._session.get(
                 url, params=params, headers=headers, timeout=timeout
             ) as resp:
+                if await _is_maintenance_page(resp):
+                    raise UpdateFailed(
+                        translation_domain=DOMAIN,
+                        translation_key="api_maintenance",
+                        translation_placeholders={
+                            "fuel_type": fuel_type,
+                            "status": str(resp.status),
+                        },
+                    )
                 resp.raise_for_status()
                 try:
                     data = await resp.json()

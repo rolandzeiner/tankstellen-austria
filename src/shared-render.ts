@@ -7,7 +7,7 @@
 // - Pure functions: no `this`, take what they need as arguments,
 //   return a TemplateResult or a Promise. The card keeps its own
 //   reactive state (@state _versionMismatch) and calls these helpers
-//   from render() / firstUpdated().
+//   from render() / updated().
 // - Localisation goes through the card's `t(key, repl?)` shape so the
 //   helper does not own a hidden module-level language state.
 // - Tankstellen ships a `stuck` branch (sessionStorage-flagged after a

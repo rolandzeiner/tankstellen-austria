@@ -1,7 +1,7 @@
 // Tankstellen Austria — Lovelace custom card
 // https://github.com/rolandzeiner/tankstellen-austria
 //
-// Architecture: Lit 3 + Shadow DOM + Rollup, single-file HACS bundle.
+// Architecture: Lit 3 + Shadow DOM + Rolldown, single-file HACS bundle.
 // Built from the ha-lovelace-card skill (which is faithfully derived from
 // custom-cards/boilerplate-card).
 
@@ -40,6 +40,7 @@ import {
 } from "./utils/payment";
 import { isClosingSoon } from "./utils/station";
 import { formatDistance, formatPrice, mapsUrl } from "./utils/price";
+import { API_STATUS_RECHECK_MS, fetchApiMaintenance } from "./utils/api-status";
 import {
   getFuelName,
   getWeekdays,
@@ -162,6 +163,9 @@ export class TankstellenAustriaCard extends LitElement {
   @state() private _lastManualRefresh = 0;
   @state() private _noNewData = false;
   @state() private _historyError = false;
+  // E-Control maintenance, as reported by the backend. Only polled while an
+  // entity the card shows is unavailable — see _syncApiStatus.
+  @state() private _apiMaintenance = false;
   // Incremented by the cooldown interval so the countdown re-renders each
   // second while a refresh is on cooldown. Reactive, but never read —
   // shouldUpdate gates on it via `changed.has("_cooldownTick")`.
@@ -179,6 +183,7 @@ export class TankstellenAustriaCard extends LitElement {
   private _postRefreshTimeout: number | undefined;
   private _cooldownTimeout: number | undefined;
   private _sparklineCleanup: (() => void) | undefined;
+  private _apiStatusInterval: number | undefined;
 
   public setConfig(config: TankstellenAustriaCardConfig): void {
     if (!config || typeof config !== "object" || Array.isArray(config)) {
@@ -232,12 +237,11 @@ export class TankstellenAustriaCard extends LitElement {
     };
   }
 
-  // Fingerprint-based gate. The default `hasConfigOrEntityChanged` only
-  // watches a single `config.entity`, which this multi-entity card doesn't
-  // have. Re-render on: config change, UI state change, history arrival,
-  // version-mismatch discovery, cooldown tick, or a tracked-entity state
-  // object reference change. Without this gate the card re-renders on every
-  // entity state change anywhere in the HA install.
+  // Render gate. Lit re-renders on every `hass` assignment, and HA assigns a
+  // new `hass` for every state change anywhere in the install. Re-render
+  // only on: config change, UI state change, history arrival, a history or
+  // maintenance notice changing, version-mismatch discovery, cooldown tick,
+  // or a new state object for an entity this card tracks.
   protected override shouldUpdate(changed: PropertyValues): boolean {
     if (!this._config) return false;
     if (
@@ -246,6 +250,7 @@ export class TankstellenAustriaCard extends LitElement {
       changed.has("_expandedStations") ||
       changed.has("_history") ||
       changed.has("_historyError") ||
+      changed.has("_apiMaintenance") ||
       changed.has("_versionMismatch") ||
       changed.has("_lastManualRefresh") ||
       changed.has("_noNewData") ||
@@ -294,8 +299,16 @@ export class TankstellenAustriaCard extends LitElement {
 
   // --- Lifecycle ---
 
+  public override connectedCallback(): void {
+    super.connectedCallback();
+    // disconnectedCallback stops the status poll; a dashboard edit-mode flip
+    // reconnects without a tracked state change, so restart it from here.
+    if (this.hass && this._config) this._syncApiStatus();
+  }
+
   public override disconnectedCallback(): void {
     super.disconnectedCallback();
+    this._stopApiStatusPoll();
     if (this._historyInterval !== undefined) {
       clearInterval(this._historyInterval);
       this._historyInterval = undefined;
@@ -319,6 +332,44 @@ export class TankstellenAustriaCard extends LitElement {
     // Let the next updated() re-start the history interval. Matters during
     // dashboard edit mode which rapidly disconnects/reconnects the card.
     this._initDone = false;
+  }
+
+  protected override willUpdate(changed: PropertyValues): void {
+    // shouldUpdate only lets a hass change through when a tracked entity's
+    // state moved, which is exactly when availability can have flipped.
+    if (changed.has("hass")) this._syncApiStatus();
+  }
+
+  /**
+   * Poll the backend's maintenance flag while any shown entity is
+   * unavailable, and stop as soon as data is back. A healthy dashboard never
+   * sends the command.
+   */
+  private _syncApiStatus(): void {
+    const unavailable = this._resolveEntities().some(
+      (e) => e.state === "unavailable",
+    );
+    if (!unavailable) {
+      this._stopApiStatusPoll();
+      this._apiMaintenance = false;
+      return;
+    }
+    if (this._apiStatusInterval !== undefined) return;
+    void this._checkApiStatus();
+    this._apiStatusInterval = window.setInterval(() => {
+      void this._checkApiStatus();
+    }, API_STATUS_RECHECK_MS);
+  }
+
+  private async _checkApiStatus(): Promise<void> {
+    this._apiMaintenance = await fetchApiMaintenance(this.hass);
+  }
+
+  private _stopApiStatusPoll(): void {
+    if (this._apiStatusInterval !== undefined) {
+      clearInterval(this._apiStatusInterval);
+      this._apiStatusInterval = undefined;
+    }
   }
 
   protected override updated(_changed: PropertyValues): void {
@@ -427,6 +478,11 @@ export class TankstellenAustriaCard extends LitElement {
         ${this._renderTabs(entities, activeTab)}
         <div class="wrap">
           ${this._renderVersionBanner()}
+          ${this._apiMaintenance && active.state === "unavailable"
+            ? html`<ha-alert alert-type="info" role="status">
+                ${this._t("api_maintenance")}
+              </ha-alert>`
+            : nothing}
           ${this._historyError
             ? html`<ha-alert alert-type="warning" role="alert">
                 ${this._t("history_fetch_error")}
