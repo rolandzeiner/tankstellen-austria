@@ -32,8 +32,8 @@ Bump `manifest.json` `version` and `src/const.ts` `CARD_VERSION` together — `c
 - **Rolldown does not type-check.** `npx tsc --noEmit` is the only thing between a type error and a green build, which is why the gate runs it as its own step.
 - `pyproject.toml` — source of truth for ruff (target-version, line-length), mypy (strict, ignore_missing_imports, files), and coverage config. Change rules here, not in CI flags.
   - **`target-version` tracks the oldest Python we support, never the one CI runs.** `hacs.json` promises HA ≥ 2025.1.0, which runs on Python 3.12, so `target-version = "py312"` — even though the venv and CI are on 3.14. Pointing it at the CI interpreter lets ruff rewrite code into syntax our users cannot parse and then stay silent about it; that is how wiener-linien-austria v1.7.1 shipped a SyntaxError. The `compile-floor-python` CI job byte-compiles the shipped package on 3.12 as an independent backstop. Raise all three together or not at all.
-- `pytest.ini` — pytest config and the **`--cov-fail-under=90` coverage gate**. `pytest tests/` automatically runs with coverage; CI fails fast if a new commit drops coverage below the gate. Current measurement sits ~93%, so you have ~3pts of headroom before the gate bites.
-- `ATTRIBUTION` — canonical data-source statement (E-Control Spritpreisrechner) and licence terms; matches the `attribution` attribute every sensor emits. Update when the upstream API or licence wording changes.
+- `pytest.ini` — pytest config and the **`--cov-fail-under=90` coverage gate**. `pytest tests/` automatically runs with coverage; CI fails fast if a new commit drops coverage below the gate. It measured ~94% in September 2026, so there are about 4 points of headroom.
+- `ATTRIBUTION` in `const.py` — the data-source statement ("Datenquelle: E-Control") that every sensor emits as its `attribution` and the card shows in its footer. Update it if E-Control changes its attribution wording.
 
 View per-file coverage locally:
 
@@ -47,14 +47,18 @@ pytest tests/ --cov-report=term-missing
 pytest tests/ -v                                               # Python integration
 mypy --strict --ignore-missing-imports custom_components/tankstellen_austria
 ruff check .
+ruff format --check .                                          # ruff check ignores formatting
+uv run --python 3.12 --no-project python -m compileall -q custom_components/tankstellen_austria  # oldest supported Python
 npx tsc --noEmit                                               # TypeScript card type-check
-npm test                                                       # Vitest — frontend analytics
+npm test                                                       # Vitest — card unit tests
 npm run build                                                  # Rolldown card bundle
 ```
 
-The frontend tests live in `src/**/*.test.ts` (vitest, no config file — picks up the `*.test.ts` convention). The current focus is `src/analytics/best-refuel.test.ts`, which pins the duration-weighted bucketing against a synthetic noon-hike fixture and is anchored to a Monday-aligned `now` so it's deterministic regardless of the day-of-week the suite runs.
+Commit the rebuilt `custom_components/tankstellen_austria/www/tankstellen-austria-card.js` together with the `src/` change that produced it. HACS users never run `npm`, and CI fails if the committed bundle differs from a fresh build.
 
-CI runs the same checks plus hassfest + HACS validation. Failing locally wastes a push.
+The frontend tests live next to the code as `src/**/*.test.ts` (vitest, no config file, node environment). `src/analytics/best-refuel.test.ts` anchors its fixture to a Monday-aligned `now`, so it passes whatever day the suite runs.
+
+CI runs the same checks, plus hassfest, HACS validation and `npm audit` on the card's runtime dependencies. Failing locally wastes a push.
 
 ## Reporting issues
 

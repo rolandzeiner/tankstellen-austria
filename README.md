@@ -1,6 +1,6 @@
 # Tankstellen Austria
 
-[![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
+[![hacs_badge](https://img.shields.io/badge/HACS-Default-41BDF5.svg)](https://github.com/hacs/integration)
 [![HA min version](https://img.shields.io/badge/Home%20Assistant-%3E%3D2025.1-blue.svg)](https://www.home-assistant.io/)
 [![Version](https://img.shields.io/github/v/release/rolandzeiner/tankstellen-austria?include_prereleases&label=version&color=blue)](https://github.com/rolandzeiner/tankstellen-austria/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -48,9 +48,9 @@ and CNG. No API key required.
 
 ### HACS (recommended)
 
-1. HACS → **Integrations** → ⋯ → **Custom repositories**
-2. Add `https://github.com/rolandzeiner/tankstellen-austria` as type **Integration**
-3. Search for "Tankstellen Austria", install, restart HA
+1. Open HACS and search for **Tankstellen Austria**.
+2. Select it and choose **Download**.
+3. Restart Home Assistant.
 
 [![Add to HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=rolandzeiner&repository=tankstellen-austria&category=integration)
 
@@ -96,7 +96,7 @@ The visual editor exposes all options. Most-used flags:
 
 | Option | Default | Description |
 |---|---|---|
-| `entities` | auto-detect | List of `sensor.tankstellen_*` entities |
+| `entities` | auto-detect | List of this integration's price sensors |
 | `max_stations` | `5` | Stations to show (0–5; `0` hides the list) |
 | `language` | HA language | `de` or `en` |
 | `show_map_links` | `true` | Per-station map link |
@@ -170,10 +170,9 @@ Entity IDs follow HA's `_attr_has_entity_name` + `translation_key` pattern: the 
 |---|---|
 | `fuel_type` | `DIE` / `SUP` / `GAS` |
 | `fuel_type_name` | Diesel / Super 95 / CNG Erdgas |
-| `station_display_name` | Locale-agnostic display name (matches the entry title) |
 | `station_count` | Number of stations with prices |
 | `average_price` | Average across the 5 cheapest |
-| `stations` | List: `id`, `name`, `price`, `open`, `location`, `opening_hours`, `payment_methods` |
+| `stations` | List: `id`, `name`, `price`, `open`, `location`, `distance_m` (metres, as the crow flies), `opening_hours`, `payment_methods` |
 | `dynamic_mode` | `true` for entries that follow a tracker |
 | `dynamic_tracker_label` | Friendly name of the bound tracker (dynamic mode only — the entity_id is intentionally not exposed) |
 | `attribution` | `Datenquelle: E-Control` |
@@ -240,17 +239,17 @@ statistics, not the sensor.
 
 ```yaml
 alias: "Notify on cheap Diesel"
-trigger:
-  - platform: numeric_state
-    entity_id: sensor.tankstellen_home_diesel
+triggers:
+  - trigger: numeric_state
+    entity_id: sensor.home_diesel
     below: 1.50
-action:
-  - service: notify.mobile_app_phone
+actions:
+  - action: notify.mobile_app_phone
     data:
       title: "Cheap Diesel nearby"
       message: >
-        {{ state_attr('sensor.tankstellen_home_diesel', 'stations')[0].name }}
-        — {{ states('sensor.tankstellen_home_diesel') }} €/L
+        {{ state_attr('sensor.home_diesel', 'stations')[0].name }}
+        — {{ states('sensor.home_diesel') }} €/L
 ```
 
 **Pin a favourite station — track its price even when it isn't currently in the top 5:**
@@ -261,7 +260,7 @@ template:
       - name: "Favourite station Diesel"
         unit_of_measurement: "€/L"
         state: >
-          {{ state_attr('sensor.tankstellen_home_diesel', 'stations')
+          {{ state_attr('sensor.home_diesel', 'stations')
              | selectattr('name', 'search', 'Essmeister')
              | map(attribute='price') | list | first | default(none) }}
 ```
@@ -278,7 +277,7 @@ The API only returns the 5 cheapest stations with prices, so a pinned station th
 | State class | `measurement` *(optional — enables history graphs)* |
 
 ```jinja
-{{ state_attr('sensor.tankstellen_home_diesel', 'stations')
+{{ state_attr('sensor.home_diesel', 'stations')
    | selectattr('name', 'search', 'Essmeister')
    | map(attribute='price') | list | first | default(none) }}
 ```
@@ -325,12 +324,12 @@ The helper stores its config in HA's internal storage (not `configuration.yaml`)
 Card sources live in `src/`, bundled by Rolldown into `custom_components/tankstellen_austria/www/tankstellen-austria-card.js`. End users install via HACS and never run `npm`; contributors:
 
 ```bash
-npm install
+npm ci
 npm run build       # production bundle
 npm run dev         # watch mode
 ```
 
-`CARD_VERSION` lives in **both** `src/const.ts` and `custom_components/tankstellen_austria/const.py` — they must stay byte-identical or the WS version-check shows an infinite reload banner. Bump together.
+`CARD_VERSION` in `src/const.ts` must match `version` in `manifest.json` (`const.py` reads it from the manifest), or the card's version check shows its reload banner forever. Bump both together. The full dev setup and verification gate are in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
