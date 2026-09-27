@@ -28,11 +28,14 @@ export interface HassEntity {
  *  otherwise) and HA core has shipped both since well before our
  *  `requirements.txt` floor. Anything beyond these lives untyped and
  *  is read with a cast at the call site. */
-/** Minimal entity-registry shape — only `platform` is read, by the card
- *  picker's `getEntitySuggestion` to gate suggestions to this integration's
- *  own entities (registry platform === integration domain). */
+/** Minimal entity-registry shape. Both fields survive a sensor going
+ *  unavailable, which its state attributes don't. `platform` gates the card
+ *  picker's `getEntitySuggestion` and entity auto-discovery to this
+ *  integration's own sensors; `translation_key` (`fuel_die` …) gives the
+ *  fuel type back while E-Control is down (see utils/entities.ts). */
 export interface RegistryEntity {
   platform?: string;
+  translation_key?: string;
 }
 
 export interface HomeAssistant {

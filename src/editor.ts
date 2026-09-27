@@ -61,6 +61,7 @@ import {
   type TankstellenAustriaCardConfig,
 } from "./types";
 import { CAR_ICONS } from "./const";
+import { fuelTypeOf } from "./utils/entities";
 import {
   getFuelName,
   translate,
@@ -435,7 +436,7 @@ export class TankstellenAustriaCardEditor
       <div class="editor-section">
         <div class="section-header">${this._et("section_tab_labels")}</div>
         ${resolvable.map(({ eid, state }) => {
-          const ft = state.attributes?.fuel_type ?? "";
+          const ft = fuelTypeOf(this.hass, eid, state.attributes);
           let defaultLabel = getFuelName(ft, this._ctx());
           if (state.attributes?.dynamic_mode === true) {
             const trackerLabel = state.attributes.dynamic_tracker_label as

@@ -32,7 +32,7 @@ import {
   HISTORY_REFRESH_MS,
 } from "./const";
 import { normaliseConfig } from "./utils/config";
-import { findTankstellenEntities } from "./utils/entities";
+import { findTankstellenEntities, fuelTypeOf } from "./utils/entities";
 import {
   hasPaymentMethods,
   matchesPaymentFilter,
@@ -583,7 +583,7 @@ export class TankstellenAustriaCard extends LitElement {
           if (typeof custom === "string" && custom.trim().length > 0) {
             label = custom;
           } else {
-            const ft = e.attributes.fuel_type ?? "";
+            const ft = fuelTypeOf(this.hass, e.entity_id, e.attributes);
             label = getFuelName(ft, this._ctx());
             if (e.attributes.dynamic_mode === true) {
               const trackerLabel = e.attributes.dynamic_tracker_label;
@@ -614,7 +614,7 @@ export class TankstellenAustriaCard extends LitElement {
     active: TankstellenEntity,
   ): TemplateResult | typeof nothing {
     if (this._config?.hide_header === true) return nothing;
-    const fuelType = active.attributes.fuel_type ?? "";
+    const fuelType = fuelTypeOf(this.hass, active.entity_id, active.attributes);
     const fuelTypeName =
       active.attributes.fuel_type_name || getFuelName(fuelType, this._ctx());
     const isDynamic = active.attributes.dynamic_mode === true;
@@ -879,7 +879,7 @@ export class TankstellenAustriaCard extends LitElement {
     const showCarConsumption = this._config.show_car_consumption !== false;
     if (!showCars || (!showCarFillup && !showCarConsumption)) return nothing;
 
-    const fuelType = active.attributes.fuel_type ?? "";
+    const fuelType = fuelTypeOf(this.hass, active.entity_id, active.attributes);
     const paymentFilter = this._config.payment_filter ?? [];
     const highlightMode = this._config.payment_highlight_mode === true;
 
