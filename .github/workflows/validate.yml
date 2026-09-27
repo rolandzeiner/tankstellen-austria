@@ -161,6 +161,12 @@ jobs:
         # this workflow would notice a type error — a broken build would go
         # green all the way to the bundle. Never make this step conditional.
         run: npx tsc --noEmit
+      - name: Card unit tests
+        # Rolldown strips types without checking them and tsc checks types
+        # without running anything, so this is the only step that proves the
+        # card's logic still behaves. Ahead of the build so a logic
+        # regression fails before we spend time bundling.
+        run: npm test
       - name: Build card bundle
         run: npm run build
       - name: Assert the committed bundle matches a fresh build
