@@ -399,9 +399,9 @@ async def test_setup_uses_no_deprecated_ha_api(
 ) -> None:
     """HA reports deprecated API use to the logger, not via warnings.
 
-    `frame.report_usage` logs through `_LOGGER.warning`
-    (homeassistant/helpers/frame.py:393) and never calls `warnings.warn`,
-    so pytest.ini's `error::DeprecationWarning` cannot see it.
+    `frame.report_usage` logs through `_LOGGER.log` (at WARNING or ERROR)
+    and never calls `warnings.warn`, so pytest.ini's
+    `error::DeprecationWarning` cannot see it.
 
     Superseded as a *net* on 2026-08-29 by the `no_deprecated_ha_api`
     autouse fixture in conftest.py, which makes this assertion after every

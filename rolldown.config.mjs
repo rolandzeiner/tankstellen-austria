@@ -14,7 +14,7 @@
 // Lit reactive-property list before and after the migration.
 import { defineConfig } from "rolldown";
 
-// Verified empirically against rolldown 1.2.7: `rolldown -c -w` sets BOTH
+// Verified against rolldown 1.2.11 (`dist/cli.mjs`): `rolldown -c -w` sets BOTH
 // ROLLDOWN_WATCH and ROLLUP_WATCH to "true", and a plain `rolldown -c` sets
 // neither. Reading both means this keeps working whichever name rolldown
 // settles on — and the failure mode it guards against is silent (dev builds

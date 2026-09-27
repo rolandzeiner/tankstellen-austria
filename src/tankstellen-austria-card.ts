@@ -237,12 +237,11 @@ export class TankstellenAustriaCard extends LitElement {
     };
   }
 
-  // Fingerprint-based gate. The default `hasConfigOrEntityChanged` only
-  // watches a single `config.entity`, which this multi-entity card doesn't
-  // have. Re-render on: config change, UI state change, history arrival,
-  // version-mismatch discovery, cooldown tick, or a tracked-entity state
-  // object reference change. Without this gate the card re-renders on every
-  // entity state change anywhere in the HA install.
+  // Render gate. Lit re-renders on every `hass` assignment, and HA assigns a
+  // new `hass` for every state change anywhere in the install. Re-render
+  // only on: config change, UI state change, history arrival, a history or
+  // maintenance notice changing, version-mismatch discovery, cooldown tick,
+  // or a new state object for an entity this card tracks.
   protected override shouldUpdate(changed: PropertyValues): boolean {
     if (!this._config) return false;
     if (

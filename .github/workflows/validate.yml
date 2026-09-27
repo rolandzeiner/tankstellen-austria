@@ -75,13 +75,9 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
         with:
-          # Pinned to 3.14 — HA core 2026.5.0 requires Python ≥3.14.2
-          # and PHACC 0.13.317+ wraps that HA. The earlier pyo3 0.24
-          # blocker is gone: orjson 3.11.8, Pillow 12.2.0, and
-          # pydantic-core 2.46.2 all ship cp314 wheels (verified
-          # 2026-05-07 in a local Python 3.14 venv against the full
-          # PHACC 0.13.329 dep tree, 82 tests + mypy strict + ruff
-          # all green). Bump again when HA core jumps to 3.15.
+          # Pinned to 3.14 — the HA core that PHACC pins (floor in
+          # requirements_test.txt) requires Python ≥ 3.14.2, per its
+          # `REQUIRED_PYTHON_VER`. Bump when HA core moves to 3.15.
           python-version: "3.14"
       - name: Install uv
         # uv replaces pip for resolution + install: faster, cached, and
@@ -157,9 +153,9 @@ jobs:
         run: npm audit --omit=dev --audit-level=high
       - name: Type-check (strict)
         # The ONLY type-check in the pipeline. Rolldown transpiles without
-        # type-checking, exactly as swc did, so nothing else in
-        # this workflow would notice a type error — a broken build would go
-        # green all the way to the bundle. Never make this step conditional.
+        # type-checking, so nothing else in this workflow would notice a type
+        # error — a broken build would go green all the way to the bundle.
+        # Never make this step conditional.
         run: npx tsc --noEmit
       - name: Card unit tests
         # Rolldown strips types without checking them and tsc checks types

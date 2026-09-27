@@ -212,8 +212,8 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]
         Deliberately does NOT call `super().async_shutdown()`: core wires
         it to unload for us in `DataUpdateCoordinator.__init__` —
         `if self.config_entry: self.config_entry.async_on_unload(
-        self.async_shutdown)` (update_coordinator.py:148-149) — and this
-        coordinator is constructed with `config_entry=`.
+        self.async_shutdown)` — and this coordinator is constructed with
+        `config_entry=`.
 
         The exception, for anyone porting this: a coordinator built
         WITHOUT `config_entry=` gets neither that registration nor the
@@ -247,17 +247,17 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]
             dt_util.utcnow()
         )
         # Entry-owned and named, not a bare `hass.async_create_task`.
-        # Owned so unload WAITS for the fetch (config_entries.py:1250
-        # awaits `_tasks` with timeout=10) instead of orphaning it — note
-        # unload cancels only `_background_tasks`, so this is a wait, not
-        # a cancel. Named so it is identifiable in HA's task list rather
-        # than showing up as "Task-123".
+        # Owned so unload WAITS for the fetch (`ConfigEntry.
+        # _async_process_on_unload` waits up to 10 s on `_tasks`) instead of
+        # orphaning it — note unload cancels only `_background_tasks`, so
+        # this is a wait, not a cancel. Named so it is identifiable in HA's
+        # task list rather than showing up as "Task-123".
         #
         # The coordinator is independently safe against a torn-down
-        # refresh: `async_shutdown` is registered as an `async_on_unload`
-        # callback (update_coordinator.py:148-149) and so runs BEFORE the
-        # task wait, setting `_shutdown_requested`, which `_async_refresh`
-        # short-circuits on (update_coordinator.py:212, :424).
+        # refresh: `DataUpdateCoordinator.__init__` registers
+        # `async_shutdown` as an `async_on_unload` callback, so it runs
+        # BEFORE the task wait and sets `_shutdown_requested`, which
+        # `_async_refresh` checks before fetching.
         self._entry.async_create_task(
             self.hass,
             self.async_refresh(),
