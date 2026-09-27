@@ -103,6 +103,9 @@
     "api_invalid_response": {
       "message": "E-Control API returned unexpected payload for {fuel_type} (status {status}): expected list, got {got}"
     },
+    "api_maintenance": {
+      "message": "E-Control is down for maintenance. Prices return automatically when it's back."
+    },
     "api_all_failed": {
       "message": "All fuel types failed ({failed_count}/{total_count}); first error on {fuel_type}: {error}"
     }

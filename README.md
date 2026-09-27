@@ -212,6 +212,8 @@ statistics, not the sensor.
 
 **Partial failures** keep the working fuel types live and the failing one on its previous value. Only when *every* fuel type fails does the entry go unavailable.
 
+**E-Control maintenance** takes the entry unavailable, and the card tells you why. The integration checks back at most every 10 minutes, however many entries you have, and prices return with the next update once the service is back.
+
 ## Supported functions
 
 - Fetch the 5 cheapest nearby stations *with prices* per fuel type from the E-Control API (read-only, no service actions).
@@ -287,6 +289,7 @@ The helper stores its config in HA's internal storage (not `configuration.yaml`)
 
 - **"Cannot connect to the E-Control API" during setup** — usually a transient network issue. Retry. Verify reachability of `https://api.e-control.at/sprit/1.0/...` from the HA host.
 - **Sensors unavailable around 12:00–12:15** — expected (E-Control's daily refresh window). The integration retries after 10 minutes.
+- **"E-Control is down for maintenance"** — nothing to fix on your side. E-Control has taken its fuel price service offline for a while. The integration keeps checking and recovers on its own.
 - **Repairs issue "Location tracker unavailable"** — the configured `device_tracker` is gone. Restore it, or **Reconfigure** the entry to pick a different one (or none).
 - **Card not in the resource picker** — the integration auto-registers on storage-mode dashboards. For YAML dashboards add the resource manually (URL above).
 - **Diagnostics for a bug report** — Settings → Devices & Services → Tankstellen Austria → ⋯ → **Download diagnostics**. Coordinates are redacted; paste into the issue.

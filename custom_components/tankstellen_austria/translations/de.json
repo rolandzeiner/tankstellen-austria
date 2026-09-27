@@ -103,6 +103,9 @@
     "api_invalid_response": {
       "message": "E-Control API lieferte unerwartete Daten für {fuel_type} (Status {status}): erwartet Liste, erhalten {got}"
     },
+    "api_maintenance": {
+      "message": "E-Control führt Wartungsarbeiten durch. Die Preise kommen automatisch zurück, sobald der Dienst wieder läuft."
+    },
     "api_all_failed": {
       "message": "Alle Kraftstoffarten fehlgeschlagen ({failed_count}/{total_count}); erster Fehler bei {fuel_type}: {error}"
     }

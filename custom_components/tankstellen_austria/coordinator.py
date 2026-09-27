@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -37,10 +38,14 @@ from .const import (
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
     DOMAIN_LAST_API_CALL_KEY,
+    DOMAIN_MAINTENANCE_KEY,
     DYNAMIC_COOLDOWN_MINUTES,
     DYNAMIC_DISTANCE_THRESHOLD_M,
     DYNAMIC_DOMAIN_COOLDOWN_MINUTES,
     DYNAMIC_SAFETY_INTERVAL_HOURS,
+    MAINTENANCE_MARKER,
+    MAINTENANCE_PROBE_MINUTES,
+    MAINTENANCE_SNIFF_BYTES,
     NO_DATA_RETRY_MINUTES,
     USER_AGENT,
 )
@@ -73,6 +78,43 @@ def _describe_error(err: BaseException) -> str:
         if detail:
             return f"{err} ({detail})"
     return str(err)
+
+
+@dataclass(frozen=True, slots=True)
+class MaintenanceWindow:
+    """E-Control's maintenance state, shared by every entry via `hass.data`.
+
+    Maintenance takes the whole service down, so it is one fact per install,
+    not per entry: whichever entry sees the page first opens the window, and
+    the others fail fast inside it instead of each probing on their own.
+    """
+
+    since: datetime  # first probe that saw the maintenance page
+    next_probe: datetime  # refreshes before this fail without a request
+
+
+def maintenance_window(hass: HomeAssistant) -> MaintenanceWindow | None:
+    """Return the open maintenance window, or None while E-Control is up."""
+    window = hass.data.get(DOMAIN, {}).get(DOMAIN_MAINTENANCE_KEY)
+    return window if isinstance(window, MaintenanceWindow) else None
+
+
+def _is_maintenance(err: BaseException) -> bool:
+    """Return True for the UpdateFailed raised on E-Control's maintenance page."""
+    return isinstance(err, UpdateFailed) and err.translation_key == "api_maintenance"
+
+
+async def _is_maintenance_page(resp: aiohttp.ClientResponse) -> bool:
+    """Return True when E-Control answered with its maintenance page.
+
+    Only an HTML response is read, so the JSON happy path pays nothing. The
+    status code is deliberately ignored (see MAINTENANCE_MARKER in const.py).
+    A short read is fine: the marker sits in the page's <title>.
+    """
+    if resp.content_type != "text/html":
+        return False
+    head = await resp.content.read(MAINTENANCE_SNIFF_BYTES)
+    return MAINTENANCE_MARKER in head.decode("utf-8", errors="replace")
 
 
 class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]]]]):
@@ -350,7 +392,20 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]
             lat = self._latitude
             lng = self._longitude
 
+        # Inside E-Control's maintenance window, fail without a request: one
+        # probe per window serves every entry (see MAINTENANCE_PROBE_MINUTES).
+        window = maintenance_window(self.hass)
+        if window is not None and dt_util.utcnow() < window.next_probe:
+            self._note_maintenance()
+            raise UpdateFailed(
+                translation_domain=DOMAIN,
+                translation_key="api_maintenance",
+            )
+
         was_available = self.last_update_success
+        # Stamped before the requests go out, so the next maintenance probe is
+        # timed from this attempt rather than from however long it took.
+        probe_started = dt_util.utcnow()
 
         # Fan out per fuel type in parallel — they are independent requests
         # against the same host. Sequentially awaiting each adds up (3 fuel
@@ -372,12 +427,30 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]
                 raise outcome
             if isinstance(outcome, Exception):
                 errors[fuel_type] = outcome
-                _LOGGER.warning("Fetch failed: %s", _describe_error(outcome))
+                # Maintenance gets one install-wide warning when the window
+                # opens, not one per fuel type on every probe.
+                if not _is_maintenance(outcome):
+                    _LOGGER.warning("Fetch failed: %s", _describe_error(outcome))
             else:
                 results[fuel_type] = outcome
 
+        maintenance_err = next(
+            (err for err in errors.values() if _is_maintenance(err)), None
+        )
+        if maintenance_err is None:
+            # Any answer other than the maintenance page closes the window,
+            # an error included: the card must stop saying "maintenance" then.
+            self._leave_maintenance()
+
         if errors and not results:
             # All fuel types failed — coordinator goes unavailable.
+            if maintenance_err is not None:
+                # Raised as-is so the entry reports "maintenance" (it becomes
+                # the ConfigEntryNotReady reason during setup) instead of the
+                # generic all-failed message wrapping a bare translation key.
+                self._enter_maintenance(probe_started, maintenance_err)
+                self._note_maintenance()
+                raise maintenance_err
             # Report the first error for the UI; per-type errors were logged above.
             first_ft, first_err = next(iter(errors.items()))
             if was_available:
@@ -487,6 +560,48 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]
         if self.update_interval != new_interval:
             self.update_interval = new_interval
 
+    def _enter_maintenance(self, started: datetime, err: Exception) -> None:
+        """Open, or extend, the install-wide maintenance window.
+
+        Logs once when the window opens rather than once per entry or probe:
+        the `log-when-unavailable` shape, applied to a failure every entry
+        shares.
+        """
+        current = maintenance_window(self.hass)
+        if current is None:
+            _LOGGER.warning(
+                "E-Control reports maintenance (%s); checking again every %d min",
+                _describe_error(err),
+                MAINTENANCE_PROBE_MINUTES,
+            )
+        self.hass.data.setdefault(DOMAIN, {})[DOMAIN_MAINTENANCE_KEY] = (
+            MaintenanceWindow(
+                since=current.since if current is not None else started,
+                next_probe=started + timedelta(minutes=MAINTENANCE_PROBE_MINUTES),
+            )
+        )
+
+    def _leave_maintenance(self) -> None:
+        """Close the install-wide maintenance window, if one is open."""
+        store = self.hass.data.get(DOMAIN, {})
+        if store.pop(DOMAIN_MAINTENANCE_KEY, None) is not None:
+            _LOGGER.info("E-Control maintenance is over")
+
+    def _note_maintenance(self) -> None:
+        """Hold the configured cadence while E-Control reports maintenance.
+
+        Exponential backoff is for failures we can't explain. Maintenance is
+        announced and temporary, and the shared window already limits the
+        install to one probe per MAINTENANCE_PROBE_MINUTES, so backing off
+        further only delays recovery: at the 12 h cap an entry could stay
+        unavailable for half a day after E-Control is back. Clearing the
+        counter also restarts backoff from scratch for a later, unexplained
+        failure.
+        """
+        self._consecutive_failures = 0
+        if self.update_interval != self._normal_interval:
+            self.update_interval = self._normal_interval
+
     async def _fetch(
         self, fuel_type: str, lat: float, lng: float
     ) -> list[dict[str, Any]]:
@@ -509,6 +624,15 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]
             async with self._session.get(
                 url, params=params, headers=headers, timeout=timeout
             ) as resp:
+                if await _is_maintenance_page(resp):
+                    raise UpdateFailed(
+                        translation_domain=DOMAIN,
+                        translation_key="api_maintenance",
+                        translation_placeholders={
+                            "fuel_type": fuel_type,
+                            "status": str(resp.status),
+                        },
+                    )
                 resp.raise_for_status()
                 try:
                     data = await resp.json()

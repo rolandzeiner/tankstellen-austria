@@ -8,7 +8,7 @@ from homeassistant.components.diagnostics import async_redact_data
 from homeassistant.core import HomeAssistant
 
 from .const import ATTRIBUTION
-from .coordinator import TankstellenConfigEntry
+from .coordinator import TankstellenConfigEntry, maintenance_window
 
 # CONF_LATITUDE/CONF_LONGITUDE are equal to the literal strings, so the
 # set would collapse anyway — keeping just the literals for clarity.
@@ -53,6 +53,7 @@ async def async_get_config_entry_diagnostics(
     """
     coordinator = entry.runtime_data
     data = coordinator.data or {}
+    window = maintenance_window(hass)
     return {
         "attribution": ATTRIBUTION,
         "entry": {
@@ -72,5 +73,15 @@ async def async_get_config_entry_diagnostics(
             "dynamic_mode": coordinator.dynamic_mode,
             "fuel_types": list(data.keys()),
             "station_counts": {ft: len(v) for ft, v in data.items()},
+            # Install-wide, not per entry: when E-Control's maintenance page
+            # was first seen, and when the next shared probe is due.
+            "maintenance": (
+                {
+                    "since": window.since.isoformat(),
+                    "next_probe": window.next_probe.isoformat(),
+                }
+                if window is not None
+                else None
+            ),
         },
     }

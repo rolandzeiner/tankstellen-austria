@@ -106,3 +106,24 @@ NO_DATA_RETRY_MINUTES = 10
 # onwards the interval doubles each tick, capped here, until the next
 # success resets it.
 BACKOFF_CAP_SECONDS: Final = MAX_POLL_MINUTES * 60
+
+# --- E-Control maintenance page, measured 2026-09-27 ----------------------
+#   From 2026-09-26 ~14:13 UTC every path under /sprit/1.0 — and
+#   www.spritpreisrechner.at itself — answered `HTTP/1.0 507` with a 485-byte
+#   text/html page titled "E-control Wartungsarbeiten" (meta refresh 15 s).
+#   No Retry-After header, no JSON body. charge/1.0 and rc/1.0 on the same
+#   host stayed up (401 without credentials), so the window is per service.
+#   The page text is the signal, not the status: 507 means "Insufficient
+#   Storage", and the next window may just as well answer 503 or 200.
+# ----------------------------------------------------------------------------
+MAINTENANCE_MARKER: Final = "Wartungsarbeiten"
+# Most of an HTML body we read to look for the marker. The measured page is
+# 485 B with the marker in <title>; the cap only guards against a huge page.
+MAINTENANCE_SNIFF_BYTES: Final = 4096
+# While E-Control reports maintenance, every entry shares one probe per
+# window: a refresh inside it fails fast without a request. Pinned to the
+# informal 10-minute floor, so the install stays within it however many
+# entries, fuel types and setup retries are in play (HA before 2026.6
+# retries a failed setup every 80 s).
+MAINTENANCE_PROBE_MINUTES: Final = MIN_POLL_MINUTES
+DOMAIN_MAINTENANCE_KEY = "maintenance"

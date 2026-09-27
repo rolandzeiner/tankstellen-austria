@@ -16,6 +16,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from homeassistant.core import HomeAssistant
+from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.tankstellen_austria import async_remove_entry
@@ -73,6 +74,31 @@ async def test_websocket_card_version_returns_const(hass: HomeAssistant) -> None
     await inner(hass, connection, msg)
 
     connection.send_result.assert_called_once_with(7, {"version": CARD_VERSION})
+
+
+async def test_websocket_api_status_reports_maintenance(hass: HomeAssistant) -> None:
+    """The card's status command mirrors the install-wide maintenance window.
+
+    Called directly for the same thread-leak reason as the card_version test.
+    """
+    from custom_components.tankstellen_austria import _websocket_api_status
+    from custom_components.tankstellen_austria.const import DOMAIN_MAINTENANCE_KEY
+    from custom_components.tankstellen_austria.coordinator import MaintenanceWindow
+
+    inner = _websocket_api_status.__wrapped__  # type: ignore[attr-defined]
+    msg = {"id": 8, "type": "tankstellen_austria/api_status"}
+
+    connection = MagicMock()
+    await inner(hass, connection, msg)
+    connection.send_result.assert_called_once_with(8, {"maintenance": False})
+
+    now = dt_util.utcnow()
+    hass.data.setdefault(DOMAIN, {})[DOMAIN_MAINTENANCE_KEY] = MaintenanceWindow(
+        since=now, next_probe=now
+    )
+    connection = MagicMock()
+    await inner(hass, connection, msg)
+    connection.send_result.assert_called_once_with(8, {"maintenance": True})
 
 
 # ---------------------------------------------------------------------
