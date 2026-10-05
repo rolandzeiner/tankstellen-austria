@@ -19,6 +19,16 @@ strict = true
 ignore_missing_imports = true
 files = ["custom_components/tankstellen_austria"]
 
+# Home Assistant 2026.10 annotates its APIs with `probatio.Schema` and aliases
+# `voluptuous` to probatio at runtime. mypy cannot see that alias, and the real
+# voluptuous package is still installed (annotatedyaml and hass-nabucasa depend
+# on it), so every `vol.Schema` handed to Home Assistant looked like an
+# unrelated class. Skipping the import types `vol.*` as Any, which is what the
+# alias amounts to. Importing probatio directly would need Home Assistant 2026.9.
+[[tool.mypy.overrides]]
+module = "voluptuous.*"
+follow_imports = "skip"
+
 [tool.coverage.run]
 source = ["custom_components/tankstellen_austria"]
 
