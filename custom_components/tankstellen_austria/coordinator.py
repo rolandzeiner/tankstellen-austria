@@ -147,6 +147,7 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]
 
         # No-data retry state
         self._no_data_retry_cancel: Callable[[], None] | None = None
+        self._no_data_retry_used: bool = False
 
         if self._dynamic_entity:
             interval = timedelta(hours=DYNAMIC_SAFETY_INTERVAL_HOURS)
@@ -494,14 +495,28 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]
         # If the API returned no stations for any fuel type, it may be in the
         # middle of its own data update (~12:05–12:07). Schedule a retry in
         # NO_DATA_RETRY_MINUTES and keep the previous data alive in the meantime.
+        #
+        # One retry, not one per empty answer: when the retry's own empty
+        # answer scheduled the next, an entry whose answers stayed empty polled
+        # every NO_DATA_RETRY_MINUTES instead of at its interval. That takes no
+        # outage. E-Control answers `[]` for a position abroad (Split, measured
+        # 2026-10-12), which is what dynamic mode sends for the length of a
+        # trip. The next answer with stations makes the retry available again.
         if all(not v for v in results.values()):
-            _LOGGER.info(
-                "API returned no station data — scheduling retry in %d min",
-                NO_DATA_RETRY_MINUTES,
-            )
-            self._schedule_no_data_retry()
+            if self._no_data_retry_used:
+                _LOGGER.debug(
+                    "API returned no station data again — waiting for the next update"
+                )
+            else:
+                _LOGGER.info(
+                    "API returned no station data — scheduling retry in %d min",
+                    NO_DATA_RETRY_MINUTES,
+                )
+                self._schedule_no_data_retry()
             if self.data:
                 return self.data
+        else:
+            self._no_data_retry_used = False
 
         return results
 
@@ -509,6 +524,7 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]
         """Schedule a one-shot retry when the API returned empty data."""
         if self._no_data_retry_cancel:
             self._no_data_retry_cancel()
+        self._no_data_retry_used = True
         self._no_data_retry_cancel = async_call_later(
             self.hass,
             NO_DATA_RETRY_MINUTES * 60,

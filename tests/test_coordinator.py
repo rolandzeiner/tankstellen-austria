@@ -558,6 +558,68 @@ async def test_no_data_without_previous_returns_empty(hass: HomeAssistant) -> No
     assert result == {"DIE": [], "SUP": []}
 
 
+async def test_no_data_retry_does_not_rearm_on_second_empty_answer(
+    hass: HomeAssistant,
+) -> None:
+    """The retry fires once: a second empty answer in a row schedules nothing.
+
+    Re-arming on the retry's own empty answer made an entry poll every
+    NO_DATA_RETRY_MINUTES for as long as answers stayed empty, whatever
+    interval it was configured with.
+    """
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+
+    coordinator = TankstellenCoordinator(hass, entry)
+
+    with (
+        patch(
+            "custom_components.tankstellen_austria.coordinator.TankstellenCoordinator._fetch",
+            new_callable=AsyncMock,
+            return_value=[],
+        ),
+        patch(
+            "custom_components.tankstellen_austria.coordinator.async_call_later"
+        ) as mock_call_later,
+    ):
+        await coordinator._async_update_data()
+        await coordinator._async_update_data()
+
+    mock_call_later.assert_called_once()
+
+
+async def test_no_data_retry_is_available_again_after_data(
+    hass: HomeAssistant,
+) -> None:
+    """An answer with stations makes the retry available for the next empty one.
+
+    Without the reset the retry would cover the first noon window after a
+    restart and none after it.
+    """
+    entry = _make_entry({CONF_FUEL_TYPES: ["DIE"]})
+    entry.add_to_hass(hass)
+
+    coordinator = TankstellenCoordinator(hass, entry)
+
+    with (
+        patch(
+            "custom_components.tankstellen_austria.coordinator.TankstellenCoordinator._fetch",
+            new_callable=AsyncMock,
+            side_effect=[[], [MOCK_STATION], []],
+        ),
+        patch(
+            "custom_components.tankstellen_austria.coordinator.async_call_later"
+        ) as mock_call_later,
+    ):
+        await coordinator._async_update_data()
+        assert mock_call_later.call_count == 1
+        await coordinator._async_update_data()
+        assert mock_call_later.call_count == 1
+        await coordinator._async_update_data()
+
+    assert mock_call_later.call_count == 2
+
+
 async def test_async_teardown_cancels_pending_no_data_retry(
     hass: HomeAssistant,
 ) -> None:
@@ -967,9 +1029,10 @@ async def test_retry_no_data_fetch_clears_handle_and_requests_refresh(
 ) -> None:
     """The scheduled callback clears its handle and requests a refresh.
 
-    The handle clear is what allows a *next* no-data response to schedule
-    again; the refresh request is what actually re-tries the fetch. If
-    either is dropped, the no-data retry mechanism silently breaks.
+    The handle clear keeps teardown from cancelling a timer that has already
+    fired; the refresh request is what actually re-tries the fetch. Whether a
+    *next* no-data response may schedule again is decided by the answer, not
+    here (see `test_no_data_retry_is_available_again_after_data`).
     """
     entry = _make_entry()
     entry.add_to_hass(hass)
