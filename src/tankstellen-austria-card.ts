@@ -29,6 +29,7 @@ import type {
 import {
   CARD_VERSION,
   DYNAMIC_MANUAL_COOLDOWN_MS,
+  POST_REFRESH_CHECK_MS,
   HISTORY_REFRESH_MS,
 } from "./const";
 import { normaliseConfig } from "./utils/config";
@@ -1403,7 +1404,7 @@ export class TankstellenAustriaCard extends LitElement {
         // eslint-disable-next-line no-console
         console.warn("[Tankstellen Austria] post-refresh check failed", err);
       }
-    }, 3000);
+    }, POST_REFRESH_CHECK_MS);
 
     // Per-second re-render so the countdown stays live. Skipped when the
     // user prefers reduced motion — WCAG 2.2.2 (animation > 5s needs a way

@@ -12,6 +12,12 @@ export const DOMAIN = "tankstellen_austria";
 // Backend safety interval between manual refreshes in dynamic mode.
 export const DYNAMIC_MANUAL_COOLDOWN_MS = 2 * 60 * 1000;
 
+// How long after a manual refresh the card looks for new data. The
+// coordinator debounces a requested refresh by 15 s (`cooldown=15` in
+// coordinator.py) and only then asks E-Control, so a check after 3 s
+// always found the old state and showed "no new data" on every press.
+export const POST_REFRESH_CHECK_MS = 20 * 1000;
+
 // How often the card refetches history (short so the sparkline picks up
 // overnight price changes without needing a page reload).
 export const HISTORY_REFRESH_MS = 30 * 60 * 1000;
