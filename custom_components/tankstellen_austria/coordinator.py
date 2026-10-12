@@ -46,6 +46,8 @@ from .const import (
     MAINTENANCE_MARKER,
     MAINTENANCE_PROBE_MINUTES,
     MAINTENANCE_SNIFF_BYTES,
+    MAX_POLL_MINUTES,
+    MIN_POLL_MINUTES,
     NO_DATA_RETRY_MINUTES,
     USER_AGENT,
 )
@@ -152,8 +154,13 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]
         if self._dynamic_entity:
             interval = timedelta(hours=DYNAMIC_SAFETY_INTERVAL_HOURS)
         else:
+            # Clamped here as well as in the form. The NumberSelector only
+            # validates what goes through a flow, so an entry edited by hand
+            # in `.storage` would otherwise poll at whatever it says.
             scan = config.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
-            interval = timedelta(minutes=scan)
+            interval = timedelta(
+                minutes=min(max(scan, MIN_POLL_MINUTES), MAX_POLL_MINUTES)
+            )
 
         # Exponential-backoff state. `_normal_interval` is immutable as the
         # user-configured cadence; `self.update_interval` is what HA actually

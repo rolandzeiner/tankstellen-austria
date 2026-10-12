@@ -84,6 +84,22 @@ async def test_fixed_mode_uses_poll_interval(hass: HomeAssistant) -> None:
     assert coordinator.update_interval == timedelta(minutes=60)
 
 
+@pytest.mark.parametrize(("stored", "expected"), [(1, 10), (100000, 720)])
+async def test_fixed_mode_clamps_stored_interval(
+    hass: HomeAssistant, stored: int, expected: int
+) -> None:
+    """A stored interval outside the form's range is clamped, not trusted.
+
+    The NumberSelector only validates what goes through a flow; an entry
+    edited by hand in `.storage` reaches the coordinator as it is.
+    """
+    entry = _make_entry({CONF_SCAN_INTERVAL: stored})
+    entry.add_to_hass(hass)
+
+    coordinator = TankstellenCoordinator(hass, entry)
+    assert coordinator.update_interval == timedelta(minutes=expected)
+
+
 async def test_api_failure_raises_update_failed(hass: HomeAssistant) -> None:
     """When the API raises, coordinator raises UpdateFailed."""
     entry = _make_entry()
