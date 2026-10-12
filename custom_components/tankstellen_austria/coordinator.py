@@ -575,10 +575,11 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]
         if self._consecutive_failures < 2:
             return
         normal_secs = self._normal_interval.total_seconds()
-        backoff_secs = min(
-            normal_secs * (2 ** (self._consecutive_failures - 1)),
-            BACKOFF_CAP_SECONDS,
-        )
+        # The exponent is clamped because the count is not: the cap takes
+        # over within a few doublings, and from the 1025th failure in a
+        # row `2 ** n` no longer converts to a float.
+        doublings = min(self._consecutive_failures - 1, 32)
+        backoff_secs = min(normal_secs * 2**doublings, BACKOFF_CAP_SECONDS)
         new_interval = timedelta(seconds=backoff_secs)
         if self.update_interval != new_interval:
             self.update_interval = new_interval

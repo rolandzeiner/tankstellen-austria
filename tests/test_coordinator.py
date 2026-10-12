@@ -178,6 +178,21 @@ async def test_consecutive_failures_apply_exponential_backoff(
     assert coordinator.update_interval.total_seconds() == BACKOFF_CAP_SECONDS
 
 
+async def test_backoff_holds_the_cap_through_a_very_long_outage(
+    hass: HomeAssistant,
+) -> None:
+    """The 1025th failure in a row used to raise: `2 ** 1024` fits no float."""
+    from custom_components.tankstellen_austria.const import BACKOFF_CAP_SECONDS
+
+    entry = _make_entry({CONF_SCAN_INTERVAL: 30})
+    entry.add_to_hass(hass)
+    coordinator = TankstellenCoordinator(hass, entry)
+
+    for _ in range(3000):
+        coordinator._note_failure()
+    assert coordinator.update_interval == timedelta(seconds=BACKOFF_CAP_SECONDS)
+
+
 async def test_fetch_rejects_non_list_payload(hass: HomeAssistant) -> None:
     """Non-list JSON (e.g. a dict error envelope) must raise UpdateFailed.
 
