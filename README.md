@@ -54,6 +54,8 @@ and CNG. No API key required.
 
 [![Add to HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=rolandzeiner&repository=tankstellen-austria&category=integration)
 
+Not in the search yet? In HACS, open ⋮ → **Custom repositories**, add `https://github.com/rolandzeiner/tankstellen-austria` with type **Integration**, then search again.
+
 ### Manual
 
 Copy `custom_components/tankstellen_austria/` to your HA `config/custom_components/`, then restart.
