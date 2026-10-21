@@ -5,6 +5,8 @@ import { isClosingSoon } from "./station";
 
 // 2026-10-21 is a Wednesday, 2026-10-24 a Saturday, 2026-10-25 a Sunday.
 // Local-time constructors, because isClosingSoon reads local wall-clock time.
+// E-Control groups Mon–Fri under the "MO" day code, so the WED cases read the
+// MO row.
 const WED = (h: number, m: number): Date => new Date(2026, 9, 21, h, m);
 const SAT = (h: number, m: number): Date => new Date(2026, 9, 24, h, m);
 const SUN = (h: number, m: number): Date => new Date(2026, 9, 25, h, m);

@@ -8,12 +8,14 @@
  * 1. **The decorator check.** The build and this suite both read
  *    `experimentalDecorators` / `useDefineForClassFields` out of
  *    tsconfig.json and lower Lit's legacy decorators from it. If that ever
- *    regresses, plain class fields overwrite Lit's generated accessors,
- *    reactivity dies silently, and the build still succeeds. Reading
- *    `elementProperties` back off each constructor is what catches it.
+ *    regresses, plain class fields shadow Lit's accessors, reactivity dies
+ *    silently, and the build still succeeds. The `elementProperties` check
+ *    proves the decorators ran; the render tests prove the accessors still
+ *    trigger updates, since Lit's dev build throws on a shadowed field at
+ *    the first update.
  *
- * 2. **Render-path coverage.** The card entrypoint is the largest file in
- *    the tree and no other test imports it.
+ * 2. **Render-path coverage.** The card entrypoint carries most of the
+ *    render logic and no other test imports it.
  *
  * `ha-card`, `ha-icon` and friends are HA-provided elements that do not
  * exist here. happy-dom renders them as inert containers, which is fine:
@@ -146,7 +148,7 @@ describe("tankstellen-austria-card", () => {
 
   it("shows the loading state before hass arrives", async () => {
     const el = await mount<Card>("tankstellen-austria-card", (e) => e.setConfig({ type: "x" }));
-    expect(el.shadowRoot?.querySelector(".empty")).not.toBeNull();
+    expect(el.shadowRoot?.querySelector('.empty[role="status"]')).not.toBeNull();
   });
 
   it("auto-discovers its sensors and renders their stations", async () => {
@@ -158,7 +160,7 @@ describe("tankstellen-austria-card", () => {
     expect(text(el)).toContain("Teststation Süd");
   });
 
-  it("keeps the E-Control attribution in the footer", async () => {
+  it("shows the E-Control attribution", async () => {
     const el = await mount<Card>("tankstellen-austria-card", (e) => {
       e.setConfig({ type: "x" });
       e.hass = hass();
@@ -180,7 +182,7 @@ describe("tankstellen-austria-card", () => {
       e.setConfig({ type: "x", entities: ["sensor.missing"] });
       e.hass = hass();
     });
-    expect(el.shadowRoot?.querySelector(".empty")).not.toBeNull();
+    expect(el.shadowRoot?.querySelector(".empty:not([role])")).not.toBeNull();
   });
 
   it("re-renders for a tracked sensor and ignores unrelated state changes", async () => {
