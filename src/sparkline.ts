@@ -116,7 +116,8 @@ function sliceLast7Days(all: HistoryPoint[]): HistoryPoint[] {
 
 function computeMedianDelta(values: number[]): MedianDelta | null {
   if (values.length < 2) return null;
-  const sorted = [...values].sort((a, b) => a - b);
+  const sorted = [...values];
+  sorted.sort((a, b) => a - b);
   const mid = (sorted.length - 1) / 2;
   const median = (sorted[Math.floor(mid)]! + sorted[Math.ceil(mid)]!) / 2;
   const current = values[values.length - 1]!;
@@ -132,7 +133,8 @@ function computeMedianDelta(values: number[]): MedianDelta | null {
 }
 
 function medianY(values: number[], priceToY: (p: number) => number): number {
-  const sorted = [...values].sort((a, b) => a - b);
+  const sorted = [...values];
+  sorted.sort((a, b) => a - b);
   const mid = (sorted.length - 1) / 2;
   const median = (sorted[Math.floor(mid)]! + sorted[Math.ceil(mid)]!) / 2;
   return priceToY(median);
@@ -336,7 +338,8 @@ export function buildSparkline(opts: SparklineOpts): SparklineResult {
         })()
       : nothing;
 
-    const sortedValues = [...values].sort((a, b) => a - b);
+    const sortedValues = [...values];
+    sortedValues.sort((a, b) => a - b);
     const midIdx = (sortedValues.length - 1) / 2;
     const medianValue =
       sortedValues.length > 0

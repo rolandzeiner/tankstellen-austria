@@ -259,13 +259,13 @@ export class TankstellenAustriaCard extends LitElement {
     const ids = this._trackedEntityIds();
     return ids
       .map((eid): TankstellenEntity | null => {
-        const state = this.hass.states[eid];
-        if (!state) return null;
+        const stateObj = this.hass.states[eid];
+        if (!stateObj) return null;
         return {
           entity_id: eid,
-          state: state.state,
-          attributes: state.attributes,
-          last_updated: state.last_updated,
+          state: stateObj.state,
+          attributes: stateObj.attributes,
+          last_updated: stateObj.last_updated,
         };
       })
       .filter((e): e is TankstellenEntity => e !== null);
@@ -965,14 +965,14 @@ export class TankstellenAustriaCard extends LitElement {
     // when enabled, order by Luftlinie instead. `sort` is stable, so
     // stations without a stamped `distance_m` sink to the tail while
     // keeping their cheapest-first order among themselves.
-    const ordered =
-      this._config.sort_by_distance === true
-        ? [...filtered].sort(
-            (a, b) =>
-              (a.distance_m ?? Number.POSITIVE_INFINITY) -
-              (b.distance_m ?? Number.POSITIVE_INFINITY),
-          )
-        : filtered;
+    let ordered = filtered;
+    if (this._config.sort_by_distance === true) {
+      ordered = [...filtered];
+      ordered.sort(
+        (a, b) =>
+          (a.distance_m ?? Number.POSITIVE_INFINITY) - (b.distance_m ?? Number.POSITIVE_INFINITY),
+      );
+    }
 
     const display = ordered.slice(0, maxStations);
     return html`
@@ -1275,7 +1275,7 @@ export class TankstellenAustriaCard extends LitElement {
     }
     ev.preventDefault();
     this._onTabClick(next);
-    this.updateComplete.then(() => {
+    void this.updateComplete.then(() => {
       const tabs = this.shadowRoot?.querySelectorAll<HTMLButtonElement>('.tabs [role="tab"]');
       tabs?.[next]?.focus();
     });
@@ -1295,9 +1295,9 @@ export class TankstellenAustriaCard extends LitElement {
     this._onStationClick(key);
   }
 
-  private _onMapLinkClick(e: Event): void {
+  private _onMapLinkClick = (e: Event): void => {
     e.stopPropagation();
-  }
+  };
 
   private _onSparklineClick(entityId: string): void {
     // Same behaviour as clicking a sensor in HA — open the more-info dialog.
@@ -1310,7 +1310,7 @@ export class TankstellenAustriaCard extends LitElement {
     );
   }
 
-  private _onRefresh(): void {
+  private _onRefresh = (): void => {
     if (!this.hass) return;
     const now = Date.now();
     if (now - this._lastManualRefresh < DYNAMIC_MANUAL_COOLDOWN_MS) return;
@@ -1380,7 +1380,7 @@ export class TankstellenAustriaCard extends LitElement {
         this._cooldownTick = (this._cooldownTick + 1) % 1_000_000;
       }, 1000);
     }
-  }
+  };
 
   private _onVersionReload = async (): Promise<void> => {
     // Flag this target version as "user tried reload" before the page

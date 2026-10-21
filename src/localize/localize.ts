@@ -1,6 +1,5 @@
 import * as en from "./languages/en.json";
 import * as de from "./languages/de.json";
-import type { FuelType } from "../types";
 
 type Dict = Record<string, unknown>;
 
@@ -72,7 +71,7 @@ export function getWeekdays(ctx: TranslateContext): string[] {
   return Array.isArray(fallback) ? (fallback as string[]) : [];
 }
 
-export function getFuelName(code: FuelType | string, ctx: TranslateContext): string {
+export function getFuelName(code: string, ctx: TranslateContext): string {
   const lang = resolveLang(ctx);
   const dict = (resolvePath("fuel_types", languages[lang] ?? DE_LANG) ??
     resolvePath("fuel_types", DE_LANG)) as Dict | undefined;

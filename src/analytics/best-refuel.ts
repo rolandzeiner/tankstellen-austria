@@ -268,7 +268,8 @@ function pickBest(buckets: WeightedEntry[][], minCount: number): BestPick {
 // bimodal pattern is the correct answer for fuel pricing — the user really
 // can refuel cheaper at the cluster minimum.
 function scoreSeparation(pick: BestPick, refCents: number): number {
-  const valid = pick.medians.filter((m) => !Number.isNaN(m)).sort((a, b) => a - b);
+  const valid = pick.medians.filter((m) => !Number.isNaN(m));
+  valid.sort((a, b) => a - b);
   if (valid.length < 2 || pick.bestIdx < 0) return 0;
   const mid = valid[Math.floor((valid.length - 1) / 2)]!;
   const gapCents = (mid - pick.minVal) * 100;
@@ -325,7 +326,8 @@ export function analyzeBestRefuel(data: HistoryPoint[]): BestRefuelResult | null
 
   const hourCoverage = hourBuckets.filter((b) => b.length >= 3).length / 24;
   const hourSep = scoreSeparation(hourPick, 1.5);
-  const validHour = hourPick.medians.filter((m) => !Number.isNaN(m)).sort((a, b) => a - b);
+  const validHour = hourPick.medians.filter((m) => !Number.isNaN(m));
+  validHour.sort((a, b) => a - b);
   const hourGapCents =
     validHour.length >= 2
       ? (validHour[Math.floor((validHour.length - 1) / 2)]! - hourPick.minVal) * 100
@@ -384,8 +386,8 @@ export function buildHourlyEnvelope(allData: HistoryPoint[]): HourlyEnvelope | n
     }
   }
 
-  const minByHour: Array<number | null> = new Array(24).fill(null);
-  const maxByHour: Array<number | null> = new Array(24).fill(null);
+  const minByHour: Array<number | null> = Array.from({ length: 24 }, () => null);
+  const maxByHour: Array<number | null> = Array.from({ length: 24 }, () => null);
   let filled = 0;
   for (let h = 0; h < 24; h++) {
     const bucket = byHour[h]!;

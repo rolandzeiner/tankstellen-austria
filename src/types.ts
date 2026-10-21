@@ -196,7 +196,7 @@ export interface Station {
 
 export interface TankstellenEntityAttributes {
   friendly_name?: string;
-  fuel_type?: FuelType | string;
+  fuel_type?: string;
   fuel_type_name?: string;
   stations?: Station[];
   average_price?: number;

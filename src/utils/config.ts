@@ -15,7 +15,7 @@ function normaliseCar(raw: unknown): CarConfig | null {
   const tank_size = Number.isFinite(tankRaw) && tankRaw >= 1 ? Math.min(200, tankRaw) : 50;
 
   let consumption: number | undefined;
-  if (src.consumption != null) {
+  if (typeof src.consumption === "number" || typeof src.consumption === "string") {
     const c = parseFloat(String(src.consumption));
     if (Number.isFinite(c) && c >= 0) consumption = Math.min(30, c);
   }

@@ -20,13 +20,13 @@ export function monotoneCubicPath(pts: readonly Point[]): string {
     );
   }
 
-  const m = new Array<number>(n - 1);
+  const m = Array.from<number>({ length: n - 1 });
   for (let k = 0; k < n - 1; k++) {
     const dx = pts[k + 1]!.x - pts[k]!.x;
     m[k] = dx === 0 ? 0 : (pts[k + 1]!.y - pts[k]!.y) / dx;
   }
 
-  const d = new Array<number>(n);
+  const d = Array.from<number>({ length: n });
   d[0] = m[0]!;
   d[n - 1] = m[n - 2]!;
   for (let k = 1; k < n - 1; k++) {
@@ -119,7 +119,8 @@ export function weightedPercentile(entries: readonly WeightedEntry[], q: number)
   const usable = entries.filter((e) => Number.isFinite(e.value) && e.weight > 0);
   if (usable.length === 0) return NaN;
   if (usable.length === 1) return usable[0]!.value;
-  const sorted = [...usable].sort((a, b) => a.value - b.value);
+  const sorted = [...usable];
+  sorted.sort((a, b) => a.value - b.value);
   const total = sorted.reduce((s, e) => s + e.weight, 0);
   const target = clamp(q, 0, 1) * total;
   let acc = 0;

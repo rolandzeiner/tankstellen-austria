@@ -406,19 +406,19 @@ export class TankstellenAustriaCardEditor extends LitElement implements Lovelace
     const selected = this._config.entities ?? [];
     const ids = selected;
     const resolvable = ids
-      .map((eid) => ({ eid, state: this.hass!.states[eid] }))
-      .filter((x): x is { eid: string; state: NonNullable<typeof x.state> } => !!x.state);
+      .map((eid) => ({ eid, stateObj: this.hass!.states[eid] }))
+      .filter((x): x is { eid: string; stateObj: NonNullable<typeof x.stateObj> } => !!x.stateObj);
     if (resolvable.length < 2) return nothing;
 
     const labels: Record<string, string> = this._config.tab_labels ?? {};
     return html`
       <div class="editor-section">
         <div class="section-header">${this._et("section_tab_labels")}</div>
-        ${resolvable.map(({ eid, state }) => {
-          const ft = fuelTypeOf(this.hass, eid, state.attributes);
+        ${resolvable.map(({ eid, stateObj }) => {
+          const ft = fuelTypeOf(this.hass, eid, stateObj.attributes);
           let defaultLabel = getFuelName(ft, this._ctx());
-          if (state.attributes?.dynamic_mode === true) {
-            const trackerLabel = state.attributes.dynamic_tracker_label;
+          if (stateObj.attributes?.dynamic_mode === true) {
+            const trackerLabel = stateObj.attributes.dynamic_tracker_label;
             if (trackerLabel) defaultLabel += ` · ${trackerLabel}`;
           }
           const current = typeof labels[eid] === "string" ? labels[eid] : "";
@@ -712,9 +712,9 @@ export class TankstellenAustriaCardEditor extends LitElement implements Lovelace
   // Bespoke event handlers (tab labels, payment chips, cars roster)
   // ------------------------------------------------------------------
 
-  private _stop(e: Event): void {
+  private _stop = (e: Event): void => {
     e.stopPropagation();
-  }
+  };
 
   private async _onCopyRecorderSnippet(snippet: string): Promise<void> {
     try {
@@ -771,21 +771,21 @@ export class TankstellenAustriaCardEditor extends LitElement implements Lovelace
     this._fireChanged();
   }
 
-  private _onCustomPmChanged(e: CustomEvent<{ value?: string }>): void {
+  private _onCustomPmChanged = (e: CustomEvent<{ value?: string }>): void => {
     // ha-selector re-fires its child's event; let it stop here rather than
     // bubbling on to the editor's own config-changed listeners.
     e.stopPropagation();
     // Clearing the field reports `undefined`, not "" — normalise.
     this._pmDraft = e.detail?.value ?? "";
-  }
+  };
 
-  private _onCustomPmKeydown(e: KeyboardEvent): void {
+  private _onCustomPmKeydown = (e: KeyboardEvent): void => {
     // Stop HA global shortcuts from stealing focus when typing here.
     e.stopPropagation();
     if (e.key === "Enter") this._onAddCustomPm();
-  }
+  };
 
-  private _onAddCustomPm(): void {
+  private _onAddCustomPm = (): void => {
     const val = sanitizeShort(this._pmDraft);
     if (!val) return;
 
@@ -797,7 +797,7 @@ export class TankstellenAustriaCardEditor extends LitElement implements Lovelace
       this._fireChanged();
     }
     this._pmDraft = "";
-  }
+  };
 
   private _onToggleIconPicker(e: Event, idx: number): void {
     e.stopPropagation();
@@ -879,13 +879,13 @@ export class TankstellenAustriaCardEditor extends LitElement implements Lovelace
     this._fireChanged();
   }
 
-  private _onAddCar(e: Event): void {
+  private _onAddCar = (e: Event): void => {
     e.stopPropagation();
     const cars = [...(this._config.cars ?? [])];
     cars.push({ name: "", fuel_type: "DIE", tank_size: 50, icon: "mdi:car" });
     this._config = { ...this._config, cars };
     this._fireChanged();
-  }
+  };
 
   static override styles: CSSResultGroup = editorStyles;
 }
