@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 import editorSource from "./editor.ts?raw";
 import stylesSource from "./styles.ts?raw";
@@ -50,13 +50,8 @@ describe("design-token fallbacks", () => {
     for (const site of sites) {
       const name = site[1] ?? "";
       const fallback = site[2] ?? "";
-      expect(
-        FONT_WEIGHTS[name],
-        `unknown token --ha-font-weight-${name}`,
-      ).toBeDefined();
-      expect(fallback, `--ha-font-weight-${name} fallback`).toBe(
-        FONT_WEIGHTS[name],
-      );
+      expect(FONT_WEIGHTS[name], `unknown token --ha-font-weight-${name}`).toBeDefined();
+      expect(fallback, `--ha-font-weight-${name} fallback`).toBe(FONT_WEIGHTS[name]);
     }
   });
 });

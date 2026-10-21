@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { formatDistance, mapsUrl } from "./price";
 
 describe("formatDistance — units and boundaries", () => {
@@ -33,12 +33,8 @@ describe("mapsUrl — link kind and fallbacks", () => {
   it("builds the per-kind URL for a precise address", () => {
     const q = encodeURIComponent("1010 Wien Hauptstraße 12");
     expect(mapsUrl(precise, "OMV")).toBe(`https://maps.google.com/?q=${q}`);
-    expect(mapsUrl(precise, "OMV", "google")).toBe(
-      `https://maps.google.com/?q=${q}`,
-    );
-    expect(mapsUrl(precise, "OMV", "apple")).toBe(
-      `https://maps.apple.com/?q=${q}`,
-    );
+    expect(mapsUrl(precise, "OMV", "google")).toBe(`https://maps.google.com/?q=${q}`);
+    expect(mapsUrl(precise, "OMV", "apple")).toBe(`https://maps.apple.com/?q=${q}`);
     expect(mapsUrl(precise, "OMV", "geo")).toBe(`geo:0,0?q=${q}`);
   });
 

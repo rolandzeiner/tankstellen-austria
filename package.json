@@ -1,21 +1,33 @@
 {
   "name": "tankstellen-austria-card",
-  "private": true,
   "version": "0.0.0",
+  "private": true,
   "description": "Lovelace custom card for the Tankstellen Austria HA integration",
   "type": "module",
   "scripts": {
-    "build": "rolldown -c",
-    "dev": "rolldown -c -w",
+    "build": "vp build",
+    "dev": "vp build --watch --mode development",
     "build:push": "./scripts/dev-push.sh --quiet",
-    "test": "vitest run"
-  },
-  "devDependencies": {
-    "rolldown": "1.2.11",
-    "typescript": "7.0.2",
-    "vitest": "5.0.2"
+    "test": "vp test run",
+    "check": "vp check"
   },
   "dependencies": {
     "lit": "^3.3.3"
+  },
+  "devDependencies": {
+    "vite-plus": "1.3.0"
+  },
+  "overrides": {
+    "vite": "npm:@voidzero-dev/vite-plus-core@1.3.0"
+  },
+  "devEngines": {
+    "packageManager": {
+      "name": "npm",
+      "version": ">=11.0.0"
+    },
+    "runtime": {
+      "name": "node",
+      "version": "^24.11.0 || >=26.0.0"
+    }
   }
 }

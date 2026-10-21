@@ -1,14 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { detectNavPlatform, resolveMapLinkKind, safeNavUri } from "./utils";
 
-const UA_IPHONE =
-  "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15";
-const UA_ANDROID =
-  "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 Chrome/125.0";
-const UA_MAC =
-  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15";
-const UA_WINDOWS =
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/125.0";
+const UA_IPHONE = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15";
+const UA_ANDROID = "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 Chrome/125.0";
+const UA_MAC = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15";
+const UA_WINDOWS = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/125.0";
 
 describe("detectNavPlatform — device families for map-link routing", () => {
   it("detects iPhones from the UA token", () => {
@@ -51,9 +47,7 @@ describe("resolveMapLinkKind — config provider × device", () => {
 
 describe("safeNavUri — https plus the exact geo prefix", () => {
   it("passes https URLs through", () => {
-    expect(safeNavUri("https://maps.apple.com/?q=x")).toBe(
-      "https://maps.apple.com/?q=x",
-    );
+    expect(safeNavUri("https://maps.apple.com/?q=x")).toBe("https://maps.apple.com/?q=x");
   });
 
   it("passes the generated geo chooser URI through", () => {

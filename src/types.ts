@@ -311,7 +311,7 @@ export interface HaFormExpandableSchema {
 export type HaFormSchema = HaFormSelectorSchema | HaFormExpandableSchema;
 
 // `<ha-form>` element shape — mirror the props the editor sets so
-// `tsc --noEmit` validates the template at compile time.
+// `vp check` validates the template at compile time.
 interface HaFormElement extends HTMLElement {
   hass?: HomeAssistant;
   data?: Record<string, unknown>;

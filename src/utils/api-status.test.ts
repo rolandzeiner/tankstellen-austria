@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 import { fetchApiMaintenance } from "./api-status";
 
 describe("fetchApiMaintenance — the card's E-Control maintenance probe", () => {
@@ -21,9 +21,7 @@ describe("fetchApiMaintenance — the card's E-Control maintenance probe", () =>
         callWS: vi.fn().mockResolvedValue({ maintenance: false }),
       }),
     ).toBe(false);
-    expect(
-      await fetchApiMaintenance({ callWS: vi.fn().mockResolvedValue({}) }),
-    ).toBe(false);
+    expect(await fetchApiMaintenance({ callWS: vi.fn().mockResolvedValue({}) })).toBe(false);
   });
 
   it("stays quiet on an older backend without the command", async () => {

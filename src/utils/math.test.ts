@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { weightedPercentile, type WeightedEntry } from "./math";
 
 describe("weightedPercentile — boundaries and edge cases", () => {
