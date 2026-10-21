@@ -1,9 +1,11 @@
 name: CodeQL
 
-# Scans Python (integration) + JavaScript/TypeScript (Lovelace cards).
-# Runs on every push to main/dev, every PR targeting main, and once a
-# week on Tuesday at 04:23 UTC to catch newly-published advisories
-# against code that hasn't been touched since the last scan.
+# Scans Python (integration), JavaScript/TypeScript (Lovelace cards)
+# and the workflows themselves (`actions`: script injection, missing
+# token permissions, untrusted checkouts). Runs on every push to
+# main/dev, every PR targeting main, and once a week on Tuesday at
+# 04:23 UTC to catch newly-published advisories against code that
+# hasn't been touched since the last scan.
 #
 # workflow_dispatch exists to re-run a scan that GitHub's own
 # infrastructure killed. During the 2026-08-06 Actions outage the
@@ -41,6 +43,8 @@ jobs:
           - language: python
             build-mode: none
           - language: javascript-typescript
+            build-mode: none
+          - language: actions
             build-mode: none
 
     steps:
