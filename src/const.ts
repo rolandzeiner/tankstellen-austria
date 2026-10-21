@@ -5,12 +5,18 @@
 // Bump both in the same commit. The README badge + manifest.json stay at the
 // clean version; this constant + const.py can carry a `-beta-N` suffix during
 // development.
-export const CARD_VERSION = "1.10.1";
+export const CARD_VERSION = "1.10.2";
 
 export const DOMAIN = "tankstellen_austria";
 
 // Backend safety interval between manual refreshes in dynamic mode.
 export const DYNAMIC_MANUAL_COOLDOWN_MS = 2 * 60 * 1000;
+
+// How long after a manual refresh the card looks for new data. The
+// coordinator debounces a requested refresh by 15 s (`cooldown=15` in
+// coordinator.py) and only then asks E-Control, so a check after 3 s
+// always found the old state and showed "no new data" on every press.
+export const POST_REFRESH_CHECK_MS = 20 * 1000;
 
 // How often the card refetches history (short so the sparkline picks up
 // overnight price changes without needing a page reload).

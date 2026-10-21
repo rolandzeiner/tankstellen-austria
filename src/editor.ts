@@ -41,13 +41,7 @@
 //   layer rather than naming a concrete tag is what survives the next
 //   rename.
 
-import {
-  LitElement,
-  html,
-  nothing,
-  type TemplateResult,
-  type CSSResultGroup,
-} from "lit";
+import { LitElement, html, nothing, type TemplateResult, type CSSResultGroup } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import { classMap } from "lit/directives/class-map.js";
 
@@ -61,17 +55,17 @@ import {
   type TankstellenAustriaCardConfig,
 } from "./types";
 import { CAR_ICONS } from "./const";
-import {
-  getFuelName,
-  translate,
-  type TranslateContext,
-} from "./localize/localize";
+import { fuelTypeOf } from "./utils/entities";
+import { getFuelName, translate, type TranslateContext } from "./localize/localize";
 import { editorStyles } from "./styles";
 
 // Strip HTML-injection chars, cap length, trim. Applied to every free-form
 // user-typed value before it lands in config.
 function sanitizeShort(raw: string): string {
-  return raw.replace(/[<>"'&]/g, "").slice(0, 50).trim();
+  return raw
+    .replace(/[<>"'&]/g, "")
+    .slice(0, 50)
+    .trim();
 }
 
 // Hoisted so the object identity is stable across renders — ha-selector
@@ -80,10 +74,7 @@ function sanitizeShort(raw: string): string {
 const PM_CUSTOM_SELECTOR = { text: {} } as const;
 
 @customElement("tankstellen-austria-card-editor")
-export class TankstellenAustriaCardEditor
-  extends LitElement
-  implements LovelaceCardEditor
-{
+export class TankstellenAustriaCardEditor extends LitElement implements LovelaceCardEditor {
   @property({ attribute: false }) public hass?: HomeAssistant;
 
   // IMPORTANT: initialize with a minimal valid config so the form always
@@ -231,9 +222,7 @@ export class TankstellenAustriaCardEditor
     }
 
     {
-      const carsSubSchema: HaFormSchema[] = [
-        { name: "show_cars", selector: { boolean: {} } },
-      ];
+      const carsSubSchema: HaFormSchema[] = [{ name: "show_cars", selector: { boolean: {} } }];
       if (showCars) {
         carsSubSchema.push(
           { name: "show_car_fillup", selector: { boolean: {} } },
@@ -258,9 +247,7 @@ export class TankstellenAustriaCardEditor
         name: "payment_options",
         title: this._et("section_payment_filter"),
         flatten: true,
-        schema: [
-          { name: "payment_highlight_mode", selector: { boolean: {} } },
-        ],
+        schema: [{ name: "payment_highlight_mode", selector: { boolean: {} } }],
       });
     }
 
@@ -296,9 +283,7 @@ export class TankstellenAustriaCardEditor
   /** Helper-text resolver. Only surfaces a helper when an
    *  `editor.<field>_helper` key actually exists in the bundle —
    *  otherwise ha-form's empty helper line eats vertical space. */
-  private _computeHelper = (
-    field: { name: string },
-  ): string | undefined => {
+  private _computeHelper = (field: { name: string }): string | undefined => {
     const key = `${field.name}_helper`;
     const localised = this._et(key);
     return localised === `editor.${key}` ? undefined : localised;
@@ -309,9 +294,7 @@ export class TankstellenAustriaCardEditor
    *  re-setConfig after config-changed, so a fireEvent-only path
    *  leaves _config stale and the next render reverts the form to
    *  pre-change state. */
-  private _onFormChanged = (
-    ev: CustomEvent<{ value: Record<string, unknown> }>,
-  ): void => {
+  private _onFormChanged = (ev: CustomEvent<{ value: Record<string, unknown> }>): void => {
     const value = ev.detail.value;
     // Spread on top of existing config so bespoke-section keys
     // (tab_labels, payment_filter, cars) survive form-only changes.
@@ -423,24 +406,19 @@ export class TankstellenAustriaCardEditor
     const selected = this._config.entities ?? [];
     const ids = selected;
     const resolvable = ids
-      .map((eid) => ({ eid, state: this.hass!.states[eid] }))
-      .filter(
-        (x): x is { eid: string; state: NonNullable<typeof x.state> } =>
-          !!x.state,
-      );
+      .map((eid) => ({ eid, stateObj: this.hass!.states[eid] }))
+      .filter((x): x is { eid: string; stateObj: NonNullable<typeof x.stateObj> } => !!x.stateObj);
     if (resolvable.length < 2) return nothing;
 
     const labels: Record<string, string> = this._config.tab_labels ?? {};
     return html`
       <div class="editor-section">
         <div class="section-header">${this._et("section_tab_labels")}</div>
-        ${resolvable.map(({ eid, state }) => {
-          const ft = state.attributes?.fuel_type ?? "";
+        ${resolvable.map(({ eid, stateObj }) => {
+          const ft = fuelTypeOf(this.hass, eid, stateObj.attributes);
           let defaultLabel = getFuelName(ft, this._ctx());
-          if (state.attributes?.dynamic_mode === true) {
-            const trackerLabel = state.attributes.dynamic_tracker_label as
-              | string
-              | undefined;
+          if (stateObj.attributes?.dynamic_mode === true) {
+            const trackerLabel = stateObj.attributes.dynamic_tracker_label;
             if (trackerLabel) defaultLabel += ` · ${trackerLabel}`;
           }
           const current = typeof labels[eid] === "string" ? labels[eid] : "";
@@ -477,8 +455,9 @@ export class TankstellenAustriaCardEditor
     const keys = new Set<string>(["cash", "debit_card", "credit_card"]);
     if (!this.hass) return keys;
     for (const eid of this._config.entities ?? []) {
-      const stations = (this.hass.states[eid]?.attributes?.stations ??
-        []) as Array<{ payment_methods?: { others?: string[] } }>;
+      const stations = (this.hass.states[eid]?.attributes?.stations ?? []) as Array<{
+        payment_methods?: { others?: string[] };
+      }>;
       for (const s of stations) {
         for (const o of s.payment_methods?.others ?? []) keys.add(o);
       }
@@ -500,9 +479,7 @@ export class TankstellenAustriaCardEditor
       <div class="editor-section">
         <div class="section-header">${this._et("section_payment_filter")}</div>
         <div class="pm-filter-chips">
-          ${[...allPmKeys].map((key) =>
-            this._renderPaymentChip(key, paymentFilter, apiPmKeys),
-          )}
+          ${[...allPmKeys].map((key) => this._renderPaymentChip(key, paymentFilter, apiPmKeys))}
         </div>
         <div class="pm-custom-row">
           <ha-selector
@@ -574,9 +551,11 @@ export class TankstellenAustriaCardEditor
     return html`
       <div class="editor-section">
         <div class="section-header">${this._et("section_cars")}</div>
-        ${!showCarFillup && !showCarConsumption
-          ? html`<div class="editor-hint">${this._et("cars_both_off_hint")}</div>`
-          : nothing}
+        ${
+          !showCarFillup && !showCarConsumption
+            ? html`<div class="editor-hint">${this._et("cars_both_off_hint")}</div>`
+            : nothing
+        }
         ${cars.map((car, idx) => this._renderCarRow(car, idx))}
         <button class="car-add-btn" type="button" @click=${this._onAddCar}>
           ${this._et("add_car")}
@@ -589,8 +568,7 @@ export class TankstellenAustriaCardEditor
     const iconExpanded = this._expandedCarIcon === idx;
     const currentIcon = car.icon || "mdi:car";
     const pickerId = `tsa-car-icon-picker-${idx}`;
-    const tankInvalid =
-      car.tank_size != null && (car.tank_size < 1 || car.tank_size > 200);
+    const tankInvalid = car.tank_size != null && (car.tank_size < 1 || car.tank_size > 200);
     const consumptionInvalid =
       car.consumption != null && (car.consumption < 0 || car.consumption > 30);
     const tankErrorId = `tsa-car-tank-err-${idx}`;
@@ -673,8 +651,7 @@ export class TankstellenAustriaCardEditor
             @keydown=${this._stop}
             @keyup=${this._stop}
             @keypress=${this._stop}
-            @change=${(e: Event) =>
-              this._onCarFieldChange(idx, "consumption", e)}
+            @change=${(e: Event) => this._onCarFieldChange(idx, "consumption", e)}
           />
           <button
             class="car-delete-btn"
@@ -686,20 +663,25 @@ export class TankstellenAustriaCardEditor
             <ha-icon icon="mdi:delete-outline" aria-hidden="true"></ha-icon>
           </button>
         </div>
-        ${tankInvalid
-          ? html`<ha-alert
+        ${
+          tankInvalid
+            ? html`<ha-alert
               id=${tankErrorId}
               alert-type="error"
             >${this._et("tank_size_range_error")}</ha-alert>`
-          : nothing}
-        ${consumptionInvalid
-          ? html`<ha-alert
+            : nothing
+        }
+        ${
+          consumptionInvalid
+            ? html`<ha-alert
               id=${consumptionErrorId}
               alert-type="error"
             >${this._et("consumption_range_error")}</ha-alert>`
-          : nothing}
-        ${iconExpanded
-          ? html`
+            : nothing
+        }
+        ${
+          iconExpanded
+            ? html`
               <div id=${pickerId} class="car-icon-picker">
                 ${CAR_ICONS.map(
                   (icon) => html`
@@ -720,7 +702,8 @@ export class TankstellenAustriaCardEditor
                 )}
               </div>
             `
-          : nothing}
+            : nothing
+        }
       </div>
     `;
   }
@@ -729,9 +712,9 @@ export class TankstellenAustriaCardEditor
   // Bespoke event handlers (tab labels, payment chips, cars roster)
   // ------------------------------------------------------------------
 
-  private _stop(e: Event): void {
+  private _stop = (e: Event): void => {
     e.stopPropagation();
-  }
+  };
 
   private async _onCopyRecorderSnippet(snippet: string): Promise<void> {
     try {
@@ -751,7 +734,7 @@ export class TankstellenAustriaCardEditor
     e.stopPropagation();
     const target = e.target as HTMLInputElement;
     const val = sanitizeShort(target.value);
-    const labels: Record<string, string> = { ...(this._config.tab_labels ?? {}) };
+    const labels: Record<string, string> = { ...this._config.tab_labels };
     if (val) labels[eid] = val;
     else delete labels[eid];
     const next: TankstellenAustriaCardConfig = { ...this._config };
@@ -788,21 +771,21 @@ export class TankstellenAustriaCardEditor
     this._fireChanged();
   }
 
-  private _onCustomPmChanged(e: CustomEvent<{ value?: string }>): void {
+  private _onCustomPmChanged = (e: CustomEvent<{ value?: string }>): void => {
     // ha-selector re-fires its child's event; let it stop here rather than
     // bubbling on to the editor's own config-changed listeners.
     e.stopPropagation();
     // Clearing the field reports `undefined`, not "" — normalise.
     this._pmDraft = e.detail?.value ?? "";
-  }
+  };
 
-  private _onCustomPmKeydown(e: KeyboardEvent): void {
+  private _onCustomPmKeydown = (e: KeyboardEvent): void => {
     // Stop HA global shortcuts from stealing focus when typing here.
     e.stopPropagation();
     if (e.key === "Enter") this._onAddCustomPm();
-  }
+  };
 
-  private _onAddCustomPm(): void {
+  private _onAddCustomPm = (): void => {
     const val = sanitizeShort(this._pmDraft);
     if (!val) return;
 
@@ -814,7 +797,7 @@ export class TankstellenAustriaCardEditor
       this._fireChanged();
     }
     this._pmDraft = "";
-  }
+  };
 
   private _onToggleIconPicker(e: Event, idx: number): void {
     e.stopPropagation();
@@ -866,10 +849,7 @@ export class TankstellenAustriaCardEditor
       // 1..200 contract enforced by `utils/config.ts` and the aria-invalid
       // threshold in `_renderCarRow`. Lower-only clamping let users save
       // an out-of-range value that the UI then flagged invalid forever.
-      next.tank_size = Math.min(
-        200,
-        Math.max(1, Number.isFinite(parsed) ? parsed : 1),
-      );
+      next.tank_size = Math.min(200, Math.max(1, Number.isFinite(parsed) ? parsed : 1));
     } else if (field === "fuel_type") {
       const allowed: readonly FuelType[] = ["DIE", "SUP", "GAS"];
       if (allowed.includes(raw as FuelType)) {
@@ -899,13 +879,13 @@ export class TankstellenAustriaCardEditor
     this._fireChanged();
   }
 
-  private _onAddCar(e: Event): void {
+  private _onAddCar = (e: Event): void => {
     e.stopPropagation();
     const cars = [...(this._config.cars ?? [])];
     cars.push({ name: "", fuel_type: "DIE", tank_size: 50, icon: "mdi:car" });
     this._config = { ...this._config, cars };
     this._fireChanged();
-  }
+  };
 
   static override styles: CSSResultGroup = editorStyles;
 }

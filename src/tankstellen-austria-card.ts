@@ -1,7 +1,7 @@
 // Tankstellen Austria — Lovelace custom card
 // https://github.com/rolandzeiner/tankstellen-austria
 //
-// Architecture: Lit 3 + Shadow DOM + Rolldown, single-file HACS bundle.
+// Architecture: Lit 3 + Shadow DOM + Vite+, single-file HACS bundle.
 // Built from the ha-lovelace-card skill (which is faithfully derived from
 // custom-cards/boilerplate-card).
 
@@ -29,15 +29,12 @@ import type {
 import {
   CARD_VERSION,
   DYNAMIC_MANUAL_COOLDOWN_MS,
+  POST_REFRESH_CHECK_MS,
   HISTORY_REFRESH_MS,
 } from "./const";
 import { normaliseConfig } from "./utils/config";
-import { findTankstellenEntities } from "./utils/entities";
-import {
-  hasPaymentMethods,
-  matchesPaymentFilter,
-  matchingPaymentMethods,
-} from "./utils/payment";
+import { findTankstellenEntities, fuelTypeOf } from "./utils/entities";
+import { hasPaymentMethods, matchesPaymentFilter, matchingPaymentMethods } from "./utils/payment";
 import { isClosingSoon } from "./utils/station";
 import { formatDistance, formatPrice, mapsUrl } from "./utils/price";
 import { API_STATUS_RECHECK_MS, fetchApiMaintenance } from "./utils/api-status";
@@ -49,22 +46,14 @@ import {
   type TranslateContext,
 } from "./localize/localize";
 import { fetchHistory, getCachedHistory, type HistoryPoint } from "./history";
-import {
-  attachSparklineHover,
-  buildSparkline,
-  type HourlyEnvelope,
-} from "./sparkline";
+import { attachSparklineHover, buildSparkline, type HourlyEnvelope } from "./sparkline";
 import {
   analyzeBestRefuel,
   buildHourlyEnvelope,
   type BestRefuelResult,
 } from "./analytics/best-refuel";
 import { cardStyles } from "./styles";
-import {
-  checkCardVersionWS,
-  renderVersionBanner,
-  reloadAfterCacheWipe,
-} from "./shared-render";
+import { checkCardVersionWS, renderVersionBanner, reloadAfterCacheWipe } from "./shared-render";
 import {
   detectNavPlatform,
   E_CONTROL_HOMEPAGE,
@@ -108,14 +97,12 @@ interface WindowWithCustomCards extends Window {
 (window as unknown as WindowWithCustomCards).customCards.push({
   type: "tankstellen-austria-card",
   name: "Tankstellen Austria",
-  description:
-    "Austrian fuel prices from E-Control with sparklines and best-refuel analytics.",
+  description: "Austrian fuel prices from E-Control with sparklines and best-refuel analytics.",
   preview: true,
   documentationURL: "https://github.com/rolandzeiner/tankstellen-austria",
   getEntitySuggestion: (hass: HomeAssistant, entityId: string) => {
     if (!entityId.startsWith("sensor.")) return null;
-    if (hass?.entities?.[entityId]?.platform !== "tankstellen_austria")
-      return null;
+    if (hass?.entities?.[entityId]?.platform !== "tankstellen_austria") return null;
     return {
       config: {
         type: "custom:tankstellen-austria-card",
@@ -128,9 +115,7 @@ interface WindowWithCustomCards extends Window {
 @customElement("tankstellen-austria-card")
 export class TankstellenAustriaCard extends LitElement {
   public static getConfigElement(): LovelaceCardEditor {
-    return document.createElement(
-      "tankstellen-austria-card-editor",
-    ) as LovelaceCardEditor;
+    return document.createElement("tankstellen-austria-card-editor");
   }
 
   public static getStubConfig(hass: HomeAssistant | undefined): Record<string, unknown> {
@@ -274,13 +259,13 @@ export class TankstellenAustriaCard extends LitElement {
     const ids = this._trackedEntityIds();
     return ids
       .map((eid): TankstellenEntity | null => {
-        const state = this.hass.states[eid];
-        if (!state) return null;
+        const stateObj = this.hass.states[eid];
+        if (!stateObj) return null;
         return {
           entity_id: eid,
-          state: state.state,
-          attributes: state.attributes as TankstellenEntity["attributes"],
-          last_updated: state.last_updated,
+          state: stateObj.state,
+          attributes: stateObj.attributes,
+          last_updated: stateObj.last_updated,
         };
       })
       .filter((e): e is TankstellenEntity => e !== null);
@@ -346,9 +331,7 @@ export class TankstellenAustriaCard extends LitElement {
    * sends the command.
    */
   private _syncApiStatus(): void {
-    const unavailable = this._resolveEntities().some(
-      (e) => e.state === "unavailable",
-    );
+    const unavailable = this._resolveEntities().some((e) => e.state === "unavailable");
     if (!unavailable) {
       this._stopApiStatusPoll();
       this._apiMaintenance = false;
@@ -456,8 +439,7 @@ export class TankstellenAustriaCard extends LitElement {
     }
 
     const entities = this._resolveEntities();
-    const activeTab =
-      this._activeTab >= entities.length ? 0 : this._activeTab;
+    const activeTab = this._activeTab >= entities.length ? 0 : this._activeTab;
 
     if (!entities.length) {
       return html`
@@ -478,16 +460,20 @@ export class TankstellenAustriaCard extends LitElement {
         ${this._renderTabs(entities, activeTab)}
         <div class="wrap">
           ${this._renderVersionBanner()}
-          ${this._apiMaintenance && active.state === "unavailable"
-            ? html`<ha-alert alert-type="info" role="status">
+          ${
+            this._apiMaintenance && active.state === "unavailable"
+              ? html`<ha-alert alert-type="info" role="status">
                 ${this._t("api_maintenance")}
               </ha-alert>`
-            : nothing}
-          ${this._historyError
-            ? html`<ha-alert alert-type="warning" role="alert">
+              : nothing
+          }
+          ${
+            this._historyError
+              ? html`<ha-alert alert-type="warning" role="alert">
                 ${this._t("history_fetch_error")}
               </ha-alert>`
-            : nothing}
+              : nothing
+          }
           <section
             class="station-section"
             style="--tankst-accent: var(--primary-color);"
@@ -508,21 +494,15 @@ export class TankstellenAustriaCard extends LitElement {
   // Austria card. When logo_adapt_to_theme is on, the SVG renders as a
   // theme-following silhouette; otherwise it stays in its native colour.
   // Suppressed entirely when hide_attribution is true.
-  private _renderFooter(
-    attribution: string | undefined,
-  ): TemplateResult | typeof nothing {
+  private _renderFooter(attribution: string | undefined): TemplateResult | typeof nothing {
     if (this._config?.hide_attribution === true) return nothing;
     const adaptive = this._config?.logo_adapt_to_theme === true;
-    const darkMode = Boolean(
-      (this.hass?.themes as { darkMode?: boolean } | undefined)?.darkMode,
-    );
+    const darkMode = Boolean((this.hass?.themes as { darkMode?: boolean } | undefined)?.darkMode);
     const logoClasses = adaptive
       ? `brand-logo adaptive ${darkMode ? "adaptive-dark" : "adaptive-light"}`
       : "brand-logo";
     const text =
-      attribution && attribution.includes("E-Control")
-        ? attribution
-        : ATTRIBUTION_REQUIRED;
+      attribution && attribution.includes("E-Control") ? attribution : ATTRIBUTION_REQUIRED;
     return html`
       <div class="footer">
         <a
@@ -553,9 +533,7 @@ export class TankstellenAustriaCard extends LitElement {
     const stuck =
       this._versionMismatch !== null &&
       typeof sessionStorage !== "undefined" &&
-      sessionStorage.getItem(
-        `tsa-reload-attempted-${this._versionMismatch}`,
-      ) === "1";
+      sessionStorage.getItem(`tsa-reload-attempted-${this._versionMismatch}`) === "1";
     return renderVersionBanner({
       mismatchVersion: this._versionMismatch,
       stuck,
@@ -583,7 +561,7 @@ export class TankstellenAustriaCard extends LitElement {
           if (typeof custom === "string" && custom.trim().length > 0) {
             label = custom;
           } else {
-            const ft = e.attributes.fuel_type ?? "";
+            const ft = fuelTypeOf(this.hass, e.entity_id, e.attributes);
             label = getFuelName(ft, this._ctx());
             if (e.attributes.dynamic_mode === true) {
               const trackerLabel = e.attributes.dynamic_tracker_label;
@@ -599,8 +577,7 @@ export class TankstellenAustriaCard extends LitElement {
               aria-selected=${selected ? "true" : "false"}
               tabindex=${selected ? "0" : "-1"}
               @click=${() => this._onTabClick(i)}
-              @keydown=${(ev: KeyboardEvent) =>
-                this._onTabKeydown(ev, i, entities.length)}
+              @keydown=${(ev: KeyboardEvent) => this._onTabKeydown(ev, i, entities.length)}
             >
               ${label}
             </button>
@@ -610,13 +587,10 @@ export class TankstellenAustriaCard extends LitElement {
     `;
   }
 
-  private _renderHeader(
-    active: TankstellenEntity,
-  ): TemplateResult | typeof nothing {
+  private _renderHeader(active: TankstellenEntity): TemplateResult | typeof nothing {
     if (this._config?.hide_header === true) return nothing;
-    const fuelType = active.attributes.fuel_type ?? "";
-    const fuelTypeName =
-      active.attributes.fuel_type_name || getFuelName(fuelType, this._ctx());
+    const fuelType = fuelTypeOf(this.hass, active.entity_id, active.attributes);
+    const fuelTypeName = active.attributes.fuel_type_name || getFuelName(fuelType, this._ctx());
     const isDynamic = active.attributes.dynamic_mode === true;
 
     let subtitle: string | null = null;
@@ -631,51 +605,52 @@ export class TankstellenAustriaCard extends LitElement {
         </div>
         <div class="header-text">
           <h2 class="title">${fuelTypeName}</h2>
-          ${subtitle
-            ? html`<p class="subtitle">${subtitle}</p>`
-            : nothing}
+          ${subtitle ? html`<p class="subtitle">${subtitle}</p>` : nothing}
         </div>
-        ${isDynamic
-          ? html`
+        ${
+          isDynamic
+            ? html`
               <div class="header-actions">
                 ${this._renderRefreshButton()}
                 ${this._renderDynamicChips(active)}
               </div>
             `
-          : nothing}
+            : nothing
+        }
       </header>
     `;
   }
 
-  private _renderDynamicChips(
-    active: TankstellenEntity,
-  ): TemplateResult | typeof nothing {
+  private _renderDynamicChips(active: TankstellenEntity): TemplateResult | typeof nothing {
     const hasLastUpdated = !!active.last_updated;
     if (!hasLastUpdated && !this._noNewData) return nothing;
     return html`
       <div class="chip-row" aria-live="polite">
-        ${hasLastUpdated
-          ? html`<span class="chip muted">
+        ${
+          hasLastUpdated
+            ? html`<span class="chip muted">
               <ha-icon icon="mdi:clock-outline" aria-hidden="true"></ha-icon>
               <ha-relative-time
                 .hass=${this.hass}
                 .datetime=${new Date(active.last_updated as string)}
               ></ha-relative-time>
             </span>`
-          : nothing}
-        ${this._noNewData
-          ? html`<span class="chip warn" role="status">
+            : nothing
+        }
+        ${
+          this._noNewData
+            ? html`<span class="chip warn" role="status">
               <ha-icon icon="mdi:alert-circle-outline" aria-hidden="true"></ha-icon>
               ${this._t("no_new_data")}
             </span>`
-          : nothing}
+            : nothing
+        }
       </div>
     `;
   }
 
   private _renderRefreshButton(): TemplateResult {
-    const remainingMs =
-      DYNAMIC_MANUAL_COOLDOWN_MS - (Date.now() - this._lastManualRefresh);
+    const remainingMs = DYNAMIC_MANUAL_COOLDOWN_MS - (Date.now() - this._lastManualRefresh);
     const cooling = remainingMs > 0;
     const countdownText = cooling
       ? (() => {
@@ -698,9 +673,7 @@ export class TankstellenAustriaCard extends LitElement {
     `;
   }
 
-  private _renderHero(
-    active: TankstellenEntity,
-  ): TemplateResult | typeof nothing {
+  private _renderHero(active: TankstellenEntity): TemplateResult | typeof nothing {
     const stations: Station[] = active.attributes.stations ?? [];
     if (!stations.length) return nothing;
 
@@ -723,11 +696,13 @@ export class TankstellenAustriaCard extends LitElement {
         <div class="metric">
           <div class="metric-value">
             <span class="metric-num">${formatPrice(cheapest)}</span>
-            ${avgPrice != null
-              ? html`<span class="metric-of"
+            ${
+              avgPrice != null
+                ? html`<span class="metric-of"
                   >/ ${formatPrice(avgPrice)} ${this._t("average")}</span
                 >`
-              : nothing}
+                : nothing
+            }
           </div>
           <div class="metric-label">${this._t("cheapest")}</div>
         </div>
@@ -735,18 +710,14 @@ export class TankstellenAustriaCard extends LitElement {
     `;
   }
 
-  private _renderSparklineBlock(
-    active: TankstellenEntity,
-  ): TemplateResult | typeof nothing {
+  private _renderSparklineBlock(active: TankstellenEntity): TemplateResult | typeof nothing {
     const isDynamic = active.attributes.dynamic_mode === true;
     if (isDynamic) return nothing;
     if (this._config.show_history === false) return nothing;
     return this._renderSparkline(active);
   }
 
-  private _renderSparkline(
-    active: TankstellenEntity,
-  ): TemplateResult | typeof nothing {
+  private _renderSparkline(active: TankstellenEntity): TemplateResult | typeof nothing {
     const entityId = active.entity_id;
     const points = this._history[entityId] ?? [];
     if (points.length < 2) return nothing;
@@ -755,9 +726,7 @@ export class TankstellenAustriaCard extends LitElement {
     const showHourEnvelope = this._config.show_hour_envelope === true;
     const showNoonMarkers = this._config.show_noon_markers === true;
     const showMinMax = this._config.show_minmax !== false;
-    const envelope: HourlyEnvelope | null = showHourEnvelope
-      ? buildHourlyEnvelope(points)
-      : null;
+    const envelope: HourlyEnvelope | null = showHourEnvelope ? buildHourlyEnvelope(points) : null;
 
     const showBestRefuel = this._config.show_best_refuel !== false;
     const analysis = showBestRefuel ? analyzeBestRefuel(points) : null;
@@ -879,7 +848,7 @@ export class TankstellenAustriaCard extends LitElement {
     const showCarConsumption = this._config.show_car_consumption !== false;
     if (!showCars || (!showCarFillup && !showCarConsumption)) return nothing;
 
-    const fuelType = active.attributes.fuel_type ?? "";
+    const fuelType = fuelTypeOf(this.hass, active.entity_id, active.attributes);
     const paymentFilter = this._config.payment_filter ?? [];
     const highlightMode = this._config.payment_highlight_mode === true;
 
@@ -887,9 +856,7 @@ export class TankstellenAustriaCard extends LitElement {
     const rawCars: CarConfig[] = (this._config.cars ?? []).filter(
       (c) => c.fuel_type === fuelType && c.tank_size > 0 && c.name,
     );
-    const cars = showCarFillup
-      ? rawCars
-      : rawCars.filter((c) => Number(c.consumption) > 0);
+    const cars = showCarFillup ? rawCars : rawCars.filter((c) => Number(c.consumption) > 0);
     if (!cars.length) return nothing;
 
     // In filter mode use cheapest visible station (post-filter). In
@@ -897,9 +864,7 @@ export class TankstellenAustriaCard extends LitElement {
     const filteredStations = highlightMode
       ? stations
       : stations.filter((s) => matchesPaymentFilter(s, paymentFilter));
-    const effectiveCheapest = highlightMode
-      ? stations[0]?.price
-      : filteredStations[0]?.price;
+    const effectiveCheapest = highlightMode ? stations[0]?.price : filteredStations[0]?.price;
 
     return html`
       <div class="cars-fillup">
@@ -940,22 +905,22 @@ export class TankstellenAustriaCard extends LitElement {
           </span>
           <span class="car-fillup-cost">${costStr}</span>
         </div>
-        ${showCarConsumption && consumption > 0
-          ? html`
+        ${
+          showCarConsumption && consumption > 0
+            ? html`
               <div class="car-per100-row">
                 <span class="car-per100-label">${consumptionStr} l/100 km</span>
                 <span class="car-per100-cost">${per100Str} / 100 km</span>
               </div>
             `
-          : nothing}
+            : nothing
+        }
       `;
     }
 
     // consumption-only mode — reuses .car-fillup-row styling
     const per100Str =
-      cheapest != null
-        ? `€ ${(cheapest * consumption).toFixed(2).replace(".", ",")}`
-        : "–";
+      cheapest != null ? `€ ${(cheapest * consumption).toFixed(2).replace(".", ",")}` : "–";
     return html`
       <div class="car-fillup-row">
         <span class="car-fillup-name">
@@ -974,9 +939,7 @@ export class TankstellenAustriaCard extends LitElement {
   ): TemplateResult | typeof nothing {
     const stations: Station[] = active.attributes.stations ?? [];
     const parsedMax = parseInt(String(this._config.max_stations), 10);
-    const maxStations = Number.isFinite(parsedMax)
-      ? Math.max(0, Math.min(5, parsedMax))
-      : 5;
+    const maxStations = Number.isFinite(parsedMax) ? Math.max(0, Math.min(5, parsedMax)) : 5;
     const paymentFilter = this._config.payment_filter ?? [];
     const highlightMode = this._config.payment_highlight_mode === true;
 
@@ -1002,14 +965,14 @@ export class TankstellenAustriaCard extends LitElement {
     // when enabled, order by Luftlinie instead. `sort` is stable, so
     // stations without a stamped `distance_m` sink to the tail while
     // keeping their cheapest-first order among themselves.
-    const ordered =
-      this._config.sort_by_distance === true
-        ? [...filtered].sort(
-            (a, b) =>
-              (a.distance_m ?? Number.POSITIVE_INFINITY) -
-              (b.distance_m ?? Number.POSITIVE_INFINITY),
-          )
-        : filtered;
+    let ordered = filtered;
+    if (this._config.sort_by_distance === true) {
+      ordered = [...filtered];
+      ordered.sort(
+        (a, b) =>
+          (a.distance_m ?? Number.POSITIVE_INFINITY) - (b.distance_m ?? Number.POSITIVE_INFINITY),
+      );
+    }
 
     const display = ordered.slice(0, maxStations);
     return html`
@@ -1053,9 +1016,7 @@ export class TankstellenAustriaCard extends LitElement {
     const isClosingSoonFlag = !isClosed && isClosingSoon(s);
 
     const highlighted =
-      highlightMode &&
-      paymentFilter.length > 0 &&
-      matchesPaymentFilter(s, paymentFilter);
+      highlightMode && paymentFilter.length > 0 && matchesPaymentFilter(s, paymentFilter);
     const matchChips = highlighted
       ? matchingPaymentMethods(s, paymentFilter, {
           cash: this._t("cash"),
@@ -1068,11 +1029,7 @@ export class TankstellenAustriaCard extends LitElement {
     const hasPaymentBlock = showPayment && hasPaymentMethods(s.payment_methods);
     const hasDetail = hasHoursBlock || hasPaymentBlock;
 
-    const rowLabel = [
-      s.name || "–",
-      loc.city ?? "",
-      formatPrice(s.price),
-    ]
+    const rowLabel = [s.name || "–", loc.city ?? "", formatPrice(s.price)]
       .filter(Boolean)
       .join(", ");
     const detailId = hasDetail ? `tsa-station-detail-${activeTab}-${idx}` : undefined;
@@ -1088,14 +1045,9 @@ export class TankstellenAustriaCard extends LitElement {
     const localityText = [loc.postalCode, cityText]
       .filter((p): p is string | number => p != null && p !== "")
       .join(" ");
-    const localityTpl = localityText
-      ? html`<span lang="de">${localityText}</span>`
-      : nothing;
-    const addressTpl = addressText
-      ? html`<span lang="de">${addressText}</span>`
-      : nothing;
-    const addressSeparator =
-      localityTpl !== nothing && addressTpl !== nothing ? ", " : "";
+    const localityTpl = localityText ? html`<span lang="de">${localityText}</span>` : nothing;
+    const addressTpl = addressText ? html`<span lang="de">${addressText}</span>` : nothing;
+    const addressSeparator = localityTpl !== nothing && addressTpl !== nothing ? ", " : "";
     return html`
       <div class=${classMap({ station: true, "pm-highlight": highlighted })}>
         <div
@@ -1106,27 +1058,22 @@ export class TankstellenAustriaCard extends LitElement {
           aria-controls=${detailId ?? nothing}
           aria-label=${rowLabel}
           @click=${() => this._onStationClick(key)}
-          @keydown=${(ev: KeyboardEvent) =>
-            this._onStationKeydown(ev, key, hasDetail)}
+          @keydown=${(ev: KeyboardEvent) => this._onStationKeydown(ev, key, hasDetail)}
         >
-          ${showIndex
-            ? html`<div class="index-tile" aria-hidden="true">${idx + 1}</div>`
-            : nothing}
+          ${showIndex ? html`<div class="index-tile" aria-hidden="true">${idx + 1}</div>` : nothing}
           <div class="info">
             <div class="name">
-              ${hasName
-                ? html`<span lang="de">${s.name}</span>`
-                : "–"}
-              ${isClosed
-                ? html`<span class="flag closed">${this._t("closed")}</span>`
-                : isClosingSoonFlag
-                  ? html`<span class="flag closing-soon"
+              ${hasName ? html`<span lang="de">${s.name}</span>` : "–"}
+              ${
+                isClosed
+                  ? html`<span class="flag closed">${this._t("closed")}</span>`
+                  : isClosingSoonFlag
+                    ? html`<span class="flag closing-soon"
                       >${this._t("closing_soon")}</span
                     >`
-                  : nothing}
-              ${matchChips.map(
-                (m) => html`<span class="chip match">${m}</span>`,
-              )}
+                    : nothing
+              }
+              ${matchChips.map((m) => html`<span class="chip match">${m}</span>`)}
             </div>
             <div class="address">
               ${localityTpl}${addressSeparator}${addressTpl}
@@ -1140,10 +1087,7 @@ export class TankstellenAustriaCard extends LitElement {
             if (showMapLinks) {
               const linkKind = resolveMapLinkKind(
                 this._config.map_provider ?? "auto",
-                detectNavPlatform(
-                  navigator.userAgent,
-                  navigator.maxTouchPoints,
-                ),
+                detectNavPlatform(navigator.userAgent, navigator.maxTouchPoints),
               );
               const url = safeNavUri(mapsUrl(loc, s.name ?? "", linkKind));
               // mapsUrl returns null when neither a station name nor any
@@ -1165,9 +1109,7 @@ export class TankstellenAustriaCard extends LitElement {
                     @click=${this._onMapLinkClick}
                   >
                     <ha-icon
-                      icon=${/\d/.test(loc.address ?? "")
-                        ? "mdi:map-marker"
-                        : "mdi:magnify"}
+                      icon=${/\d/.test(loc.address ?? "") ? "mdi:map-marker" : "mdi:magnify"}
                       aria-hidden="true"
                     ></ha-icon>
                   </a>
@@ -1192,31 +1134,39 @@ export class TankstellenAustriaCard extends LitElement {
               ${pin}${distance}
             </div>`;
           })()}
-          ${hasDetail
-            ? html`<ha-icon
+          ${
+            hasDetail
+              ? html`<ha-icon
                 class="expander-chevron"
                 icon="mdi:chevron-down"
                 aria-hidden="true"
               ></ha-icon>`
-            : nothing}
+              : nothing
+          }
         </div>
-        ${hasDetail
-          ? html`
+        ${
+          hasDetail
+            ? html`
               <div
                 id=${detailId!}
                 class=${classMap({ "station-detail": true, expanded: isExpanded })}
               >
                 <div class="detail-cols">
-                  ${hasHoursBlock
-                    ? html`<div class="detail-col">${this._renderHours(s.opening_hours ?? [])}</div>`
-                    : nothing}
-                  ${hasPaymentBlock
-                    ? html`<div class="detail-col">${this._renderPaymentMethods(s.payment_methods)}</div>`
-                    : nothing}
+                  ${
+                    hasHoursBlock
+                      ? html`<div class="detail-col">${this._renderHours(s.opening_hours ?? [])}</div>`
+                      : nothing
+                  }
+                  ${
+                    hasPaymentBlock
+                      ? html`<div class="detail-col">${this._renderPaymentMethods(s.payment_methods)}</div>`
+                      : nothing
+                  }
                 </div>
               </div>
             `
-          : nothing}
+            : nothing
+        }
       </div>
     `;
   }
@@ -1230,25 +1180,31 @@ export class TankstellenAustriaCard extends LitElement {
     const fe = hours.find((h) => h.day === "FE");
     return html`
       <div class="hours-grid">
-        ${mo
-          ? html`<span class="day">${this._t("mon_fri")}</span><span>${mo.from} – ${mo.to}</span>`
-          : nothing}
-        ${sa
-          ? html`<span class="day">${this._t("sat")}</span><span>${sa.from} – ${sa.to}</span>`
-          : nothing}
-        ${so
-          ? html`<span class="day">${this._t("sun")}</span><span>${so.from} – ${so.to}</span>`
-          : nothing}
-        ${fe
-          ? html`<span class="day">${this._t("holiday")}</span><span>${fe.from} – ${fe.to}</span>`
-          : nothing}
+        ${
+          mo
+            ? html`<span class="day">${this._t("mon_fri")}</span><span>${mo.from} – ${mo.to}</span>`
+            : nothing
+        }
+        ${
+          sa
+            ? html`<span class="day">${this._t("sat")}</span><span>${sa.from} – ${sa.to}</span>`
+            : nothing
+        }
+        ${
+          so
+            ? html`<span class="day">${this._t("sun")}</span><span>${so.from} – ${so.to}</span>`
+            : nothing
+        }
+        ${
+          fe
+            ? html`<span class="day">${this._t("holiday")}</span><span>${fe.from} – ${fe.to}</span>`
+            : nothing
+        }
       </div>
     `;
   }
 
-  private _renderPaymentMethods(
-    pm: PaymentMethods | undefined,
-  ): TemplateResult | typeof nothing {
+  private _renderPaymentMethods(pm: PaymentMethods | undefined): TemplateResult | typeof nothing {
     if (!pm) return nothing;
     const badges: TemplateResult[] = [];
     if (pm.cash) {
@@ -1319,10 +1275,8 @@ export class TankstellenAustriaCard extends LitElement {
     }
     ev.preventDefault();
     this._onTabClick(next);
-    this.updateComplete.then(() => {
-      const tabs = this.shadowRoot?.querySelectorAll<HTMLButtonElement>(
-        '.tabs [role="tab"]',
-      );
+    void this.updateComplete.then(() => {
+      const tabs = this.shadowRoot?.querySelectorAll<HTMLButtonElement>('.tabs [role="tab"]');
       tabs?.[next]?.focus();
     });
   }
@@ -1334,20 +1288,16 @@ export class TankstellenAustriaCard extends LitElement {
     this._expandedStations = next;
   }
 
-  private _onStationKeydown(
-    ev: KeyboardEvent,
-    key: string,
-    hasDetail: boolean,
-  ): void {
+  private _onStationKeydown(ev: KeyboardEvent, key: string, hasDetail: boolean): void {
     if (!hasDetail) return;
     if (ev.key !== "Enter" && ev.key !== " ") return;
     ev.preventDefault();
     this._onStationClick(key);
   }
 
-  private _onMapLinkClick(e: Event): void {
+  private _onMapLinkClick = (e: Event): void => {
     e.stopPropagation();
-  }
+  };
 
   private _onSparklineClick(entityId: string): void {
     // Same behaviour as clicking a sensor in HA — open the more-info dialog.
@@ -1360,7 +1310,7 @@ export class TankstellenAustriaCard extends LitElement {
     );
   }
 
-  private _onRefresh(): void {
+  private _onRefresh = (): void => {
     if (!this.hass) return;
     const now = Date.now();
     if (now - this._lastManualRefresh < DYNAMIC_MANUAL_COOLDOWN_MS) return;
@@ -1378,11 +1328,7 @@ export class TankstellenAustriaCard extends LitElement {
       if (p && typeof (p as Promise<void>).catch === "function") {
         (p as Promise<void>).catch((err) => {
           // eslint-disable-next-line no-console
-          console.warn(
-            "[Tankstellen Austria] update_entity failed for",
-            e.entity_id,
-            err,
-          );
+          console.warn("[Tankstellen Austria] update_entity failed for", e.entity_id, err);
         });
       }
     }
@@ -1403,7 +1349,7 @@ export class TankstellenAustriaCard extends LitElement {
         // eslint-disable-next-line no-console
         console.warn("[Tankstellen Austria] post-refresh check failed", err);
       }
-    }, 3000);
+    }, POST_REFRESH_CHECK_MS);
 
     // Per-second re-render so the countdown stays live. Skipped when the
     // user prefers reduced motion — WCAG 2.2.2 (animation > 5s needs a way
@@ -1434,7 +1380,7 @@ export class TankstellenAustriaCard extends LitElement {
         this._cooldownTick = (this._cooldownTick + 1) % 1_000_000;
       }, 1000);
     }
-  }
+  };
 
   private _onVersionReload = async (): Promise<void> => {
     // Flag this target version as "user tried reload" before the page
@@ -1442,10 +1388,7 @@ export class TankstellenAustriaCard extends LitElement {
     // variant instead of a second reload button.
     if (this._versionMismatch) {
       try {
-        sessionStorage.setItem(
-          `tsa-reload-attempted-${this._versionMismatch}`,
-          "1",
-        );
+        sessionStorage.setItem(`tsa-reload-attempted-${this._versionMismatch}`, "1");
       } catch {
         // sessionStorage can be disabled in private browsing — fall through.
       }

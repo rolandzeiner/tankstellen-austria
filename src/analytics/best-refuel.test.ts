@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vite-plus/test";
 import type { HistoryPoint } from "../history";
 import { analyzeBestRefuel, buildHourlyEnvelope } from "./best-refuel";
 
@@ -40,9 +40,7 @@ afterAll(() => {
 function buildHistory(
   days: number,
   now: number,
-  patternForDayStart: (
-    dayStart: number,
-  ) => Array<{ offsetMs: number; price: number }>,
+  patternForDayStart: (dayStart: number) => Array<{ offsetMs: number; price: number }>,
 ): HistoryPoint[] {
   const points: HistoryPoint[] = [];
   const startMidnight = new Date(now - days * DAY_MS);
@@ -80,12 +78,10 @@ describe("analyzeBestRefuel — duration-weighted bucketing", () => {
     const result = analyzeBestRefuel(data);
     expect(result?.hasEnoughData).toBe(true);
 
-    const cheapHours = new Set([
-      0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 23,
-    ]);
+    const cheapHours = new Set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 23]);
     const start = result!.hour!;
     const end = result!.hour_end!;
-    const span = ((end - start + 24) % 24) || 24;
+    const span = (end - start + 24) % 24 || 24;
     expect(span).toBe(13);
     for (let i = 0; i < span; i++) {
       const h = (start + i) % 24;
@@ -100,7 +96,7 @@ describe("analyzeBestRefuel — duration-weighted bucketing", () => {
     expect(result?.hasEnoughData).toBe(true);
     const start = result!.hour!;
     const end = result!.hour_end!;
-    const span = ((end - start + 24) % 24) || 24;
+    const span = (end - start + 24) % 24 || 24;
     for (let i = 0; i < span; i++) {
       expect((start + i) % 24).not.toBe(12);
     }
@@ -149,7 +145,7 @@ describe("analyzeBestRefuel — duration-weighted bucketing", () => {
     // must not bridge across the midday/afternoon expensive hours.
     const start = result!.hour!;
     const end = result!.hour_end!;
-    const span = ((end - start + 24) % 24) || 24;
+    const span = (end - start + 24) % 24 || 24;
     for (let i = 0; i < span; i++) {
       const h = (start + i) % 24;
       expect([21, 22, 23]).not.toContain(h);

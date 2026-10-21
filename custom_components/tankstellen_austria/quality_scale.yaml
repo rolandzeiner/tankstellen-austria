@@ -153,4 +153,4 @@ rules:
     comment: Coordinator and config flow both use homeassistant.helpers.aiohttp_client.async_get_clientsession.
   strict-typing:
     status: done
-    comment: py.typed marker present; full type hints across all modules; CI runs mypy --strict on Python 3.14. Card side runs tsc --noEmit with noUncheckedIndexedAccess + exactOptionalPropertyTypes enabled.
+    comment: py.typed marker present; full type hints across all modules; CI runs mypy --strict on Python 3.14. Card side runs vp check (tsgolint type-check) with noUncheckedIndexedAccess + exactOptionalPropertyTypes enabled.

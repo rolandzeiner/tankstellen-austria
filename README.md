@@ -54,6 +54,8 @@ and CNG. No API key required.
 
 [![Add to HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=rolandzeiner&repository=tankstellen-austria&category=integration)
 
+Not in the search yet? In HACS, open ⋮ → **Custom repositories**, add `https://github.com/rolandzeiner/tankstellen-austria` with type **Integration**, then search again.
+
 ### Manual
 
 Copy `custom_components/tankstellen_austria/` to your HA `config/custom_components/`, then restart.
@@ -321,7 +323,7 @@ The helper stores its config in HA's internal storage (not `configuration.yaml`)
 
 ## Development
 
-Card sources live in `src/`, bundled by Rolldown into `custom_components/tankstellen_austria/www/tankstellen-austria-card.js`. End users install via HACS and never run `npm`; contributors:
+Card sources live in `src/`, bundled by Vite+ into `custom_components/tankstellen_austria/www/tankstellen-austria-card.js`. End users install via HACS and never run `npm`; contributors:
 
 ```bash
 npm ci

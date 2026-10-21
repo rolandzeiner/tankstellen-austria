@@ -1,13 +1,12 @@
 import * as en from "./languages/en.json";
 import * as de from "./languages/de.json";
-import type { FuelType } from "../types";
 
 type Dict = Record<string, unknown>;
 
 // Hoisted as guaranteed-non-undefined consts so noUncheckedIndexedAccess
 // narrowing on `languages[lang]` always has a fallback to land on.
-const EN_LANG: Dict = en as unknown as Dict;
-const DE_LANG: Dict = de as unknown as Dict;
+const EN_LANG: Dict = en;
+const DE_LANG: Dict = de;
 
 const languages: Record<string, Dict> = {
   en: EN_LANG,
@@ -66,13 +65,13 @@ export function getWeekdays(ctx: TranslateContext): string[] {
   const lang = resolveLang(ctx);
   const raw = resolvePath("weekdays", languages[lang] ?? DE_LANG);
   if (Array.isArray(raw) && raw.every((s) => typeof s === "string")) {
-    return raw as string[];
+    return raw;
   }
   const fallback = resolvePath("weekdays", DE_LANG);
   return Array.isArray(fallback) ? (fallback as string[]) : [];
 }
 
-export function getFuelName(code: FuelType | string, ctx: TranslateContext): string {
+export function getFuelName(code: string, ctx: TranslateContext): string {
   const lang = resolveLang(ctx);
   const dict = (resolvePath("fuel_types", languages[lang] ?? DE_LANG) ??
     resolvePath("fuel_types", DE_LANG)) as Dict | undefined;

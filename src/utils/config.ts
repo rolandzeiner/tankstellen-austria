@@ -12,19 +12,15 @@ function normaliseCar(raw: unknown): CarConfig | null {
     : "DIE";
 
   const tankRaw = parseInt(String(src.tank_size), 10);
-  const tank_size =
-    Number.isFinite(tankRaw) && tankRaw >= 1 ? Math.min(200, tankRaw) : 50;
+  const tank_size = Number.isFinite(tankRaw) && tankRaw >= 1 ? Math.min(200, tankRaw) : 50;
 
   let consumption: number | undefined;
-  if (src.consumption != null) {
+  if (typeof src.consumption === "number" || typeof src.consumption === "string") {
     const c = parseFloat(String(src.consumption));
     if (Number.isFinite(c) && c >= 0) consumption = Math.min(30, c);
   }
 
-  const icon =
-    typeof src.icon === "string" && src.icon.startsWith("mdi:")
-      ? src.icon
-      : "mdi:car";
+  const icon = typeof src.icon === "string" && src.icon.startsWith("mdi:") ? src.icon : "mdi:car";
 
   const out: CarConfig = { name, fuel_type: fuelType, tank_size, icon };
   if (consumption != null) out.consumption = consumption;
@@ -34,9 +30,7 @@ function normaliseCar(raw: unknown): CarConfig | null {
 // Coerce/clamp user-supplied config so bad YAML doesn't crash render or behave
 // weirdly. Normalise in place instead of throwing — the card stays usable even
 // with partially-broken config.
-export function normaliseConfig(
-  input: TankstellenAustriaCardConfig,
-): TankstellenAustriaCardConfig {
+export function normaliseConfig(input: TankstellenAustriaCardConfig): TankstellenAustriaCardConfig {
   if (!input) {
     throw new Error("tankstellen-austria-card: config missing");
   }
@@ -44,7 +38,7 @@ export function normaliseConfig(
 
   // entities: accept a single string as a one-item array; drop non-entity items.
   if (typeof cfg.entities === "string") {
-    cfg.entities = [cfg.entities as unknown as string];
+    cfg.entities = [cfg.entities];
   }
   if (Array.isArray(cfg.entities)) {
     cfg.entities = cfg.entities.filter(
@@ -77,9 +71,7 @@ export function normaliseConfig(
 
   // cars: validate per-item; drop items that can't be rescued.
   if (Array.isArray(cfg.cars)) {
-    cfg.cars = cfg.cars
-      .map((c) => normaliseCar(c))
-      .filter((c): c is CarConfig => c !== null);
+    cfg.cars = cfg.cars.map((c) => normaliseCar(c)).filter((c): c is CarConfig => c !== null);
   } else if (cfg.cars != null) {
     delete cfg.cars;
   }

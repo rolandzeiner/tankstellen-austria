@@ -16,9 +16,7 @@ export const API_STATUS_RECHECK_MS = 60_000;
  * transport error: a backend without the command shows no notice, which is
  * exactly how the card behaved before the command existed.
  */
-export async function fetchApiMaintenance(
-  hass: Pick<HomeAssistant, "callWS">,
-): Promise<boolean> {
+export async function fetchApiMaintenance(hass: Pick<HomeAssistant, "callWS">): Promise<boolean> {
   try {
     const r = await hass.callWS<{ maintenance?: boolean }>({
       type: "tankstellen_austria/api_status",

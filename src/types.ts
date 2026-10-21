@@ -28,11 +28,14 @@ export interface HassEntity {
  *  otherwise) and HA core has shipped both since well before our
  *  `requirements.txt` floor. Anything beyond these lives untyped and
  *  is read with a cast at the call site. */
-/** Minimal entity-registry shape — only `platform` is read, by the card
- *  picker's `getEntitySuggestion` to gate suggestions to this integration's
- *  own entities (registry platform === integration domain). */
+/** Minimal entity-registry shape. Both fields survive a sensor going
+ *  unavailable, which its state attributes don't. `platform` gates the card
+ *  picker's `getEntitySuggestion` and entity auto-discovery to this
+ *  integration's own sensors; `translation_key` (`fuel_die` …) gives the
+ *  fuel type back while E-Control is down (see utils/entities.ts). */
 export interface RegistryEntity {
   platform?: string;
+  translation_key?: string;
 }
 
 export interface HomeAssistant {
@@ -65,20 +68,14 @@ export interface LovelaceCardEditor extends HTMLElement {
 
 /** `LovelaceCard` is only referenced as the `hui-error-card` tag-map
  *  entry below, so an HTMLElement alias suffices. */
-export type LovelaceCard = HTMLElement;
+type LovelaceCard = HTMLElement;
 
 /** Local `fireEvent` shim — same shape as the helper from
  *  custom-card-helpers. `bubbles: true` + `composed: true` are required
  *  so the event crosses the editor's shadow boundary and reaches the
  *  dashboard's card-editor listener. */
-export function fireEvent<T>(
-  node: HTMLElement,
-  type: string,
-  detail: T,
-): void {
-  node.dispatchEvent(
-    new CustomEvent(type, { detail, bubbles: true, composed: true }),
-  );
+export function fireEvent<T>(node: HTMLElement, type: string, detail: T): void {
+  node.dispatchEvent(new CustomEvent(type, { detail, bubbles: true, composed: true }));
 }
 
 // Register your editor element + the built-in error card with the global
@@ -199,7 +196,7 @@ export interface Station {
 
 export interface TankstellenEntityAttributes {
   friendly_name?: string;
-  fuel_type?: FuelType | string;
+  fuel_type?: string;
   fuel_type_name?: string;
   stations?: Station[];
   average_price?: number;
@@ -308,7 +305,7 @@ export interface HaFormExpandableSchema {
 export type HaFormSchema = HaFormSelectorSchema | HaFormExpandableSchema;
 
 // `<ha-form>` element shape — mirror the props the editor sets so
-// `tsc --noEmit` validates the template at compile time.
+// `vp check` validates the template at compile time.
 interface HaFormElement extends HTMLElement {
   hass?: HomeAssistant;
   data?: Record<string, unknown>;

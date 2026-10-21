@@ -1,5 +1,5 @@
 # Unified .gitignore for the *-austria HACS portfolio (6 integrations,
-# all Lit 3 + TypeScript + Rolldown card + HA Python integration).
+# all Lit 3 + TypeScript + Vite+ card + HA Python integration).
 # Reviewed 2026-05-08 — composed from the union of all 6 existing files,
 # de-duplicated, with per-repo paths replaced by globbed equivalents.
 
@@ -77,7 +77,10 @@ Desktop.ini
 # ───────────────────────────────────────────────────────────────────
 # IDE / editor state
 # ───────────────────────────────────────────────────────────────────
-.vscode/
+.vscode/*
+# Shared on purpose: the Vite+ (Oxc) formatter and lint fixes on save.
+!.vscode/settings.json
+!.vscode/extensions.json
 .idea/
 *.iml
 .cursor/
@@ -153,3 +156,4 @@ private_*.py
 # Dev-only fixture hook (gitignored by design — per-repo file is local)
 # ───────────────────────────────────────────────────────────────────
 custom_components/*/_dev_fixture.py
+.vitest/

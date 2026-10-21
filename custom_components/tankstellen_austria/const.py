@@ -30,9 +30,9 @@ FUEL_TYPES = {
 # is a public service with no documented rate limit, so the floor exists
 # to prevent self-inflicted load and the ceiling matches HA's UX
 # expectation that "scan_interval" is at most a few hours. The 10-720
-# range matches the config-flow's NumberSelector min/max; codified here
-# so both the form and any future migration logic share one source of
-# truth.
+# range is the config-flow's NumberSelector min/max and the clamp the
+# coordinator applies to the stored value; codified here so the form, the
+# coordinator and any future migration logic share one source of truth.
 DEFAULT_SCAN_INTERVAL: Final = 30
 MIN_POLL_MINUTES: Final = 10
 MAX_POLL_MINUTES: Final = 720

@@ -238,9 +238,7 @@ function expandHourWindow(
 }
 
 function pickBest(buckets: WeightedEntry[][], minCount: number): BestPick {
-  const medians = buckets.map((b) =>
-    b.length >= minCount ? weightedPercentile(b, 0.5) : NaN,
-  );
+  const medians = buckets.map((b) => (b.length >= minCount ? weightedPercentile(b, 0.5) : NaN));
   let bestIdx = -1;
   let bestVal = Infinity;
   medians.forEach((m, i) => {
@@ -270,9 +268,8 @@ function pickBest(buckets: WeightedEntry[][], minCount: number): BestPick {
 // bimodal pattern is the correct answer for fuel pricing — the user really
 // can refuel cheaper at the cluster minimum.
 function scoreSeparation(pick: BestPick, refCents: number): number {
-  const valid = pick.medians
-    .filter((m) => !Number.isNaN(m))
-    .sort((a, b) => a - b);
+  const valid = pick.medians.filter((m) => !Number.isNaN(m));
+  valid.sort((a, b) => a - b);
   if (valid.length < 2 || pick.bestIdx < 0) return 0;
   const mid = valid[Math.floor((valid.length - 1) / 2)]!;
   const gapCents = (mid - pick.minVal) * 100;
@@ -329,32 +326,23 @@ export function analyzeBestRefuel(data: HistoryPoint[]): BestRefuelResult | null
 
   const hourCoverage = hourBuckets.filter((b) => b.length >= 3).length / 24;
   const hourSep = scoreSeparation(hourPick, 1.5);
-  const validHour = hourPick.medians
-    .filter((m) => !Number.isNaN(m))
-    .sort((a, b) => a - b);
+  const validHour = hourPick.medians.filter((m) => !Number.isNaN(m));
+  validHour.sort((a, b) => a - b);
   const hourGapCents =
     validHour.length >= 2
-      ? (validHour[Math.floor((validHour.length - 1) / 2)]! - hourPick.minVal) *
-        100
+      ? (validHour[Math.floor((validHour.length - 1) / 2)]! - hourPick.minVal) * 100
       : 0;
   const hourConfidence = (span_score + hourCoverage + hourSep) / 3;
   const hourLevel: Confidence =
     hourConfidence >= 0.75 ? "high" : hourConfidence >= 0.5 ? "medium" : "low";
 
-  const weekdayCoverage =
-    weekdayBuckets.filter((b) => b.length >= 3).length / 7;
+  const weekdayCoverage = weekdayBuckets.filter((b) => b.length >= 3).length / 7;
   const weekdaySep = scoreSeparation(weekdayPick, 0.8);
   const weekdayConfidence =
-    weekdayPick.bestIdx >= 0
-      ? (span_score + weekdayCoverage + weekdaySep) / 3
-      : 0;
+    weekdayPick.bestIdx >= 0 ? (span_score + weekdayCoverage + weekdaySep) / 3 : 0;
   const showWeekday = weekdayConfidence >= 0.75;
 
-  const window = expandHourWindow(
-    hourPick.medians,
-    hourPick.bestIdx,
-    hourPick.minVal,
-  );
+  const window = expandHourWindow(hourPick.medians, hourPick.bestIdx, hourPick.minVal);
 
   return {
     hasEnoughData: true,
@@ -379,9 +367,7 @@ export function analyzeBestRefuel(data: HistoryPoint[]): BestRefuelResult | null
 // p10/p90 bounds per hour-of-day, suitable for drawing a band behind the
 // 7-day sparkline. null when too sparse. Uses the same duration-weighted
 // chunk walker as the recommendation so the band stays consistent with it.
-export function buildHourlyEnvelope(
-  allData: HistoryPoint[],
-): HourlyEnvelope | null {
+export function buildHourlyEnvelope(allData: HistoryPoint[]): HourlyEnvelope | null {
   if (!allData || allData.length < 2) return null;
 
   const now = Date.now();
@@ -400,8 +386,8 @@ export function buildHourlyEnvelope(
     }
   }
 
-  const minByHour: Array<number | null> = new Array(24).fill(null);
-  const maxByHour: Array<number | null> = new Array(24).fill(null);
+  const minByHour: Array<number | null> = Array.from({ length: 24 }, () => null);
+  const maxByHour: Array<number | null> = Array.from({ length: 24 }, () => null);
   let filled = 0;
   for (let h = 0; h < 24; h++) {
     const bucket = byHour[h]!;

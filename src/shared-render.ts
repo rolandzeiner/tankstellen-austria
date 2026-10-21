@@ -83,9 +83,7 @@ export interface VersionBannerOpts {
  * when there is no mismatch so call sites can splat it unconditionally
  * into their template.
  */
-export function renderVersionBanner(
-  opts: VersionBannerOpts,
-): TemplateResult | typeof nothing {
+export function renderVersionBanner(opts: VersionBannerOpts): TemplateResult | typeof nothing {
   if (!opts.mismatchVersion) return nothing;
   if (opts.stuck) {
     return html`
