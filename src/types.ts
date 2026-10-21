@@ -68,7 +68,7 @@ export interface LovelaceCardEditor extends HTMLElement {
 
 /** `LovelaceCard` is only referenced as the `hui-error-card` tag-map
  *  entry below, so an HTMLElement alias suffices. */
-export type LovelaceCard = HTMLElement;
+type LovelaceCard = HTMLElement;
 
 /** Local `fireEvent` shim — same shape as the helper from
  *  custom-card-helpers. `bubbles: true` + `composed: true` are required
