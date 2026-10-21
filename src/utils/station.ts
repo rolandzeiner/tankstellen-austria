@@ -8,8 +8,7 @@ export function isClosingSoon(station: Station, now: Date = new Date()): boolean
   if (!hours.length) return false;
 
   const dayOfWeek = now.getDay();
-  const dayCode =
-    dayOfWeek === 0 ? "SO" : dayOfWeek === 6 ? "SA" : "MO";
+  const dayCode = dayOfWeek === 0 ? "SO" : dayOfWeek === 6 ? "SA" : "MO";
 
   const today = hours.find((h) => h.day === dayCode);
   if (!today || !today.to) return false;

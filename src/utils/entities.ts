@@ -19,9 +19,7 @@ export function findTankstellenEntities(hass: HomeAssistant | undefined): string
     if (!eid.startsWith("sensor.")) return false;
     if (hass.entities?.[eid]?.platform === DOMAIN) return true;
     const state = hass.states[eid];
-    return Boolean(
-      state?.attributes?.fuel_type && Array.isArray(state.attributes.stations),
-    );
+    return Boolean(state?.attributes?.fuel_type && Array.isArray(state.attributes.stations));
   });
 }
 

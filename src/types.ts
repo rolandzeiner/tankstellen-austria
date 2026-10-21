@@ -74,14 +74,8 @@ export type LovelaceCard = HTMLElement;
  *  custom-card-helpers. `bubbles: true` + `composed: true` are required
  *  so the event crosses the editor's shadow boundary and reaches the
  *  dashboard's card-editor listener. */
-export function fireEvent<T>(
-  node: HTMLElement,
-  type: string,
-  detail: T,
-): void {
-  node.dispatchEvent(
-    new CustomEvent(type, { detail, bubbles: true, composed: true }),
-  );
+export function fireEvent<T>(node: HTMLElement, type: string, detail: T): void {
+  node.dispatchEvent(new CustomEvent(type, { detail, bubbles: true, composed: true }));
 }
 
 // Register your editor element + the built-in error card with the global

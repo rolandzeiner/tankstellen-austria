@@ -2,9 +2,7 @@ import type { PaymentMethods, Station } from "../types";
 
 export function hasPaymentMethods(pm: PaymentMethods | undefined): boolean {
   if (!pm) return false;
-  return Boolean(
-    pm.cash || pm.debit_card || pm.credit_card || (pm.others && pm.others.length > 0),
-  );
+  return Boolean(pm.cash || pm.debit_card || pm.credit_card || (pm.others && pm.others.length > 0));
 }
 
 // Resolves filter keys into display strings: the three built-ins are
@@ -31,9 +29,7 @@ function resolvePaymentMatch(
   if (method === "credit_card") {
     return pm.credit_card ? (labels?.credit_card ?? "credit_card") : null;
   }
-  const hit = (pm.others ?? []).find(
-    (o) => o.toLowerCase() === method.toLowerCase(),
-  );
+  const hit = (pm.others ?? []).find((o) => o.toLowerCase() === method.toLowerCase());
   return hit ?? null;
 }
 

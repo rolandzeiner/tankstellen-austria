@@ -3,11 +3,7 @@ import type { TemplateResult } from "lit";
 
 import type { BestRefuelResult } from "./analytics/best-refuel";
 import type { HistoryPoint } from "./history";
-import {
-  monotoneCubicPath,
-  monotoneRibbonPath,
-  type Point,
-} from "./utils/math";
+import { monotoneCubicPath, monotoneRibbonPath, type Point } from "./utils/math";
 import { formatPriceShort } from "./utils/price";
 
 export interface HourlyEnvelope {
@@ -97,7 +93,7 @@ function resolveRecommendationWindow(
   // hour_end is the exclusive end of the window (0-23). Defaults to a
   // single-hour window when older results without hour_end show up.
   const hourEnd = analysis.hour_end ?? (analysis.hour + 1) % 24;
-  const spanHours = ((hourEnd - analysis.hour + 24) % 24) || 1;
+  const spanHours = (hourEnd - analysis.hour + 24) % 24 || 1;
   const endMs = startMs + spanHours * 3_600_000;
   return { startMs, endMs };
 }
@@ -181,7 +177,7 @@ export function buildSparkline(opts: SparklineOpts): SparklineResult {
     let min = dataMin;
     let max = dataMax;
 
-    const envelope = opts.showHourEnvelope ? opts.hourEnvelope ?? null : null;
+    const envelope = opts.showHourEnvelope ? (opts.hourEnvelope ?? null) : null;
     if (envelope) {
       for (let h = 0; h < 24; h++) {
         const lo = envelope.minByHour[h];
@@ -260,7 +256,11 @@ export function buildSparkline(opts: SparklineOpts): SparklineResult {
       // milliseconds: across a DST transition a day is 23 or 25 hours, so a
       // fixed step drifts markers to 11:00/13:00. setDate + setHours pins
       // every marker back to local 12:00.
-      for (; cursor.getTime() <= tEnd; cursor.setDate(cursor.getDate() + 1), cursor.setHours(12, 0, 0, 0)) {
+      for (
+        ;
+        cursor.getTime() <= tEnd;
+        cursor.setDate(cursor.getDate() + 1), cursor.setHours(12, 0, 0, 0)
+      ) {
         const x = xForTime(cursor.getTime());
         if (x == null) continue;
         noonLines.push(svg`
@@ -340,9 +340,7 @@ export function buildSparkline(opts: SparklineOpts): SparklineResult {
     const midIdx = (sortedValues.length - 1) / 2;
     const medianValue =
       sortedValues.length > 0
-        ? (sortedValues[Math.floor(midIdx)]! +
-            sortedValues[Math.ceil(midIdx)]!) /
-          2
+        ? (sortedValues[Math.floor(midIdx)]! + sortedValues[Math.ceil(midIdx)]!) / 2
         : 0;
     const ariaLabel = (
       opts.showMedianLine
@@ -399,21 +397,25 @@ export function buildSparkline(opts: SparklineOpts): SparklineResult {
         <span class="sparkline-tooltip-price"></span>
       </div>
       <div class="sparkline-labels">
-        ${opts.showMinMax
-          ? html`<span>
+        ${
+          opts.showMinMax
+            ? html`<span>
               <span class="sparkline-minmax-label">${opts.translations.min_label}</span>
               ${formatPriceShort(dataMin)}
             </span>`
-          : nothing}
+            : nothing
+        }
         <span class="sparkline-period">
           ${opts.translations.last_7_days}${deltaTmpl === nothing ? nothing : html` · ${deltaTmpl}`}
         </span>
-        ${opts.showMinMax
-          ? html`<span>
+        ${
+          opts.showMinMax
+            ? html`<span>
               <span class="sparkline-minmax-label">${opts.translations.max_label}</span>
               ${formatPriceShort(dataMax)}
             </span>`
-          : nothing}
+            : nothing
+        }
       </div>
     `;
 
@@ -440,10 +442,7 @@ export interface HoverSetupOpts {
   formatPrice: (price: number) => string;
 }
 
-export function attachSparklineHover(
-  container: HTMLElement,
-  opts: HoverSetupOpts,
-): () => void {
+export function attachSparklineHover(container: HTMLElement, opts: HoverSetupOpts): () => void {
   const noop = (): void => undefined;
   try {
     type Pt = { t: number; v: number; x: number; y: number };

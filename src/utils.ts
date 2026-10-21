@@ -50,10 +50,7 @@ export type NavPlatform = "ios" | "android" | "desktop";
  *  ``navigator``. The ``Macintosh`` + multi-touch branch catches iPads,
  *  which report a macOS UA since iPadOS 13 (real Macs report
  *  ``maxTouchPoints`` 0). */
-export function detectNavPlatform(
-  ua: string,
-  maxTouchPoints: number,
-): NavPlatform {
+export function detectNavPlatform(ua: string, maxTouchPoints: number): NavPlatform {
   if (/iPhone|iPad|iPod/.test(ua)) return "ios";
   if (/Macintosh/.test(ua) && maxTouchPoints > 1) return "ios";
   if (/Android/.test(ua)) return "android";
@@ -66,10 +63,7 @@ export function detectNavPlatform(
  *  (native app picker, works in Chrome and the HA companion app), and
  *  Google Maps on the desktop. A forced provider ignores the device —
  *  Apple Maps degrades to its web app off-Apple. */
-export function resolveMapLinkKind(
-  provider: MapProvider,
-  platform: NavPlatform,
-): MapLinkKind {
+export function resolveMapLinkKind(provider: MapProvider, platform: NavPlatform): MapLinkKind {
   if (provider === "google" || provider === "apple") return provider;
   if (platform === "ios") return "apple";
   if (platform === "android") return "geo";
