@@ -1,21 +1,14 @@
-# Minimum-version floors so a transitive minor release of any of these
-# can't break green-on-main without a commit on our side. Bump when the
-# project intentionally adopts new behaviour from a newer release.
-# Local dev tracks the floor or higher; CI installs the floor's minor
-# resolved by pip. PHACC's `==` pins govern syrupy + pytest-cov etc.,
-# so the floors below stay non-conflicting with whatever PHACC pulls in.
+# PHACC governs the test stack. It pins Home Assistant core and the whole
+# pytest toolchain with `==`, so anything it already pins is listed here
+# only if we need a constraint PHACC does not impose.
 pytest-homeassistant-custom-component>=0.13.367,<0.14
-pytest-asyncio>=1.4.0,<2
-pytest-cov>=7.1.0,<8
-# Backs the `timeout` setting in pytest.ini — a hung async fixture must
-# fail the job, not idle until the runner's 6-hour cap.
-pytest-timeout>=2.4,<3
-# syrupy floor intentionally omitted: PHACC pins syrupy with `==`, so any
-# floor here either matches PHACC (redundant) or contradicts it (unresolvable).
-# Let PHACC's transitive pin govern; dependabot bumps of syrupy can't apply.
+# No floors for pytest-asyncio / pytest-cov / pytest-timeout / syrupy.
+# PHACC pins all four with `==` (1.4.0 / 7.1.0 / 2.4.0 / 6.1.1 as of
+# 0.13.373), so a floor here can never bind: it either matches PHACC and
+# does nothing, or contradicts it and makes the install unresolvable.
+# pytest.ini's `timeout` setting and `--cov` still work: both plugins
+# arrive transitively via PHACC.
 mypy==2.3.1
 ruff==0.16.9
-# Floors track PHACC 0.13.367's hard pins (pytest-cov==7.1.0,
-# syrupy==6.0.0, pytest-asyncio==1.4.0). PHACC 0.13.367 wraps HA core
-# 2026.9.4 and requires Python ≥3.14, so the CI workflow tracks 3.14
-# in lockstep — see validate.yml's tests job.
+# PHACC requires Python >=3.14, so validate.yml's tests job tracks 3.14 in
+# lockstep; keep the two together when raising the PHACC floor.
