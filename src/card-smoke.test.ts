@@ -271,6 +271,94 @@ describe("tankstellen-austria-card", () => {
   });
 });
 
+describe("E-Control maintenance notice", () => {
+  // Written during the 2026-09-26/27 maintenance window, which no one can
+  // stage on demand: this suite is the only check the wiring still works.
+  // An unavailable entity has no attributes and an entry in setup retry has
+  // none at all, so the card asks the backend over the api_status command,
+  // and only while a sensor it shows is unavailable.
+  const unavailable = (maintenance: boolean) => {
+    const callWS = vi.fn(async (msg: { type: string }) =>
+      msg.type === "tankstellen_austria/api_status" ? { maintenance } : [],
+    );
+    const h = hass({ callWS } as unknown as Partial<HomeAssistant>);
+    h.states["sensor.tankstellen_diesel"] = {
+      entity_id: "sensor.tankstellen_diesel",
+      state: "unavailable",
+      attributes: { friendly_name: "Diesel" },
+    } as HomeAssistant["states"][string];
+    return { h, callWS };
+  };
+  const statusCalls = (callWS: ReturnType<typeof vi.fn>) =>
+    callWS.mock.calls.filter(([msg]) => msg.type === "tankstellen_austria/api_status").length;
+  const settle = async (el: LitElement) => {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await el.updateComplete;
+  };
+  const notice = (el: LitElement) => el.shadowRoot?.querySelector('ha-alert[alert-type="info"]');
+
+  it("says E-Control is down for maintenance while the sensor is unavailable", async () => {
+    const { h, callWS } = unavailable(true);
+    const el = await mount<Card>("tankstellen-austria-card", (e) => {
+      e.setConfig({ type: "x", entities: ["sensor.tankstellen_diesel"] });
+      e.hass = h;
+    });
+    await settle(el);
+    expect(statusCalls(callWS)).toBeGreaterThan(0);
+    expect(notice(el)?.textContent).toContain("down for maintenance");
+  });
+
+  it("shows no maintenance notice for an ordinary outage", async () => {
+    const { h } = unavailable(false);
+    const el = await mount<Card>("tankstellen-austria-card", (e) => {
+      e.setConfig({ type: "x", entities: ["sensor.tankstellen_diesel"] });
+      e.hass = h;
+    });
+    await settle(el);
+    expect(notice(el)).toBeNull();
+  });
+
+  it("never asks while every sensor has data", async () => {
+    const callWS = vi.fn(async () => []);
+    const el = await mount<Card>("tankstellen-austria-card", (e) => {
+      e.setConfig({ type: "x", entities: ["sensor.tankstellen_diesel"] });
+      e.hass = hass({ callWS } as unknown as Partial<HomeAssistant>);
+    });
+    await settle(el);
+    expect(statusCalls(callWS)).toBe(0);
+  });
+
+  it("notices maintenance that starts while the dashboard is open", async () => {
+    const el = await mount<Card>("tankstellen-austria-card", (e) => {
+      e.setConfig({ type: "x", entities: ["sensor.tankstellen_diesel"] });
+      e.hass = hass();
+    });
+    await settle(el);
+    expect(notice(el)).toBeNull();
+
+    const { h, callWS } = unavailable(true);
+    el.hass = h;
+    await settle(el);
+    expect(statusCalls(callWS)).toBeGreaterThan(0);
+    expect(notice(el)?.textContent).toContain("down for maintenance");
+  });
+
+  it("drops the notice once prices are back", async () => {
+    const { h } = unavailable(true);
+    const el = await mount<Card>("tankstellen-austria-card", (e) => {
+      e.setConfig({ type: "x", entities: ["sensor.tankstellen_diesel"] });
+      e.hass = h;
+    });
+    await settle(el);
+    expect(notice(el)).not.toBeNull();
+
+    el.hass = hass();
+    await settle(el);
+    expect(notice(el)).toBeNull();
+    expect(text(el)).toContain("Teststation Nord");
+  });
+});
+
 describe("tankstellen-austria-card-editor", () => {
   it("renders with a config and hass", async () => {
     const el = await mount<Editor>("tankstellen-austria-card-editor", (e) => {
