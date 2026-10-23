@@ -212,10 +212,8 @@ async def test_connection_test_sends_canonical_user_agent(hass: HomeAssistant) -
 
     assert session.get.called
     headers = session.get.call_args.kwargs["headers"]
-    assert headers == {
-        "User-Agent": USER_AGENT,
-        "Accept-Encoding": "gzip",
-    }
+    # No Accept-Encoding: passing one would replace aiohttp's own offer.
+    assert headers == {"User-Agent": USER_AGENT}
 
 
 async def test_options_flow_syncs_unique_id_on_location_change(

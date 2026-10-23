@@ -4,14 +4,13 @@ Single source of truth for outbound request headers. Centralised so the
 two call sites (`coordinator.py` price fetches, `config_flow.py`
 connection probe) can't drift in what they send to E-Control.
 
-About `Accept-Encoding: gzip`: verified 2026-05-08 that E-Control's
-Tomcat server currently ignores the header — both `--compressed` and
-plain requests against `/search/gas-stations/by-address` return
-identical-size plain JSON, no `Content-Encoding: gzip` in the response.
-The header is kept anyway as defensive forward-compatibility (every
-modern HTTP client sends it; if E-Control ever enables compression we
-get the wire-size win automatically with zero code changes). aiohttp
-decompresses transparently when the server does respond compressed.
+Deliberately **absent**: `Accept-Encoding`. `aiohttp` sends its own offer
+(`ClientRequest.DEFAULT_HEADERS`, `gzip, deflate, zstd` on aiohttp 3.14.5),
+and a value passed here *replaces* that default rather than adding to it, so
+an explicit `gzip` would only narrow what reaches the server. E-Control's
+Tomcat ignores the header today (verified 2026-05-08: identical-size plain
+JSON, no `Content-Encoding`); if it ever starts compressing, the default
+offer picks that up with no code change.
 """
 
 from __future__ import annotations
@@ -29,5 +28,4 @@ def base_request_headers(user_agent: str) -> dict[str, str]:
     """
     return {
         "User-Agent": user_agent,
-        "Accept-Encoding": "gzip",
     }

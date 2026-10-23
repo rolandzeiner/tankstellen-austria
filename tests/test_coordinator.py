@@ -321,10 +321,8 @@ async def test_coordinator_fetch_sends_canonical_user_agent(
 
     assert coordinator._session.get.called
     headers = coordinator._session.get.call_args.kwargs["headers"]
-    assert headers == {
-        "User-Agent": USER_AGENT,
-        "Accept-Encoding": "gzip",
-    }
+    # No Accept-Encoding: passing one would replace aiohttp's own offer.
+    assert headers == {"User-Agent": USER_AGENT}
 
 
 async def test_config_entry_not_ready_on_first_refresh_failure(
