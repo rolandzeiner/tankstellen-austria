@@ -16,6 +16,7 @@ from homeassistant.const import EVENT_HOMEASSISTANT_STARTED, Platform
 from homeassistant.core import CoreState, Event, HomeAssistant
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import issue_registry as ir
 
 from .card_registration import JSModuleRegistration
 from .const import CARD_VERSION, DOMAIN
@@ -143,7 +144,12 @@ async def async_remove_entry(
     not per entry), so this only runs when no other entries of this
     integration remain. Reload goes through async_unload_entry, not
     here, so the card stays registered across reloads.
+
+    The entry's own Repairs issue goes every time, before that guard: nothing
+    else clears it once the coordinator is gone, and it would keep warning
+    about a tracker nobody uses any more.
     """
+    ir.async_delete_issue(hass, DOMAIN, f"tracker_missing_{entry.entry_id}")
     remaining = [
         e
         for e in hass.config_entries.async_entries(DOMAIN)
