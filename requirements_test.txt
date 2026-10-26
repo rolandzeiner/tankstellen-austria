@@ -1,14 +1,14 @@
 # PHACC governs the test stack. It pins Home Assistant core and the whole
 # pytest toolchain with `==`, so anything it already pins is listed here
 # only if we need a constraint PHACC does not impose.
-pytest-homeassistant-custom-component>=0.13.367,<0.14
+pytest-homeassistant-custom-component>=0.13.375,<0.14
 # No floors for pytest-asyncio / pytest-cov / pytest-timeout / syrupy.
 # PHACC pins all four with `==` (1.4.0 / 7.1.0 / 2.4.0 / 6.1.1 as of
 # 0.13.373), so a floor here can never bind: it either matches PHACC and
 # does nothing, or contradicts it and makes the install unresolvable.
 # pytest.ini's `timeout` setting and `--cov` still work: both plugins
 # arrive transitively via PHACC.
-mypy==2.3.1
-ruff==0.16.9
+mypy==2.4.0
+ruff==0.17.2
 # PHACC requires Python >=3.14, so validate.yml's tests job tracks 3.14 in
 # lockstep; keep the two together when raising the PHACC floor.
