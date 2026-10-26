@@ -114,6 +114,10 @@
     "tracker_missing": {
       "title": "Standort-Tracker nicht verfügbar",
       "description": "Die für den dynamischen Modus auf **{entry_title}** konfigurierte device_tracker-Entität **{entity_id}** ist nicht verfügbar oder liefert keine Koordinaten. Aktualisierungen fallen auf den Home-Assistant-Heimstandort zurück. Stelle den Tracker wieder her oder konfiguriere diesen Eintrag neu, um in den festen Standortmodus zu wechseln."
+    },
+    "upstream_unavailable": {
+      "title": "E-Control liefert keine Spritpreise",
+      "description": "Der Spritpreisrechner der E-Control hat wiederholt mit Fehlern geantwortet. Der Fehler liegt bei der E-Control: Deine Home-Assistant-Einrichtung und deine Standorte sind in Ordnung, du musst nichts ändern. Sobald der Dienst wieder funktioniert, erscheinen die Preise von selbst, und diese Meldung verschwindet mit ihnen."
     }
   }
 }

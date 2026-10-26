@@ -24,6 +24,7 @@ from .coordinator import (
     TankstellenCoordinator,
     maintenance_window,
 )
+from .outage import async_clear_outage
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
@@ -150,4 +151,6 @@ async def async_remove_entry(
     ]
     if remaining:
         return
+    # Nothing is left to report an outage for.
+    async_clear_outage(hass)
     await JSModuleRegistration(hass).async_unregister()

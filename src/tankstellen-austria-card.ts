@@ -947,6 +947,19 @@ export class TankstellenAustriaCard extends LitElement {
       ? stations
       : stations.filter((s) => matchesPaymentFilter(s, paymentFilter));
 
+    // An unavailable sensor carries no stations, so without this the list
+    // would say "No data available", which makes an outage look like a
+    // broken install. Shown whatever `max_stations` is, or a header-only
+    // card would give no hint at all. Doesn't say whose fault it is; the
+    // integration's Repairs issue does that, and the maintenance alert above
+    // stays for the one cause E-Control announces itself.
+    if (active.state === "unavailable") {
+      return html`<div class="empty" role="status" aria-live="polite">
+        <div class="empty-title">${this._t("unreachable")}</div>
+        <div class="empty-detail">${this._t("unreachable_detail")}</div>
+      </div>`;
+    }
+
     // 0 hides the station list entirely — don't show a fallback message.
     if (maxStations === 0) return nothing;
 

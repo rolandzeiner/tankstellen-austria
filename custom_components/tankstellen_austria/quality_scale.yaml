@@ -139,7 +139,7 @@ rules:
     comment: config_flow.async_step_reconfigure lets users change location, fuel types, include_closed, scan_interval, and dynamic_entity while preserving the entry's existing entities.
   repair-issues:
     status: done
-    comment: When a configured device_tracker goes missing, the coordinator raises an issue_registry issue (tracker_missing_{entry_id}) and clears it when the tracker returns.
+    comment: When a configured device_tracker goes missing, the coordinator raises an issue_registry issue (tracker_missing_{entry_id}) and clears it when the tracker returns. A sustained E-Control outage (5xx, unusable body or the maintenance page, at least twice over 10 minutes) raises one domain-wide issue (upstream_unavailable), cleared by the first real answer and by removing the last entry.
   stale-devices:
     status: exempt
     comment: See dynamic-devices — the single device per entry is owned by the config entry and removed via entry delete.

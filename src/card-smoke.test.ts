@@ -359,6 +359,54 @@ describe("E-Control maintenance notice", () => {
   });
 });
 
+describe("unreachable notice", () => {
+  // An outage used to read as "No data available", which is what a sensor
+  // with nothing to report says too, so a dead API looked like a broken
+  // install. Independent of the maintenance alert above.
+  const unavailable = (): HomeAssistant => {
+    const h = hass();
+    h.states["sensor.tankstellen_diesel"] = {
+      entity_id: "sensor.tankstellen_diesel",
+      state: "unavailable",
+      attributes: { friendly_name: "Diesel" },
+    } as HomeAssistant["states"][string];
+    return h;
+  };
+  const mountWith = (h: HomeAssistant, config: Record<string, unknown> = {}) =>
+    mount<Card>("tankstellen-austria-card", (e) => {
+      e.setConfig({ type: "x", entities: ["sensor.tankstellen_diesel"], ...config });
+      e.hass = h;
+    });
+
+  it("says it can't reach E-Control when the sensor is unavailable", async () => {
+    const el = await mountWith(unavailable());
+    const notice = el.shadowRoot!.querySelector(".empty");
+    expect(notice?.querySelector(".empty-title")?.textContent?.trim()).toBe(
+      "Can't reach E-Control",
+    );
+    expect(notice?.getAttribute("role")).toBe("status");
+    expect(text(el)).not.toContain("No data available");
+  });
+
+  it("shows the notice with the station list hidden too", async () => {
+    const el = await mountWith(unavailable(), { max_stations: 0 });
+    expect(text(el)).toContain("Can't reach E-Control");
+  });
+
+  it("still says no data for an available sensor without stations", async () => {
+    const h = hass();
+    h.states["sensor.tankstellen_diesel"]!.attributes.stations = [];
+    const el = await mountWith(h);
+    expect(text(el)).toContain("No data available");
+    expect(text(el)).not.toContain("Can't reach");
+  });
+
+  it("follows the card's language", async () => {
+    const el = await mountWith(unavailable(), { language: "de" });
+    expect(text(el)).toContain("Keine Verbindung zur E-Control");
+  });
+});
+
 describe("tankstellen-austria-card-editor", () => {
   it("renders with a config and hass", async () => {
     const el = await mount<Editor>("tankstellen-austria-card-editor", (e) => {

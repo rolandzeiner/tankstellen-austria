@@ -23,6 +23,7 @@ and CNG. No API key required.
 - **Car fill-up cost widget** — define cars and see total fill-up cost (and €/100 km) at the cheapest station for that fuel type
 - **Closed / Closing-Soon flags** on stations that won't be open when you arrive
 - **Long-term statistics** — opt in per entry to record hourly min / max / average prices, so price charts can span months instead of the recorder's purge window *(1.10.0)*
+- **Outage notice** — when E-Control's fuel price service fails, you can tell it's their fault, not your setup. A Repairs issue says so after repeated errors from their side and clears itself once prices return. The card shows *Can't reach E-Control* instead of *No data available* *(1.11.0)*
 - **German + English** translations and visual card editor
 
 ## Screenshots
@@ -291,6 +292,7 @@ The helper stores its config in HA's internal storage (not `configuration.yaml`)
 - **"Cannot connect to the E-Control API" during setup** — usually a transient network issue. Retry. Verify reachability of `https://api.e-control.at/sprit/1.0/...` from the HA host.
 - **Sensors unavailable around 12:00–12:15** — expected (E-Control's daily refresh window). The integration retries after 10 minutes.
 - **"E-Control is down for maintenance"** — nothing to fix on your side. E-Control has taken its fuel price service offline for a while. The integration keeps checking and recovers on its own.
+- **Card says *Can't reach E-Control*** — the sensor is unavailable because its last update from E-Control failed, or none has worked since Home Assistant started. Check **Settings → Repairs**. If the issue "E-Control isn't sending fuel prices" is there, the fault is on E-Control's side and prices return on their own. If it isn't, check that your Home Assistant host can reach the internet.
 - **Repairs issue "Location tracker unavailable"** — the configured `device_tracker` is gone. Restore it, or **Reconfigure** the entry to pick a different one (or none).
 - **Card not in the resource picker** — the integration auto-registers on storage-mode dashboards. For YAML dashboards add the resource manually (URL above).
 - **Diagnostics for a bug report** — Settings → Devices & Services → Tankstellen Austria → ⋯ → **Download diagnostics**. Coordinates are redacted; paste into the issue.

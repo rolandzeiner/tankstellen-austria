@@ -103,6 +103,16 @@ export const cardStyles = css`
     color: var(--secondary-text-color);
     font-size: 0.875rem;
   }
+  /* "Can't reach E-Control": a headline the eye can find, so it doesn't
+     read as one more quiet empty-list remark. */
+  .empty-title {
+    color: var(--primary-text-color);
+    font-weight: 500;
+  }
+  .empty-detail {
+    margin-block-start: var(--ha-space-1, 4px);
+    font-size: 0.875em;
+  }
 
   /* ── Version-mismatch banner ────────────────────────────────────── */
   .version-notice {

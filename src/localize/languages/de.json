@@ -58,7 +58,9 @@
     "sparkline_aria_summary": "Preisverlauf der letzten 7 Tage: Minimum {min}, Maximum {max}, Median {median}",
     "sparkline_aria_simple": "Preisverlauf der letzten 7 Tage: Minimum {min}, Maximum {max}",
     "history_fetch_error": "Preisverlauf konnte nicht geladen werden",
-    "api_maintenance": "E-Control führt Wartungsarbeiten durch. Die Preise kommen automatisch zurück, sobald der Dienst wieder läuft."
+    "api_maintenance": "E-Control führt Wartungsarbeiten durch. Die Preise kommen automatisch zurück, sobald der Dienst wieder läuft.",
+    "unreachable": "Keine Verbindung zur E-Control",
+    "unreachable_detail": "Die Preise erscheinen von selbst wieder, sobald die Verbindung funktioniert."
   },
   "fuel_types": {
     "DIE": "Diesel",

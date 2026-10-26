@@ -52,6 +52,7 @@ from .const import (
     USER_AGENT,
 )
 from .http import base_request_headers
+from .outage import async_note_fault, classify_refresh
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -441,6 +442,11 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]
                     _LOGGER.warning("Fetch failed: %s", _describe_error(outcome))
             else:
                 results[fuel_type] = outcome
+
+        # One note per refresh that went out, maintenance probes included.
+        # The in-window fast-fail above raised before any request, so it
+        # never gets here and can't inflate the outage count.
+        async_note_fault(self.hass, classify_refresh(bool(results), errors.values()))
 
         maintenance_err = next(
             (err for err in errors.values() if _is_maintenance(err)), None
