@@ -7,9 +7,7 @@ import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Any
 
-import aiohttp
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import CoreState, Event, HomeAssistant, State, callback
 from homeassistant.exceptions import HomeAssistantError
@@ -25,9 +23,19 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from homeassistant.util import dt as dt_util
 from homeassistant.util.location import distance
 
+from .api import (
+    EControlConnectionError,
+    EControlContentTypeError,
+    EControlError,
+    EControlHttpError,
+    EControlJsonError,
+    EControlMaintenanceError,
+    EControlResponseShapeError,
+    EControlTimeoutError,
+    Station,
+    fetch_stations,
+)
 from .const import (
-    API_BASE_URL,
-    API_ENDPOINT,
     BACKOFF_CAP_SECONDS,
     CONF_DYNAMIC_ENTITY,
     CONF_FUEL_TYPES,
@@ -43,15 +51,12 @@ from .const import (
     DYNAMIC_DISTANCE_THRESHOLD_M,
     DYNAMIC_DOMAIN_COOLDOWN_MINUTES,
     DYNAMIC_SAFETY_INTERVAL_HOURS,
-    MAINTENANCE_MARKER,
     MAINTENANCE_PROBE_MINUTES,
-    MAINTENANCE_SNIFF_BYTES,
     MAX_POLL_MINUTES,
     MIN_POLL_MINUTES,
     NO_DATA_RETRY_MINUTES,
     USER_AGENT,
 )
-from .http import base_request_headers
 from .outage import async_note_fault, classify_refresh
 
 _LOGGER = logging.getLogger(__name__)
@@ -83,6 +88,51 @@ def _describe_error(err: BaseException) -> str:
     return str(err)
 
 
+def _update_failed(err: EControlError, fuel_type: str) -> UpdateFailed:
+    """Translate an API error into the UpdateFailed the rest of HA sees.
+
+    The translation keys and placeholders are what `outage.classify` and the
+    `exceptions` block in strings.json key on, so they stay as they were when
+    the HTTP code lived here.
+    """
+    key: str
+    placeholders: dict[str, str] = {"fuel_type": fuel_type}
+    match err:
+        case EControlMaintenanceError():
+            key = "api_maintenance"
+            placeholders["status"] = str(err.status)
+        case EControlContentTypeError():
+            key = "api_invalid_content_type"
+            placeholders |= {"status": str(err.status), "reason": err.reason}
+        case EControlJsonError():
+            key = "api_invalid_json"
+            placeholders |= {"status": str(err.status), "error": err.error}
+        case EControlResponseShapeError():
+            key = "api_invalid_response"
+            placeholders |= {"status": str(err.status), "got": err.got}
+        case EControlHttpError():
+            key = "api_http_error"
+            # Status first, as the log line has always read.
+            placeholders = {
+                "status": str(err.status),
+                "fuel_type": fuel_type,
+                "reason": err.reason,
+            }
+        case EControlConnectionError():
+            key = "api_connection_error"
+            placeholders |= {"error_type": err.error_type, "error": err.error}
+        case EControlTimeoutError():
+            key = "api_timeout"
+        case _:
+            key = "api_connection_error"
+            placeholders |= {"error_type": type(err).__name__, "error": str(err)}
+    return UpdateFailed(
+        translation_domain=DOMAIN,
+        translation_key=key,
+        translation_placeholders=placeholders,
+    )
+
+
 @dataclass(frozen=True, slots=True)
 class MaintenanceWindow:
     """E-Control's maintenance state, shared by every entry via `hass.data`.
@@ -107,20 +157,7 @@ def _is_maintenance(err: BaseException) -> bool:
     return isinstance(err, UpdateFailed) and err.translation_key == "api_maintenance"
 
 
-async def _is_maintenance_page(resp: aiohttp.ClientResponse) -> bool:
-    """Return True when E-Control answered with its maintenance page.
-
-    Only an HTML response is read, so the JSON happy path pays nothing. The
-    status code is deliberately ignored (see MAINTENANCE_MARKER in const.py).
-    A short read is fine: the marker sits in the page's <title>.
-    """
-    if resp.content_type != "text/html":
-        return False
-    head = await resp.content.read(MAINTENANCE_SNIFF_BYTES)
-    return MAINTENANCE_MARKER in head.decode("utf-8", errors="replace")
-
-
-class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]]]]):
+class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[Station]]]):
     """Fetch fuel station data from E-Control API.
 
     Supports two modes:
@@ -387,7 +424,7 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]
     # Core data fetch
     # ------------------------------------------------------------------
 
-    async def _async_update_data(self) -> dict[str, list[dict[str, Any]]]:
+    async def _async_update_data(self) -> dict[str, list[Station]]:
         """Fetch data for each configured fuel type."""
         if self._dynamic_entity:
             state = self.hass.states.get(self._dynamic_entity)
@@ -427,7 +464,7 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]
             *(self._fetch(ft, lat, lng) for ft in self._fuel_types),
             return_exceptions=True,
         )
-        results: dict[str, list[dict[str, Any]]] = {}
+        results: dict[str, list[Station]] = {}
         errors: dict[str, Exception] = {}
         for fuel_type, outcome in zip(self._fuel_types, fetched, strict=True):
             if isinstance(outcome, BaseException) and not isinstance(
@@ -632,117 +669,35 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[dict[str, Any]
         if self.update_interval != self._normal_interval:
             self.update_interval = self._normal_interval
 
-    async def _fetch(
-        self, fuel_type: str, lat: float, lng: float
-    ) -> list[dict[str, Any]]:
+    async def _fetch(self, fuel_type: str, lat: float, lng: float) -> list[Station]:
         """Call the E-Control API for one fuel type.
 
         Raises UpdateFailed with a translated message for each failure class so
         HA logs and UI can distinguish timeouts, HTTP errors and malformed
         responses.
         """
-        url = f"{API_BASE_URL}{API_ENDPOINT}"
-        params: dict[str, str] = {
-            "latitude": str(lat),
-            "longitude": str(lng),
-            "fuelType": fuel_type,
-            "includeClosed": str(self._include_closed).lower(),
-        }
-        headers = base_request_headers(USER_AGENT)
-        timeout = aiohttp.ClientTimeout(total=30)
         try:
-            async with self._session.get(
-                url, params=params, headers=headers, timeout=timeout
-            ) as resp:
-                if await _is_maintenance_page(resp):
-                    raise UpdateFailed(
-                        translation_domain=DOMAIN,
-                        translation_key="api_maintenance",
-                        translation_placeholders={
-                            "fuel_type": fuel_type,
-                            "status": str(resp.status),
-                        },
-                    )
-                resp.raise_for_status()
-                try:
-                    data = await resp.json()
-                except aiohttp.ContentTypeError as err:
-                    raise UpdateFailed(
-                        translation_domain=DOMAIN,
-                        translation_key="api_invalid_content_type",
-                        translation_placeholders={
-                            "fuel_type": fuel_type,
-                            "status": str(resp.status),
-                            "reason": err.message,
-                        },
-                    ) from err
-                except (
-                    ValueError
-                ) as err:  # json.JSONDecodeError is a ValueError subclass
-                    raise UpdateFailed(
-                        translation_domain=DOMAIN,
-                        translation_key="api_invalid_json",
-                        translation_placeholders={
-                            "fuel_type": fuel_type,
-                            "status": str(resp.status),
-                            "error": str(err),
-                        },
-                    ) from err
+            stations = await fetch_stations(
+                self._session,
+                latitude=lat,
+                longitude=lng,
+                fuel_type=fuel_type,
+                include_closed=self._include_closed,
+                user_agent=USER_AGENT,
+            )
+        except EControlError as err:
+            raise _update_failed(err, fuel_type) from err
 
-                if not isinstance(data, list):
-                    raise UpdateFailed(
-                        translation_domain=DOMAIN,
-                        translation_key="api_invalid_response",
-                        translation_placeholders={
-                            "fuel_type": fuel_type,
-                            "status": str(resp.status),
-                            "got": type(data).__name__,
-                        },
-                    )
-        except TimeoutError as err:
-            raise UpdateFailed(
-                translation_domain=DOMAIN,
-                translation_key="api_timeout",
-                translation_placeholders={"fuel_type": fuel_type},
-            ) from err
-        except aiohttp.ClientResponseError as err:
-            raise UpdateFailed(
-                translation_domain=DOMAIN,
-                translation_key="api_http_error",
-                translation_placeholders={
-                    "status": str(err.status),
-                    "fuel_type": fuel_type,
-                    "reason": err.message,
-                },
-            ) from err
-        except aiohttp.ClientError as err:
-            raise UpdateFailed(
-                translation_domain=DOMAIN,
-                translation_key="api_connection_error",
-                translation_placeholders={
-                    "fuel_type": fuel_type,
-                    "error_type": type(err).__name__,
-                    "error": str(err),
-                },
-            ) from err
-
-        # API returns array of stations; first 5 have prices, rest don't.
         # Stamp the as-the-crow-flies distance (Luftlinie) from the reference
         # point onto each kept station (issue #61). `lat,lng` is the live fetch
         # origin — the dynamic tracker position in dynamic mode, the configured
         # point otherwise — so the value is correct in both modes for free.
-        stations: list[dict[str, Any]] = []
-        for station in data:
-            if not station.get("prices"):
-                continue
+        for station in stations:
             self._stamp_distance(station, lat, lng)
-            stations.append(station)
-            if len(stations) >= 5:
-                break
         return stations
 
     @staticmethod
-    def _stamp_distance(station: dict[str, Any], lat: float, lng: float) -> None:
+    def _stamp_distance(station: Station, lat: float, lng: float) -> None:
         """Add ``distance_m`` (rounded metres) to a station dict in place.
 
         Reuses HA's haversine ``distance`` helper. Leaves the key absent when

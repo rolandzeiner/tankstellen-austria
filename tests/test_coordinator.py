@@ -10,6 +10,7 @@ from homeassistant.helpers.update_coordinator import UpdateFailed
 from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
+from custom_components.tankstellen_austria import api
 from custom_components.tankstellen_austria.const import (
     CONF_DYNAMIC_ENTITY,
     CONF_FUEL_TYPES,
@@ -25,6 +26,7 @@ from custom_components.tankstellen_austria.coordinator import (
     MaintenanceWindow,
     TankstellenCoordinator,
     _describe_error,
+    _update_failed,
     maintenance_window,
 )
 
@@ -1386,3 +1388,64 @@ async def test_setup_during_maintenance_reports_maintenance(
 
     assert entry.state is ConfigEntryState.SETUP_RETRY
     assert entry.error_reason_translation_key == "api_maintenance"
+
+
+@pytest.mark.parametrize(
+    ("err", "key", "placeholders"),
+    [
+        (
+            api.EControlMaintenanceError(507),
+            "api_maintenance",
+            {"fuel_type": "DIE", "status": "507"},
+        ),
+        (
+            api.EControlContentTypeError(200, "text/plain"),
+            "api_invalid_content_type",
+            {"fuel_type": "DIE", "status": "200", "reason": "text/plain"},
+        ),
+        (
+            api.EControlJsonError(200, "Expecting value"),
+            "api_invalid_json",
+            {"fuel_type": "DIE", "status": "200", "error": "Expecting value"},
+        ),
+        (
+            api.EControlResponseShapeError(200, "dict"),
+            "api_invalid_response",
+            {"fuel_type": "DIE", "status": "200", "got": "dict"},
+        ),
+        (
+            api.EControlHttpError(503, "Service Unavailable"),
+            "api_http_error",
+            {"status": "503", "fuel_type": "DIE", "reason": "Service Unavailable"},
+        ),
+        (
+            api.EControlConnectionError(aiohttp.ClientConnectionError("refused")),
+            "api_connection_error",
+            {
+                "fuel_type": "DIE",
+                "error_type": "ClientConnectionError",
+                "error": "refused",
+            },
+        ),
+        (api.EControlTimeoutError("timed out"), "api_timeout", {"fuel_type": "DIE"}),
+        (
+            api.EControlError("unforeseen"),
+            "api_connection_error",
+            {"fuel_type": "DIE", "error_type": "EControlError", "error": "unforeseen"},
+        ),
+    ],
+)
+def test_api_errors_keep_their_translation_contract(
+    err: api.EControlError, key: str, placeholders: dict[str, str]
+) -> None:
+    """Keys and placeholders are what strings.json and outage.classify read.
+
+    Compared as lists so the order is pinned too: `_describe_error` prints the
+    placeholders in dict order, and the log line has always led with status
+    for HTTP errors.
+    """
+    failed = _update_failed(err, "DIE")
+    assert failed.translation_key == key
+    assert list((failed.translation_placeholders or {}).items()) == list(
+        placeholders.items()
+    )

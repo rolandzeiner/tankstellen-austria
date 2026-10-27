@@ -2,10 +2,17 @@
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import aiohttp
+import pytest
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
 
+from custom_components.tankstellen_austria.api import (
+    EControlConnectionError,
+    EControlHttpError,
+    EControlTimeoutError,
+)
 from custom_components.tankstellen_austria.const import (
     CONF_FUEL_TYPES,
     CONF_INCLUDE_CLOSED,
@@ -467,3 +474,36 @@ async def test_options_flow_toggles_statistics(hass: HomeAssistant, mock_fetch) 
     # Drain the reload task spawned by the update listener so its
     # coordinator first-refresh completes before fixture teardown.
     await hass.async_block_till_done()
+
+
+@pytest.mark.parametrize(
+    ("raised", "logged"),
+    [
+        (EControlTimeoutError("request timed out"), "timed out after 10s"),
+        (
+            EControlHttpError(503, "Service Unavailable"),
+            "HTTP 503: Service Unavailable",
+        ),
+        (
+            EControlConnectionError(aiohttp.ClientConnectionError("refused")),
+            "ClientConnectionError: refused",
+        ),
+        (RuntimeError("boom"), "Unexpected error in API connection test"),
+    ],
+)
+async def test_connection_test_logs_each_failure_and_returns_false(
+    hass: HomeAssistant,
+    caplog: pytest.LogCaptureFixture,
+    raised: Exception,
+    logged: str,
+) -> None:
+    """Every probe failure turns into False plus a log line that says which one."""
+    from custom_components.tankstellen_austria.config_flow import _test_api_connection
+
+    with patch(
+        "custom_components.tankstellen_austria.config_flow.check_connection",
+        new_callable=AsyncMock,
+        side_effect=raised,
+    ):
+        assert await _test_api_connection(hass, 48.0, 16.0, "DIE") is False
+    assert logged in caplog.text
