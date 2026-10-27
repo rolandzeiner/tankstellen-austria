@@ -245,6 +245,9 @@ export class TankstellenAustriaCard extends LitElement {
     }
     const prev = changed.get("hass") as HomeAssistant | undefined;
     if (!prev) return true;
+    // A language switch changes no entity state; without this the card keeps
+    // the old language until its sensor next updates.
+    if (prev.language !== this.hass.language) return true;
     const eids = this._trackedEntityIds();
     return eids.some((eid) => prev.states[eid] !== this.hass.states[eid]);
   }
@@ -321,7 +324,8 @@ export class TankstellenAustriaCard extends LitElement {
 
   protected override willUpdate(changed: PropertyValues): void {
     // shouldUpdate only lets a hass change through when a tracked entity's
-    // state moved, which is exactly when availability can have flipped.
+    // state moved, which is when availability can have flipped, or when the
+    // language changed, where the re-check is a cheap no-op.
     if (changed.has("hass")) this._syncApiStatus();
   }
 

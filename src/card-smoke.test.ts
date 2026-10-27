@@ -405,6 +405,21 @@ describe("unreachable notice", () => {
     const el = await mountWith(unavailable(), { language: "de" });
     expect(text(el)).toContain("Keine Verbindung zur E-Control");
   });
+
+  it("follows a language switch that touched no sensor", async () => {
+    // A profile language switch leaves every state object as it was; the
+    // re-render gate used to skip it and keep the old text.
+    const h = unavailable();
+    const el = await mountWith(h);
+    // Let the history fetch started at mount land first: its _history update
+    // would otherwise ride along with the switch and pass the gate on its own.
+    await new Promise((r) => setTimeout(r, 0));
+    await el.updateComplete;
+    expect(text(el)).toContain("Can't reach E-Control");
+    el.hass = { ...h, language: "de" };
+    await el.updateComplete;
+    expect(text(el)).toContain("Keine Verbindung zur E-Control");
+  });
 });
 
 describe("tankstellen-austria-card-editor", () => {
