@@ -66,10 +66,6 @@ export interface LovelaceCardEditor extends HTMLElement {
   setConfig(config: LovelaceCardConfig): void;
 }
 
-/** `LovelaceCard` is only referenced as the `hui-error-card` tag-map
- *  entry below, so an HTMLElement alias suffices. */
-type LovelaceCard = HTMLElement;
-
 /** Local `fireEvent` shim — same shape as the helper from
  *  custom-card-helpers. `bubbles: true` + `composed: true` are required
  *  so the event crosses the editor's shadow boundary and reaches the
@@ -78,12 +74,11 @@ export function fireEvent<T>(node: HTMLElement, type: string, detail: T): void {
   node.dispatchEvent(new CustomEvent(type, { detail, bubbles: true, composed: true }));
 }
 
-// Register your editor element + the built-in error card with the global
-// HTMLElementTagNameMap so TypeScript autocompletes them in templates.
+// Register your editor element with the global HTMLElementTagNameMap so
+// TypeScript autocompletes it in templates.
 declare global {
   interface HTMLElementTagNameMap {
     "tankstellen-austria-card-editor": LovelaceCardEditor;
-    "hui-error-card": LovelaceCard;
   }
 }
 
