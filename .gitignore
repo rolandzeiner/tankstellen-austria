@@ -157,3 +157,6 @@ private_*.py
 # ───────────────────────────────────────────────────────────────────
 custom_components/*/_dev_fixture.py
 .vitest/
+
+# Local notes, not published
+core-checklist.md
