@@ -18,6 +18,7 @@ CI installs the same way (`astral-sh/setup-uv` + `uv pip install --system`), so 
 
 - Work on `dev`. PRs target `dev`.
 - Releases are tagged from `main` after merging `dev → main`.
+- Publishing a release runs `.github/workflows/release.yml`, which attaches `tankstellen_austria.zip` (a flat archive of `custom_components/tankstellen_austria/`). `hacs.json` sets `zip_release`, so the Marketplace downloads that zip: a release without it can't be installed. If the job fails, re-run it against the existing tag with `gh workflow run release.yml -f tag=vX.Y.Z`.
 - Conventional commits: `feat:`, `fix:`, `chore:`, `docs:`, `refactor:`, `test:`.
 
 ## Card-version sync
@@ -36,7 +37,7 @@ Bump `manifest.json` `version` and `src/const.ts` `CARD_VERSION` together — `c
 - **The build does not type-check.** `vp check` is the only thing between a type error and a green build, which is why the gate runs it as its own step.
 - `pyproject.toml` — source of truth for ruff (target-version, line-length), mypy (strict, ignore_missing_imports, files), and coverage config. Change rules here, not in CI flags.
   - **`target-version` tracks the oldest Python we support, never the one CI runs.** `hacs.json` promises HA ≥ 2025.1.0, which runs on Python 3.12, so `target-version = "py312"` — even though the venv and CI are on 3.14. Pointing it at the CI interpreter lets ruff rewrite code into syntax our users cannot parse and then stay silent about it; that is how wiener-linien-austria v1.7.1 shipped a SyntaxError. The `compile-floor-python` CI job byte-compiles the shipped package on 3.12 as an independent backstop. Raise all three together or not at all.
-- `pytest.ini` — pytest config and the **`--cov-fail-under=90` coverage gate**. `pytest tests/` automatically runs with coverage; CI fails fast if a new commit drops coverage below the gate. It measured ~95% in October 2026, so there are about 5 points of headroom.
+- `pytest.ini` — pytest config and the **`--cov-fail-under=90` coverage gate**. `pytest tests/` automatically runs with coverage; CI fails fast if a new commit drops coverage below the gate. It measured 97% in October 2026, so there are about 7 points of headroom.
 - `custom_components/tankstellen_austria/api.py` — every request to E-Control: the endpoint, parameters, headers, the maintenance-page check and the `EControlError` exceptions. **It must not import Home Assistant or anything else from the package** (`const.py` pulls in HA for the User-Agent, so callers pass that in). `tests/test_api.py` fails on any such import. The coordinator turns these exceptions into translated `UpdateFailed` errors, and `test_api_errors_keep_their_translation_contract` pins the keys and placeholders `strings.json` and `outage.py` depend on.
 - `ATTRIBUTION` in `const.py` — the data-source statement ("Datenquelle: E-Control") that every sensor emits as its `attribution` and the card shows in its footer. Update it if E-Control changes its attribution wording.
 
@@ -60,7 +61,7 @@ npm run build                                                  # vp build — ca
 node -c custom_components/tankstellen_austria/www/tankstellen-austria-card.js
 ```
 
-Commit the rebuilt `custom_components/tankstellen_austria/www/tankstellen-austria-card.js` together with the `src/` change that produced it. HACS users never run `npm`, and CI fails if the committed bundle differs from a fresh build.
+Commit the rebuilt `custom_components/tankstellen_austria/www/tankstellen-austria-card.js` together with the `src/` change that produced it. Users install through the Marketplace and never run `npm`, and CI fails if the committed bundle differs from a fresh build.
 
 The frontend tests live next to the code as `src/**/*.test.ts` (Vitest inside Vite+, imports from `vite-plus/test`). They run in Node by default; `src/card-smoke.test.ts` opts into happy-dom with a `@vitest-environment happy-dom` header to mount the card and editor. `src/analytics/best-refuel.test.ts` anchors its fixture to a Monday-aligned `now`, so it passes whatever day the suite runs.
 
@@ -73,11 +74,11 @@ npx vp test run --coverage --coverage.provider=v8 --coverage.reporter=text \
   '--coverage.include=src/**/*.ts' '--coverage.exclude=src/**/*.test.ts'
 ```
 
-CI runs the same checks, plus hassfest, HACS validation, a guard against a committed `_dev_fixture.py`, `npm audit` on the card's runtime dependencies and a check that the committed bundle matches a fresh build. Failing locally wastes a push.
+CI runs on every push, every pull request and nightly. It runs the same checks, plus hassfest, HACS validation, a guard against a committed `_dev_fixture.py`, `npm audit` on the card's runtime dependencies and a check that the committed bundle matches a fresh build. Failing locally wastes a push.
 
 ## Reporting issues
 
 Open an issue with:
 - HA version + Tankstellen Austria version
-- Diagnostics download (Settings → Devices & Services → Tankstellen Austria → Download diagnostics) — secrets are auto-redacted
+- Diagnostics download (Settings → Devices & services → Tankstellen Austria → ⋮ → Download diagnostics). Coordinates and the tracker are redacted.
 - Steps to reproduce

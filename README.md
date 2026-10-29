@@ -1,140 +1,183 @@
 # <sub><sub><img src="https://raw.githubusercontent.com/rolandzeiner/tankstellen-austria/main/custom_components/tankstellen_austria/brand/icon.png" width="40" height="40" alt=""></sub></sub> Tankstellen Austria
 
-[![hacs_badge](https://img.shields.io/badge/HACS-Default-41BDF5.svg)](https://github.com/hacs/integration)
+[![Marketplace](https://img.shields.io/badge/Marketplace-Catalog-41BDF5.svg)](https://www.home-assistant.io/integrations/marketplace/)
 [![HA min version](https://img.shields.io/badge/Home%20Assistant-%3E%3D2025.1-blue.svg)](https://www.home-assistant.io/)
 [![Version](https://img.shields.io/github/v/release/rolandzeiner/tankstellen-austria?include_prereleases&label=version&color=blue)](https://github.com/rolandzeiner/tankstellen-austria/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![vibe-coded](https://img.shields.io/badge/vibe-coded-ff69b4?logo=musicbrainz&logoColor=white)](https://en.wikipedia.org/wiki/Vibe_coding)
 [![Live demo](https://img.shields.io/badge/live-demo-2196F3.svg)](https://demo.rolandzeiner.at/#tankstellen)
 
-Home Assistant integration for Austrian fuel prices via the
-[E-Control Spritpreisrechner API](https://www.e-control.at/spritpreisrechner).
-Shows the 5 cheapest stations near your location for Diesel, Super 95,
-and CNG. No API key required.
-
-## Features
-
-- **Config-flow setup** with map picker for coordinates and per-entry options
-- **One sensor per fuel type** — state = cheapest price, attributes carry all 5 stations (name, address, opening hours, payment methods, coordinates)
-- **Custom Lovelace card** with fuel-type tabs, expandable station detail, navigation links that open your device's maps app (or one you pick) *(1.9.2)*, 7-day price sparkline, hour-of-day envelope band, and a best-refuel-time **window** highlighted on the chart
-- **Distance per station** — see how far each station is (as the crow flies) under its map pin, and optionally sort the list nearest-first *(1.9.2)*
-- **Dynamic mode** — bind a `device_tracker` so prices follow you as you drive (with distance threshold and rate-limit guards)
-- **Payment-method filter / highlight** — show only stations accepting your card, or keep all visible with matches highlighted in green
-- **Car fill-up cost widget** — define cars and see total fill-up cost (and €/100 km) at the cheapest station for that fuel type
-- **Closed / Closing-Soon flags** on stations that won't be open when you arrive
-- **Long-term statistics** — opt in per entry to record hourly min / max / average prices, so price charts can span months instead of the recorder's purge window *(1.10.0)*
-- **Outage notice** — when E-Control's fuel price service fails, you can tell it's their fault, not your setup. A Repairs issue says so after repeated errors from their side and clears itself once prices return. The card shows *Can't reach E-Control* instead of *No data available* *(1.11.0)*
-- **German + English** translations and visual card editor
+Austrian fuel prices in Home Assistant, from E-Control's [Spritpreisrechner](https://www.e-control.at/spritpreisrechner). You get the five cheapest stations near you for Diesel, Super 95 and CNG, as sensors and on a card.
 
 ## Screenshots
+
+### Cards
 
 <table>
   <tr>
     <td align="center"><img src="https://raw.githubusercontent.com/rolandzeiner/tankstellen-austria/main/screenshots/card.webp" height="320" alt="Lovelace card" /></td>
     <td align="center"><img src="https://raw.githubusercontent.com/rolandzeiner/tankstellen-austria/main/screenshots/card-config.webp" height="320" alt="Card editor" /></td>
-    <td align="center"><img src="https://raw.githubusercontent.com/rolandzeiner/tankstellen-austria/main/screenshots/config-flow.webp" height="320" alt="Config flow" /></td>
   </tr>
   <tr>
-    <td align="center"><em>Lovelace card</em></td>
+    <td align="center"><em>Card</em></td>
     <td align="center"><em>Card editor</em></td>
-    <td align="center"><em>Config flow</em></td>
   </tr>
 </table>
 
+### Setup
+
+<img src="https://raw.githubusercontent.com/rolandzeiner/tankstellen-austria/main/screenshots/config-flow.webp" height="320" alt="Config flow" />
+
+## Features
+
+- One price sensor per fuel type, carrying the five cheapest nearby stations with opening hours, payment methods and distance.
+- A card with a tab per fuel type, station details, navigation links, a seven-day price chart and a visual editor, in German and English.
+- A best-time-to-refuel tip worked out from up to four weeks of your price history, marked on the chart.
+- Prices that follow your phone or car as you drive, with fixed and moving locations side by side.
+- Show only the stations that take your card, or highlight them, and see which stations are closed or closing soon.
+- Fill-up cost per car at the cheapest station, with the cost per 100 km.
+- Optional long-term statistics, so price charts can span months instead of days.
+- A Repairs notice that tells you when E-Control's service is down, so you know your setup is fine.
+
 ## Requirements
 
-- Home Assistant **2025.1** or newer
+- Home Assistant **2025.1.0** or newer.
+- No account and no API key.
 
 ## Installation
 
-### HACS (recommended)
+### Marketplace (recommended)
 
-1. Open HACS and search for **Tankstellen Austria**.
-2. Select it and choose **Download**.
-3. Restart Home Assistant.
+The Marketplace is HACS, built into Home Assistant since 2026.11.
 
-[![Add to HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=rolandzeiner&repository=tankstellen-austria&category=integration)
+1. In Home Assistant, go to **Settings → Marketplace** and search for **Tankstellen Austria**.
+2. Select it, then select **Install**. The setup starts right away, no restart needed.
 
-Not in the search yet? In HACS, open ⋮ → **Custom repositories**, add `https://github.com/rolandzeiner/tankstellen-austria` with type **Integration**, then search again.
+[![Open this repository in the Marketplace of your Home Assistant.](https://my.home-assistant.io/badges/marketplace_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=rolandzeiner&repository=tankstellen-austria&category=integration)
+
+On Home Assistant older than 2026.11, use HACS instead: search for **Tankstellen Austria**, select **Download**, then restart Home Assistant.
 
 ### Manual
 
-Copy `custom_components/tankstellen_austria/` to your HA `config/custom_components/`, then restart.
+1. Download `tankstellen_austria.zip` from the [latest release](https://github.com/rolandzeiner/tankstellen-austria/releases/latest).
+2. Unzip it into `config/custom_components/tankstellen_austria/`.
+3. Restart Home Assistant.
 
 ## Setup
 
 [![Open your Home Assistant instance and start setting up a new integration.](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=tankstellen_austria)
 
-**Settings → Devices & Services → + Add Integration → Tankstellen Austria.** Enter a name, pick your location, select fuel types, set the update interval, and optionally pick a `device_tracker` for dynamic mode. Reconfigure later via the entry's **Configure** button.
+1. Go to **Settings → Devices & services → Add integration** and select **Tankstellen Austria**.
+2. Pick your location on the map and the fuel types you want.
+3. To have prices follow you, select a tracker under **Dynamic location tracker**. Leave it empty for a fixed location.
+4. Select **Submit**. The integration checks that E-Control answers, then creates one sensor per fuel type.
 
-### Setup parameters
+Add one entry per place you care about, such as home, work and your phone.
 
-| Field | Description |
+| Field | Default | Description |
+|---|---|---|
+| **Name** | Tankstellen | Device name; the entity IDs are built from it. |
+| **Location** | your home location | Where to search from. Ignored while a tracker is set. |
+| **Fuel types** | Diesel, Super 95 | Any of Diesel, Super 95 and CNG Erdgas. At least one. |
+| **Include closed stations** | on | Also list stations that are closed right now. |
+| **Update interval (minutes)** | 30 | 10 to 720, in steps of 5. Ignored in dynamic mode. |
+| **Long-term statistics** | off | Record hourly minimum, maximum and average prices (see *Entities*). |
+| **Dynamic location tracker** | empty | A `device_tracker` whose position replaces the fixed location (see *Data updates*). |
+
+## Options
+
+**Settings → Devices & services → Tankstellen Austria → Configure** opens the same fields as setup, without **Name**. ⋮ → **Reconfigure** offers the same form. Saving reloads the entry; entity IDs and history stay.
+
+| Field | What changes |
 |---|---|
-| Name | Display name; entity IDs derive from this |
-| Latitude / Longitude | Reference coordinates (map picker) |
-| Fuel types | Any combination of Diesel / Super 95 / CNG |
-| Update interval | 10–720 min (default 30) |
-| Include closed | Include currently closed stations in results |
-| Long-term statistics | Off by default — see [Long-term statistics](#long-term-statistics) |
-| Dynamic location tracker | Optional `device_tracker` for follow-me mode |
+| **Location** | The search point for a fixed entry. |
+| **Fuel types** | A new fuel type gets its sensor. A dropped one leaves its sensor unavailable until you delete it on the entity's settings page. |
+| **Include closed stations** | Which stations the next update lists. |
+| **Update interval (minutes)** | The cadence, from the reload on. |
+| **Long-term statistics** | Turning it off leaves the recorded statistics in place (see *Entities*). |
+| **Dynamic location tracker** | Switches the entry between fixed and dynamic mode. |
 
-## Lovelace card
+## Entities
 
-The card auto-registers on integration start (storage-mode dashboards). For YAML dashboards, add the resource manually:
+### Sensors
+
+One sensor per fuel type you selected. The entry name is the device name, so an entry named "Home" with all three fuel types gives `sensor.home_diesel`, `sensor.home_super_95` and `sensor.home_cng_erdgas`.
+
+| Entity | State | Unit |
+|---|---|---|
+| `sensor.<entry name>_<fuel type>` | Cheapest price among the listed stations | €/l |
+
+| Attribute | Description |
+|---|---|
+| `fuel_type` | `DIE`, `SUP` or `GAS` |
+| `fuel_type_name` | Diesel, Super 95 or CNG Erdgas |
+| `station_count` | Number of stations in `stations` (at most 5) |
+| `average_price` | Average price of the listed stations, not a regional average |
+| `stations` | One entry per station, cheapest first: `id`, `name`, `price`, `open`, `location` (address and coordinates), `distance_m` (metres, as the crow flies), `opening_hours`, `payment_methods`. Not stored in the recorder history. |
+| `dynamic_mode` | `true` when the entry follows a tracker |
+| `dynamic_tracker_label` | Friendly name of the tracker, in dynamic mode only. The tracker's entity ID is not exposed. |
+| `attribution` | See *Attribution* |
+
+`payment_methods` holds `cash`, `debit_card` and `credit_card` as booleans, and `others` as a list of the strings E-Control sends, such as `Austrocard` or `UTA`.
+
+### Long-term statistics
+
+Off by default. Without it, the sensors keep only state history, which the recorder purges after `purge_keep_days` (10 by default). With it on, Home Assistant also records hourly minimum, maximum and average prices, and those survive the purge.
+
+Home Assistant pairs the `monetary` device class only with `state_class: total`, which makes no sense for a unit price. With statistics on, the sensors therefore drop `device_class: monetary` and use `state_class: measurement`. Entity IDs, unique IDs, attributes and the card stay the same.
+
+When you turn it off again, the recorded statistics stay, and Home Assistant raises a repair saying the sensor *"no longer has a state class"*. It links to **Developer tools → Statistics**, where you can delete them without touching the sensor.
+
+## Cards
+
+Home Assistant loads the card for you on dashboards in storage mode, the default. For a YAML dashboard, add the resource yourself:
 
 | URL | Type |
-|-----|------|
-| `/tankstellen-austria/tankstellen-austria-card.js` | JavaScript Module |
+|---|---|
+| `/tankstellen-austria/tankstellen-austria-card.js` | JavaScript module |
 
-Minimal config (auto-detects all sensors):
+The minimal card finds every Tankstellen Austria sensor on its own:
 
 ```yaml
 type: custom:tankstellen-austria-card
 ```
 
-### Common card options
-
-The visual editor exposes all options. Most-used flags:
+The visual editor covers every option. The defaults below apply when you leave a key out; the card picker starts you with `show_distance` and `payment_highlight_mode` on.
 
 | Option | Default | Description |
 |---|---|---|
-| `entities` | auto-detect | List of this integration's price sensors |
-| `max_stations` | `5` | Stations to show (0–5; `0` hides the list) |
-| `language` | HA language | `de` or `en` |
-| `show_map_links` | `true` | Per-station map link |
-| `show_opening_hours` | `true` | Opening hours in the expandable detail |
-| `show_payment_methods` | `true` | Payment-method chips in the expandable detail |
-| `show_history` | `true` | 7-day sparkline (fixed mode only) |
-| `show_best_refuel` | `true` | Best-refuel-time tip + sparkline marker |
-| `payment_filter` | `[]` | List of methods (`cash`, `debit_card`, `credit_card`, or any API string e.g. `Austrocard`, `UTA`, `DKV`, `Routex`) |
-| `payment_highlight_mode` | `true` | Highlight matches instead of hiding non-matches |
-| `tab_labels` | `{}` | Override fuel-type tab labels per entity |
-| `show_cars` / `cars` | `false` / `[]` | Fill-up cost widget; each car: `name`, `fuel_type` (`DIE`/`SUP`/`GAS`), `tank_size`, optional `consumption`, `icon` |
-| `hide_header_price` | `false` | Hide the cheapest / average price hero |
-| `logo_adapt_to_theme` | `false` | Render the E-Control footer logo as a theme silhouette |
-| `hide_attribution` | `false` | Hide the E-Control attribution footer |
+| `entities` | all sensors | List of this integration's price sensors, one tab each |
+| `max_stations` | `5` | Stations to list, 0 to 5. `0` hides the list. |
+| `language` | Home Assistant's | `de` or `en` |
+| `show_index` | `true` | Rank number per station |
+| `show_map_links` | `true` | Navigation link per station |
+| `map_provider` | `auto` | `auto` (Apple Maps on iOS, the app chooser on Android, Google Maps elsewhere), `google` or `apple` |
+| `show_distance` | `false` | Distance under each station's map pin |
+| `sort_by_distance` | `false` | List nearest first instead of cheapest first |
+| `show_opening_hours` | `true` | Opening hours in the station details |
+| `show_payment_methods` | `true` | Payment methods in the station details |
+| `show_history` | `true` | Seven-day price chart |
+| `show_minmax` | `true` | Minimum and maximum on the chart |
+| `show_median_line` | `false` | Seven-day median line on the chart |
+| `show_hour_envelope` | `false` | Typical price range per hour of day, over four weeks |
+| `show_noon_markers` | `false` | Markers at the daily 12:00 price reset |
+| `show_best_refuel` | `true` | Refuel tip and its band on the chart |
+| `payment_filter` | `[]` | `cash`, `debit_card`, `credit_card`, or any string E-Control sends, such as `Routex`, `UTA`, `DKV` |
+| `payment_highlight_mode` | `false` | Highlight matching stations instead of hiding the others |
+| `tab_labels` | `{}` | Your own tab label per entity |
+| `show_cars` | `false` | Fill-up cost per car |
+| `show_car_fillup` / `show_car_consumption` | `true` / `true` | Fill-up cost and cost per 100 km rows |
+| `cars` | `[]` | Each car: `name`, `fuel_type` (`DIE`, `SUP` or `GAS`), `tank_size` (1 to 200 l), optional `consumption` (l/100 km) and `icon` |
+| `hide_header` | `false` | Hide the header |
+| `hide_header_price` | `false` | Hide the cheapest and average price in the header |
+| `logo_adapt_to_theme` | `false` | Show the E-Control logo as a silhouette in your theme's colour |
+| `hide_attribution` | `false` | Hide the E-Control footer |
 
-## Dynamic mode
+### Best refuel time
 
-Bind a `device_tracker` to follow your phone. The fixed coordinates from setup are the fallback when the tracker has no GPS.
+The card reads up to four weeks of the sensor's history (again every 30 minutes) and looks for the run of hours that is cheapest compared with the rest of each week. The window is as long as the data says: one hour when one hour stands out, most of the day when prices only jump at noon. It is drawn as a green band on the chart, a weekday is added when that signal is strong too, and a High, Medium or Low confidence badge explains itself on hover.
 
-| Guard | Value | Purpose |
-|---|---|---|
-| Distance threshold | 1.5 km | Ignore parking / walking drift |
-| Per-entry cooldown | 10 min | Prevent rapid re-queries |
-| Domain-wide cooldown | 5 min | Throttle across all entries |
-| Safety-net poll | 6 hours | Keeps data fresh if the tracker stops reporting |
-
-In the card, dynamic tabs label as `Diesel · iPhone`, the header replaces prices with the last-updated time, and a refresh button triggers an immediate poll. The 2-min cooldown shown on the button is a UI-side guard against accidental rapid clicks — clicks always poll fresh data. The sparkline is hidden in dynamic mode (history from varying locations isn't meaningful).
-
-You can mix fixed and dynamic entries; both render as separate tabs in the same card.
-
-## Best refuel time
-
-The card analyses up to **4 weeks** of your sensor's recorded price history (refetched every 30 min) to find the **window of consecutive hours** that's consistently cheapest *relative to that week's prices*. The window is whatever length the data dictates — a single hour when one hour clearly stands out, or 18 hours of "anytime except midday" when the station only spikes around the legal noon-hike window. The same window is rendered as a translucent green band on the sparkline so the visual matches the text tip. A weekday is added only when its own signal is strong. A High / Medium / Low confidence badge shows next to the tip — hover for the breakdown.
-
-Home Assistant's default `recorder.purge_keep_days` is **10**, so out of the box only ~10 days are available and confidence stays low until the window fills. Extend retention to get the full 28-day pipeline:
+Home Assistant keeps 10 days of history by default, so confidence stays low until you keep more:
 
 ```yaml
 # configuration.yaml
@@ -142,103 +185,56 @@ recorder:
   purge_keep_days: 30
 ```
 
-### How it works
+The tip follows the cheapest nearby station at each moment, not any one station's pattern. "21:00–03:00" can mean one station drops in the evening and another is cheap at midnight.
 
-Austrian law (Preisauszeichnungsgesetz) lets prices rise only once a day at 12:00 noon and drop at any time. Combined with the sensor being the **min over N nearby stations** (`station_count` in the attributes), the aggregate price stream isn't a clean daily sawtooth — it's a combined signal of every station's noon hike, every station's evening drops, and the cheapest-of-N rolling over as different stations cross. The card extracts the time-of-day signal from this stream in six steps:
+<details>
+<summary>How the window is computed</summary>
 
-1. **Duration-weighted chunk walk** — each step-function price interval is split at every hour boundary it crosses; each (hour-of-day, weekday) bucket is credited with the active price weighted by milliseconds spent in it. Eliminates the phase bias hour-boundary sampling has when stations update mid-hour (e.g. a noon hike that lands at 12:14 no longer attributes the entire 12:00 bucket to the pre-hike price).
-2. **Per-week winsorising** — values outside the 5th–95th percentile of each Monday-aligned week are clipped. Kills sensor glitches and stops the noon-reset spike from poisoning the per-week mean.
-3. **Per-week normalisation** — each chunk becomes `price − week_mean`, so a slot that's consistently the weekly low wins regardless of absolute price level.
-4. **Independent bucketing** — deltas aggregated separately into 24 hour-of-day and 7 weekday buckets (a single 168-cell grid would mix strong + weak signals).
-5. **Weighted median per bucket** — entry weights are duration × recency, with recency `0.5^(age_in_days / 14)`. A chunk from 2 weeks ago counts half a chunk from today; 4 weeks ago, a quarter.
-6. **Cheap-window expansion** — pick the bucket with the unconditional minimum median (no daytime tiebreaker — see below), then walk circularly outward in both directions, including every adjacent hour whose median is within ~0.5¢/L of that minimum. **No length cap** — the window is whatever length the data dictates. A station with a sharp single cheap hour returns a 1-hour window; a station with a flat overnight + drop-only behaviour returns whatever the cluster spans, even if that's most of the day.
+Austrian law lets stations raise prices once a day at 12:00 and lower them at any time. The sensor is the cheapest of up to five stations, so its history mixes every station's noon rise, every evening drop and the cheapest station changing. The card pulls the time-of-day signal out in six steps:
 
-There is deliberately **no daytime preference baked into the seed**. An earlier version of this code preferred the most-daytime hour among ties near the minimum, but in real aggregate fuel data many hours frequently share an identical post-winsorise median (winsorise collapses several distinct prices into the same clipped value, then per-week mean produces the same delta). The tiebreaker would then yank the seed across that tied cluster — say from hour 22 to hour 05 — and silently drop the truly cheapest hours. We chose the honest answer over the friendlier-looking one.
+1. **Duration-weighted chunks.** Each price interval is split at every hour boundary, and each hour-of-day and weekday bucket is credited by the time the price was active in it. A rise at 12:14 counts for 46 minutes of the 12:00 hour, not all of it.
+2. **Weekly clipping.** Values outside the 5th to 95th percentile of each Monday-aligned week are clipped, which removes glitches and keeps the noon spike from skewing the weekly mean.
+3. **Weekly normalisation.** Each chunk becomes its price minus that week's mean, so the weekly low wins whatever the price level.
+4. **Separate buckets.** The differences go into 24 hour-of-day and 7 weekday buckets, kept apart.
+5. **Weighted median per bucket.** Weights are duration times recency, with a half-life of 14 days.
+6. **Window growth.** Starting from the bucket with the lowest median, the window takes in every neighbouring hour within about 0.5 cent per litre of it, with no length cap.
 
-**Confidence** averages three components: data span (28-day window coverage), hour coverage (≥3 chunks per hour), and separation (gap between the cheapest bucket median and the cross-bucket median in cents, against a 1.5¢ reference). Maps to **High / Medium / Low** — these thresholds are UX calibration constants tuned against real Austrian price histories, not statistical thresholds.
+Confidence averages three parts: how much of the 28 days is covered, whether each hour has at least three chunks, and how far the cheapest bucket sits below the others, against a 1.5 cent reference. The High, Medium and Low thresholds were tuned on real Austrian price histories.
 
-The recommendation reflects the *cheapest nearby station at each point in time*, **not any single station's pattern** — a recommendation of "21:00–03:00" can mean one station drops in the evening and another comes in cheap at midnight, not that any single station is following that schedule. The min-of-N stream means apparent price hikes can also be station-uncovering events rather than real hikes.
-
-## Sensors
-
-Entity IDs follow HA's `_attr_has_entity_name` + `translation_key` pattern: the entry name is the device name, and each fuel-type sensor's name is translated. For an entry named "Home" with Diesel + Super 95 + CNG enabled, you get `sensor.home_diesel`, `sensor.home_super_95`, `sensor.home_cng_erdgas`.
-
-| Entity | State | Unit |
-|---|---|---|
-| `sensor.{entry_name}_{translated_fuel_type}` | Cheapest price | €/L |
-
-**Attributes** (used by the card and available for templates / automations):
-
-| Attribute | Description |
-|---|---|
-| `fuel_type` | `DIE` / `SUP` / `GAS` |
-| `fuel_type_name` | Diesel / Super 95 / CNG Erdgas |
-| `station_count` | Number of stations with prices |
-| `average_price` | Average across the 5 cheapest |
-| `stations` | List: `id`, `name`, `price`, `open`, `location`, `distance_m` (metres, as the crow flies), `opening_hours`, `payment_methods` |
-| `dynamic_mode` | `true` for entries that follow a tracker |
-| `dynamic_tracker_label` | Friendly name of the bound tracker (dynamic mode only — the entity_id is intentionally not exposed) |
-| `attribution` | `Datenquelle: E-Control` |
-
-`payment_methods` per station: `cash`, `debit_card`, `credit_card` (booleans), and `others` (list of API strings like `Austrocard`, `UTA`).
-
-## Long-term statistics
-
-Off by default. Turn it on per entry in **Settings → Devices & Services → Tankstellen
-Austria → Configure**.
-
-Without it, the price sensors keep only state history, which the recorder purges after
-`purge_keep_days` (10 by default). With it on, Home Assistant also records hourly
-minimum, maximum and average prices, which survive the purge — so you can chart a season
-of prices, not just a fortnight.
-
-There is one trade-off. Home Assistant pairs the `monetary` device class with
-`state_class: total` only, and `total` is meaningless for a unit price. Enabling
-statistics therefore drops `device_class: monetary` and publishes
-`state_class: measurement` instead. Entity IDs, unique IDs and attributes are untouched,
-and the card is unaffected — it reads state history, not statistics.
-
-Turning the option back off leaves the collected statistics in place, and Home Assistant
-raises a repair notice — *"… no longer has a state class"* — that links to **Developer
-Tools → Statistics**, where you can delete them. Deleting is safe: it removes only the
-statistics, not the sensor.
+</details>
 
 ## Data updates
 
-| Mode | Default interval | Configurable |
+A fixed entry polls E-Control at its **Update interval (minutes)**, every 30 minutes by default. The form doesn't go below 10 minutes, the informal limit for this API. Each update makes one request per fuel type.
+
+- **Around noon** (about 12:05 to 12:07 Vienna time) E-Control sometimes answers with no stations while it refreshes. The sensors keep their values and the integration tries once more after 10 minutes.
+- **When one fuel type fails**, the others update and the failed one keeps its last value. The entry goes unavailable only when every fuel type fails.
+- **When updates keep failing**, the interval doubles from the second failure in a row, up to 12 hours, and returns to normal after the next success. After at least two failures over 10 minutes or more, a Repairs issue says E-Control isn't sending prices, and it clears itself once prices return.
+- **During E-Control maintenance** the entries go unavailable and the card says why. One check every 10 minutes serves all entries, and prices return with the next update once the service is back.
+
+### Dynamic mode
+
+With a **Dynamic location tracker** set, the entry searches around the tracker's position instead of the fixed location. An update runs when the tracker moves, if all of these allow it:
+
+| Guard | Value | Purpose |
 |---|---|---|
-| Fixed | 30 min | 10–720 min |
-| Dynamic | Triggered by tracker movement; 6-h safety-net | Guards not user-configurable |
+| Distance | 1.5 km | Ignores parking and walking drift |
+| Per-entry cooldown | 10 minutes | At most one update per entry in that time |
+| Cooldown across all entries | 5 minutes | Spaces out several dynamic entries |
+| Safety-net poll | 6 hours | Keeps data fresh when the tracker stops reporting; replaces the update interval |
 
-**E-Control's daily refresh window** (~12:05–12:07 Europe/Vienna) sometimes returns empty results. The integration keeps previous values and retries automatically after 10 minutes — sensors don't blip unavailable around noon.
+When the tracker has no position, the entry searches around your Home Assistant home location and raises the Repairs issue **Location tracker unavailable**. Outside Austria E-Control returns no stations, so the sensors keep their last values.
 
-**Partial failures** keep the working fuel types live and the failing one on its previous value. Only when *every* fuel type fails does the entry go unavailable.
-
-**E-Control maintenance** takes the entry unavailable, and the card tells you why. The integration checks back at most every 10 minutes, however many entries you have, and prices return with the next update once the service is back.
-
-## Supported functions
-
-- Fetch the 5 cheapest nearby stations *with prices* per fuel type from the E-Control API (read-only, no service actions).
-- One sensor per fuel type with full station list in attributes.
-- Fixed coordinates **or** dynamic `device_tracker` follow-me, mixable across entries.
-- Multiple simultaneous entries (e.g. home + work + phone).
-- Reconfigure flow for changing location / fuel types without losing entity history.
-- Diagnostics download with coordinate redaction.
-- Repairs issue when a configured tracker disappears.
-
-## Use cases
-
-- **Price-threshold notifications** — alert when the cheapest Diesel drops below a target.
-- **Follow-me prices while driving** — dynamic mode for road trips.
-- **Home + work monitoring** — two fixed entries, compare side-by-side.
-- **Payment-aware automations** — template on `payment_methods` to skip stations that don't accept your card.
-- **Pin a favourite station** — template sensor that filters `stations` by name (see examples below).
+On the card, a dynamic tab is labelled with the tracker, such as `Diesel · iPhone`. The header shows when prices were last updated instead of the cheapest price, and a refresh button fetches new prices at once; it pauses for 2 minutes after each press. The price chart and refuel tip are hidden, since history from changing places doesn't compare.
 
 ## Examples
 
-> Template sensors go into `configuration.yaml` under a top-level `template:` key (restart after editing). The HA UI Template helper works for single-line state expressions; multi-line examples below are easier in YAML.
+- Get a notification when the cheapest Diesel drops below your target.
+- Follow prices on a road trip with a dynamic entry on your phone.
+- Compare home and work with two fixed entries, side by side on one card.
+- Track a favourite station with a template sensor, as below.
 
-**Notify when the cheapest Diesel drops below 1.50 €/L:**
+**Notify when the cheapest Diesel drops below 1.50 €/l:**
 
 ```yaml
 alias: "Notify on cheap Diesel"
@@ -252,50 +248,47 @@ actions:
       title: "Cheap Diesel nearby"
       message: >
         {{ state_attr('sensor.home_diesel', 'stations')[0].name }}
-        — {{ states('sensor.home_diesel') }} €/L
+        — {{ states('sensor.home_diesel') }} €/l
 ```
 
-**Pin a favourite station — track its price even when it isn't currently in the top 5:**
+<details>
+<summary>Track the price of one favourite station</summary>
+
+Template sensors go into `configuration.yaml` under a top-level `template:` key; restart after editing.
 
 ```yaml
 template:
   - sensor:
       - name: "Favourite station Diesel"
-        unit_of_measurement: "€/L"
+        unit_of_measurement: "€/l"
         state: >
           {{ state_attr('sensor.home_diesel', 'stations')
              | selectattr('name', 'search', 'Essmeister')
              | map(attribute='price') | list | first | default(none) }}
 ```
 
-The API only returns the 5 cheapest stations with prices, so a pinned station that's not currently in the top 5 will show as `unavailable` for that update cycle. `| default(none)` is important — returning the string `'unavailable'` would trip the `€/L` numeric-unit validation.
+The station is only in `stations` while it is among the five cheapest, so the sensor is `unavailable` for the updates where it isn't. Keep `| default(none)`: returning the string `'unavailable'` fails the numeric unit check.
 
-**Same sensor via the UI Template helper.** Prefer clicking to editing YAML? Go to **Settings → Devices & Services → Helpers → + Create Helper → Template → Template a sensor** and fill in:
+The same works without YAML: go to **Settings → Devices & services → Helpers → Create helper → Template → Template a sensor**, paste the state expression above, and set **Unit of measurement** to `€/l`. Set **State class** to `measurement` if you want history graphs. No restart needed.
 
-| Field | Value |
-|---|---|
-| Name | `Favourite Station Diesel` |
-| State template | (paste the state expression below) |
-| Unit of measurement | `€/L` |
-| State class | `measurement` *(optional — enables history graphs)* |
+</details>
 
-```jinja
-{{ state_attr('sensor.home_diesel', 'stations')
-   | selectattr('name', 'search', 'Essmeister')
-   | map(attribute='price') | list | first | default(none) }}
-```
+## Known limitations
 
-The helper stores its config in HA's internal storage (not `configuration.yaml`), so no restart is needed — the entity appears immediately and behaves identically to the YAML version.
+- Stations in Austria only.
+- At most five stations per fuel type, and only stations that report a price.
+- The refuel tip needs at least 7 days of history and gets better up to 28. It works in whole hours and doesn't treat public holidays separately.
+- Long-term statistics record whatever the entry watches. In dynamic mode that area moves with you, so the series mixes places.
 
 ## Troubleshooting
 
-- **"Cannot connect to the E-Control API" during setup** — usually a transient network issue. Retry. Verify reachability of `https://api.e-control.at/sprit/1.0/...` from the HA host.
-- **Sensors unavailable around 12:00–12:15** — expected (E-Control's daily refresh window). The integration retries after 10 minutes.
-- **"E-Control is down for maintenance"** — nothing to fix on your side. E-Control has taken its fuel price service offline for a while. The integration keeps checking and recovers on its own.
-- **Card says *Can't reach E-Control*** — the sensor is unavailable because its last update from E-Control failed, or none has worked since Home Assistant started. Check **Settings → Repairs**. If the issue "E-Control isn't sending fuel prices" is there, the fault is on E-Control's side and prices return on their own. If it isn't, check that your Home Assistant host can reach the internet.
-- **Repairs issue "Location tracker unavailable"** — the configured `device_tracker` is gone. Restore it, or **Reconfigure** the entry to pick a different one (or none).
-- **Card not in the resource picker** — the integration auto-registers on storage-mode dashboards. For YAML dashboards add the resource manually (URL above).
-- **Diagnostics for a bug report** — Settings → Devices & Services → Tankstellen Austria → ⋯ → **Download diagnostics**. Coordinates are redacted; paste into the issue.
+- **"Cannot connect to the E-Control API" during setup.** Usually a short network problem; try again. Check that your Home Assistant host can reach `https://api.e-control.at`.
+- **Sensors unavailable shortly after 12:00.** E-Control's daily refresh; see *Data updates*.
+- **"E-Control is down for maintenance".** Nothing to fix on your side. The integration keeps checking and recovers on its own.
+- **The card says *Can't reach E-Control*.** The last update failed, or none has worked since Home Assistant started. If **Settings → Repairs** shows *E-Control isn't sending fuel prices*, the fault is on E-Control's side and prices return on their own. If not, check that your host can reach the internet.
+- **Repairs shows *Location tracker unavailable*.** The tracker is gone or has no position. Restore it, or use ⋮ → **Reconfigure** to pick another tracker or none.
+- **The card is missing from the card picker.** On a YAML dashboard, add the resource yourself; see *Cards*.
+- **Diagnostics for a bug report.** Go to **Settings → Devices & services → Tankstellen Austria**, then ⋮ → **Download diagnostics**. Coordinates and the tracker are redacted.
 - **Debug logging:**
 
   ```yaml
@@ -306,43 +299,34 @@ The helper stores its config in HA's internal storage (not `configuration.yaml`)
       custom_components.tankstellen_austria: debug
   ```
 
-## Known limitations
-
-- API covers **Austria only** — neighbouring countries are not returned.
-- Each query returns at most **5 stations with prices** for the requested fuel type.
-- Don't poll faster than every 10 minutes (informal API rate limit).
-- Best-refuel recommendation needs ≥ 7 days of history; improves up to 28. Window length is unbounded — it's whatever contiguous run of hours sits within ~0.5¢/L of the cheapest bucket median. 1-hour granularity inside it.
-- Austrian public holidays are not modelled separately in the best-refuel pipeline.
-- The DST transitions twice a year alias the local-clock label of one hour (skipped in spring, doubled in autumn). Real elapsed time is counted correctly; the label aliasing is negligible over a 28-day window.
-- `average_price` is the average of the 5 cheapest only — not a regional average.
-- Long-term statistics record whatever the entry currently watches. In dynamic mode that is a radius that moves with you, so a long series mixes locations — the numbers are only comparable for a fixed location.
-
 ## Removal
 
-1. **Settings → Devices & Services**, find the integration, ⋯ → **Delete**
-2. Restart Home Assistant
-3. (Manual installs only) remove `custom_components/tankstellen_austria/` from your config
+1. Go to **Settings → Devices & services → Tankstellen Austria** and, on each entry, select ⋮ → **Delete**. Deleting the last entry also removes the card's dashboard resource.
+2. In **Settings → Marketplace**, open **Tankstellen Austria**, then ⋮ → **Uninstall**. If an entry is still set up, the Marketplace offers **Delete and uninstall**, and a repair asks you to restart.
+3. For a manual install, delete `config/custom_components/tankstellen_austria/` and restart instead.
 
-## Development
+Recorded long-term statistics stay until you delete them in **Developer tools → Statistics**. On a YAML dashboard, remove the card resource yourself.
 
-Card sources live in `src/`, bundled by Vite+ into `custom_components/tankstellen_austria/www/tankstellen-austria-card.js`. End users install via HACS and never run `npm`; contributors:
+## Attribution
 
-```bash
-npm ci
-npm run build       # production bundle
-npm run dev         # watch mode
-```
+Every sensor, every diagnostics download and the card footer carry this line, the `ATTRIBUTION` constant in `const.py`:
 
-`CARD_VERSION` in `src/const.ts` must match `version` in `manifest.json` (`const.py` reads it from the manifest), or the card's version check shows its reload banner forever. Bump both together. The full dev setup and verification gate are in [CONTRIBUTING.md](CONTRIBUTING.md).
+> Datenquelle: E-Control
+
+In full: Energie-Control Austria für die Regulierung der Elektrizitäts-, Gas- und Wasserstoffwirtschaft (E-Control). The prices come from the [Spritpreisrechner](https://www.e-control.at/spritpreisrechner) through its public API ([API documentation](https://api.e-control.at/sprit/1.0/doc/index.html?url=https%3A%2F%2Fapi.e-control.at%2Fsprit%2F1.0%2Fapi-docs%3Fgroup%3Dpublic-api)). E-Control publishes no separate terms of use for this API. If you build your own card or dashboard on the data, keep the line visible.
+
+Icon: Font Awesome Free, CC BY 4.0.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT, see [LICENSE](https://github.com/rolandzeiner/tankstellen-austria/blob/main/LICENSE).
+
+Development setup and the verification gate are in [CONTRIBUTING.md](https://github.com/rolandzeiner/tankstellen-austria/blob/main/CONTRIBUTING.md).
 
 ## Disclaimer
 
-This integration is not affiliated with or endorsed by E-Control Austria. All fuel price data is provided by the [E-Control Spritpreisrechner API](https://www.e-control.at/spritpreisrechner) and is subject to their terms. The developer assumes no liability for accuracy, completeness, or timeliness of displayed prices. Use at your own risk.
+This integration is not affiliated with or endorsed by E-Control. Fuel prices come from E-Control's [Spritpreisrechner](https://www.e-control.at/spritpreisrechner). **The price shown at the pump is the one that counts.** The developer assumes no liability for the accuracy, completeness or timeliness of the displayed data. Use at your own risk.
 
 ---
 
-Diese Integration steht in keiner Verbindung zur E-Control Austria und wird von dieser nicht unterstützt. Alle Spritpreisdaten stammen von der [E-Control Spritpreisrechner API](https://www.e-control.at/spritpreisrechner). Für Richtigkeit, Vollständigkeit und Aktualität wird keine Haftung übernommen. Nutzung auf eigene Verantwortung.
+Diese Integration steht in keiner Verbindung zur E-Control und wird von ihr nicht unterstützt. Die Spritpreise stammen vom [Spritpreisrechner](https://www.e-control.at/spritpreisrechner) der E-Control. **Es gilt immer der Preis an der Zapfsäule.** Für die Richtigkeit, Vollständigkeit und Aktualität der angezeigten Daten wird keine Haftung übernommen. Nutzung auf eigene Verantwortung.
