@@ -136,7 +136,7 @@ Both are `unknown` until there are 7 days of history, and `unavailable` when the
 
 ### Long-term statistics
 
-Off by default. Without it, the sensors keep only state history, which the recorder purges after `purge_keep_days` (10 by default). With it on, Home Assistant also records hourly minimum, maximum and average prices, and those survive the purge.
+Off by default. Without it, the sensors keep only state history, which the recorder purges after `purge_keep_days` (10 by default). With it on, Home Assistant also records hourly minimum, maximum and average prices, and those survive the purge. The refuel tip on the card and the *Cheap window* entities use those hourly averages for the days the recorder has purged, so they see four weeks without a longer `purge_keep_days`.
 
 Home Assistant pairs the `monetary` device class only with `state_class: total`, which makes no sense for a unit price. With statistics on, the sensors therefore drop `device_class: monetary` and use `state_class: measurement`. Entity IDs, unique IDs, attributes and the card stay the same.
 
@@ -227,7 +227,7 @@ Older cards keep working: the card reads the flat options of v1 (`max_stations`,
 
 The card, and the integration for the *Cheap window* entities, read up to four weeks of the sensor's history (again every 30 minutes) and look for the run of hours that is cheapest compared with the rest of each week. The window is as long as the data says: one hour when one hour stands out, most of the day when prices only jump at noon. It is drawn as a green band on the chart, a weekday is added when that signal is strong too, and a High, Medium or Low confidence badge explains itself on hover.
 
-Home Assistant keeps 10 days of history by default, so confidence stays low until you keep more:
+Home Assistant keeps 10 days of history by default, so confidence stays low until you keep more, or turn on *Long-term statistics* (the hourly averages fill the purged days):
 
 ```yaml
 # configuration.yaml

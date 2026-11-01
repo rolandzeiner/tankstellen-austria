@@ -6,7 +6,7 @@ import logging
 import math
 from datetime import datetime, timedelta, tzinfo
 
-from homeassistant.components.recorder import history
+from homeassistant.components.recorder import history, statistics
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, callback
@@ -22,7 +22,13 @@ from homeassistant.helpers.update_coordinator import (
 from homeassistant.util import dt as dt_util
 
 from .best_refuel import BestRefuelResult, analyze_best_refuel
-from .const import CONF_FUEL_TYPES, DOMAIN, FUEL_TYPES
+from .const import (
+    CONF_FUEL_TYPES,
+    CONF_LONG_TERM_STATISTICS,
+    DEFAULT_LONG_TERM_STATISTICS,
+    DOMAIN,
+    FUEL_TYPES,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -58,11 +64,45 @@ def _history_points(
     return points
 
 
+def _statistics_points(
+    hass: HomeAssistant, entity_id: str, start: datetime, end: datetime
+) -> list[tuple[float, float]]:
+    """(epoch ms, hourly mean) from the sensor's long-term statistics.
+
+    Runs in the recorder's executor. Each mean is dated at the start of
+    its hour, so the analysis treats it as that hour's price.
+    """
+    rows = statistics.statistics_during_period(
+        hass, start, end, {entity_id}, "hour", None, {"mean"}
+    ).get(entity_id, [])
+    points: list[tuple[float, float]] = []
+    for row in rows:
+        mean = row.get("mean")
+        if mean is None or not math.isfinite(mean):
+            continue
+        points.append((row["start"] * 1000, mean))
+    return points
+
+
+def merge_statistics(
+    states: list[tuple[float, float]], means: list[tuple[float, float]]
+) -> list[tuple[float, float]]:
+    """Fill the hours before the oldest kept state with hourly means.
+
+    Where both exist the states win: they carry the real change times,
+    which the means smear over the hour. The card's history.ts merges the
+    same way.
+    """
+    first = states[0][0] if states else math.inf
+    return [p for p in means if p[0] < first] + states
+
+
 def _analyse(
     hass: HomeAssistant,
     entity_ids: dict[str, str | None],
     now: datetime,
     tz: tzinfo,
+    with_statistics: bool,
 ) -> BestRefuelData:
     start = now - timedelta(days=HISTORY_DAYS)
     now_ms = now.timestamp() * 1000
@@ -72,6 +112,12 @@ def _analyse(
             out[fuel_type] = None
             continue
         points = _history_points(hass, entity_id, start, now)
+        if with_statistics:
+            # The recorder purges states after purge_keep_days (10 by
+            # default); the statistics keep the rest of the 28 days.
+            points = merge_statistics(
+                points, _statistics_points(hass, entity_id, start, now)
+            )
         out[fuel_type] = analyze_best_refuel(points, now_ms, tz)
     return out
 
@@ -110,6 +156,7 @@ class BestRefuelCoordinator(DataUpdateCoordinator[BestRefuelData]):
             entity_ids,
             dt_util.utcnow(),
             dt_util.get_default_time_zone(),
+            bool(config.get(CONF_LONG_TERM_STATISTICS, DEFAULT_LONG_TERM_STATISTICS)),
         )
 
 

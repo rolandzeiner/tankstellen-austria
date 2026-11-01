@@ -16,6 +16,13 @@ interface RawHistoryEntry {
   state?: string | number;
 }
 
+// Hourly rows from recorder/statistics_during_period. `start` is epoch ms
+// in current HA, an ISO string in older releases.
+interface RawStatisticsRow {
+  start?: number | string;
+  mean?: number | null;
+}
+
 export interface HistoryFetchOptions {
   days?: number; // default: 28 (4 weeks)
 }
@@ -30,6 +37,49 @@ function parseTime(entry: RawHistoryEntry): number {
   if (typeof entry.lu === "number") return Math.round(entry.lu * 1000);
   const raw = entry.lu ?? entry.last_updated ?? entry.last_changed;
   return raw ? new Date(raw).getTime() : 0;
+}
+
+/** Fill the hours before the oldest kept state with hourly means.
+ *
+ *  Where both exist the states win: they carry the real change times,
+ *  which the means smear over the hour. The integration's `refuel.py`
+ *  merges the same way, so the cheap-window entities see this history. */
+export function mergeStatistics(states: HistoryPoint[], means: HistoryPoint[]): HistoryPoint[] {
+  const first = states[0]?.time ?? Infinity;
+  return [...means.filter((p) => p.time < first), ...states];
+}
+
+function statisticsPoints(rows: RawStatisticsRow[] | undefined): HistoryPoint[] {
+  return (rows ?? [])
+    .map((r) => ({
+      time: typeof r.start === "number" ? r.start : r.start ? new Date(r.start).getTime() : 0,
+      value: typeof r.mean === "number" ? r.mean : Number.NaN,
+    }))
+    .filter((p) => Number.isFinite(p.value) && p.time > 0);
+}
+
+// A failed statistics read costs only the purged days, so it is logged and
+// the states are used alone.
+async function fetchMeans(
+  hass: HomeAssistant,
+  entityId: string,
+  start: Date,
+  end: Date,
+): Promise<HistoryPoint[]> {
+  try {
+    const result = await hass.callWS<Record<string, RawStatisticsRow[]>>({
+      type: "recorder/statistics_during_period",
+      start_time: start.toISOString(),
+      end_time: end.toISOString(),
+      statistic_ids: [entityId],
+      period: "hour",
+      types: ["mean"],
+    });
+    return statisticsPoints(result?.[entityId]);
+  } catch (err) {
+    console.warn("[Tankstellen Austria] statistics fetch failed for", entityId, err);
+    return [];
+  }
 }
 
 export async function fetchHistory(
@@ -48,6 +98,10 @@ export async function fetchHistory(
   const now = new Date();
   const startTime = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
 
+  // A sensor with long-term statistics on is a `measurement`; its hourly
+  // means outlive the recorder's purge (10 days by default).
+  const withStatistics = hass.states?.[entityId]?.attributes?.state_class === "measurement";
+
   const promise = (async (): Promise<HistoryPoint[]> => {
     try {
       const result = await hass.callWS<Record<string, RawHistoryEntry[]>>({
@@ -65,8 +119,11 @@ export async function fetchHistory(
           value: parseFloat(String(e.s ?? e.state ?? "")),
         }))
         .filter((p) => Number.isFinite(p.value) && p.time > 0);
-      cache.set(entityId, points);
-      return points;
+      const merged = withStatistics
+        ? mergeStatistics(points, await fetchMeans(hass, entityId, startTime, now))
+        : points;
+      cache.set(entityId, merged);
+      return merged;
     } catch (err) {
       // Don't poison the cache on transient fetch failure — next call retries.
       console.warn(

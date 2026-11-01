@@ -19,6 +19,7 @@ from custom_components.tankstellen_austria import refuel
 from custom_components.tankstellen_austria.const import (
     CONF_DYNAMIC_ENTITY,
     CONF_FUEL_TYPES,
+    CONF_LONG_TERM_STATISTICS,
 )
 
 from .conftest import MOCK_STATION, make_entry
@@ -65,7 +66,9 @@ def history() -> Iterator[MagicMock]:
         ),
         patch.object(refuel, "get_instance", side_effect=_Recorder),
         patch.object(refuel, "_history_points", stub),
+        patch.object(refuel, "_statistics_points", stub.statistics),
     ):
+        stub.statistics.return_value = []
         yield stub
 
 
@@ -175,3 +178,45 @@ async def test_none_in_dynamic_mode(hass: HomeAssistant, history: MagicMock) -> 
     assert hass.states.get(BINARY) is None
     assert hass.states.get(NEXT) is None
     history.assert_not_called()
+
+
+def test_merge_statistics_fills_only_before_the_oldest_state() -> None:
+    hour = 3_600_000.0
+    states = [(10 * hour, 1.55), (12 * hour, 1.5)]
+    means = [(8 * hour, 1.6), (9 * hour, 1.58), (10 * hour, 1.57), (11 * hour, 1.56)]
+    assert refuel.merge_statistics(states, means) == [
+        (8 * hour, 1.6),
+        (9 * hour, 1.58),
+        (10 * hour, 1.55),
+        (12 * hour, 1.5),
+    ]
+    assert refuel.merge_statistics([], means) == means
+
+
+async def test_statistics_fill_a_purged_history(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory, history: MagicMock
+) -> None:
+    # Ten days of states, as after the recorder's default purge, and hourly
+    # means from the statistics for the 28 days before.
+    now = datetime(2026, 10, 26, 1, 30, tzinfo=VIENNA)
+    freezer.move_to(now)
+    full = _cheap_nights(now)
+    cut = (now - timedelta(days=10)).timestamp() * 1000
+    history.return_value = [p for p in full if p[0] >= cut]
+    history.statistics.return_value = [p for p in full if p[0] < cut]
+    await _setup(hass, data={CONF_LONG_TERM_STATISTICS: True})
+
+    history.statistics.assert_called_once()
+    assert hass.states.get(BINARY).attributes["span_days"] == 28
+
+
+async def test_no_statistics_read_without_the_option(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory, history: MagicMock
+) -> None:
+    now = datetime(2026, 10, 26, 1, 30, tzinfo=VIENNA)
+    freezer.move_to(now)
+    history.return_value = _cheap_nights(now, days=10)
+    await _setup(hass)
+
+    history.statistics.assert_not_called()
+    assert hass.states.get(BINARY).attributes["span_days"] == 10
