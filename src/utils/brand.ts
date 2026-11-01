@@ -1,7 +1,11 @@
 // Brand tiles for the station list: initials on the brand's colour, picked
 // from the station name E-Control sends. Colours and initials only, never
-// a logo. The colours were read from each chain's own logo files and
-// Austrian website (2026-11-01). The text takes the brand's second colour
+// a logo. The list is the fifteen largest networks in the FVEK station
+// count for the end of 2025 (wko.at, "Tankstellenstatistik 2025"), about
+// 81 % of Austria's 2,694 stations; the "landwirtschaftliche
+// Genossenschaften" row is Lagerhaus under another name. The colours were
+// read from each chain's own logo files and Austrian website
+// (2026-11-01). The text takes the brand's second colour
 // where that stays readable and near-black or white otherwise;
 // brand.test.ts holds every pair to 4.5:1.
 //
@@ -42,7 +46,24 @@ export const BRANDS: readonly Brand[] = [
   { match: /\bturm(?:ö|oe)l\b/i, initials: "TÖ", bg: "#f04e23", fg: DARK },
   { match: /\bavia\b/i, initials: "AV", bg: "#e30613", fg: WHITE },
   { match: /\bsocar\b/i, initials: "SO", bg: "#e4022c", fg: WHITE },
-  { match: /\b(?:genol|lagerhaus)\b/i, initials: "LH", bg: "#009e3c", fg: DARK },
+  // "LH Wies": the Styrian Lagerhaus stations abbreviate the name.
+  { match: /\b(?:genol|lagerhaus|lh)\b/i, initials: "LH", bg: "#009e3c", fg: DARK },
+  // The stations on Hofer car parks are named just "Diskont Tankstelle";
+  // "Diskont" is a common word in independents' names too, so only the
+  // bare name counts. White and black, as on their sign.
+  {
+    match: /^\s*diskont(?:[\s-]*tank(?:stelle|en))?\s*$/i,
+    initials: "DT",
+    bg: "#1d1d1b",
+    fg: WHITE,
+  },
+  // Gutmann's DISK (Tirol, Vorarlberg). White on its orange is 3.2:1.
+  { match: /\bdisk\b/i, initials: "DSK", bg: "#ec6623", fg: DARK },
+  // Rumpold's yellow is Avanti's yellow, so the tile takes the site's dark
+  // ground with the yellow on it.
+  { match: /\brumpold\b/i, initials: "RU", bg: "#232323", fg: "#ffe800" },
+  // The blue band with yellow text from the logo; its red is AVIA's.
+  { match: /\bf\.?\s*leitner\b/i, initials: "FL", bg: "#153d8a", fg: "#ffcc00" },
 ];
 
 // Words that say nothing about who runs the station.
@@ -66,7 +87,7 @@ function initialsOf(name: string): string {
     .filter((w) => w.length > 0 && !GENERIC.has(w.toLowerCase()));
   const [first, second] = words;
   if (!first) return "";
-  // "Disk Eisinger" → "DE"; one word or a number → its first two characters.
+  // "Landforst Obdach" → "LO"; one word or a number → its first two characters.
   const raw = second && !/^\d/.test(first) ? `${first[0]}${second[0]}` : first.slice(0, 2);
   return raw.toUpperCase();
 }

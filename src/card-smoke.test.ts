@@ -294,7 +294,7 @@ describe("tankstellen-austria-card", () => {
       const h = hass();
       h.states["sensor.tankstellen_diesel"]!.attributes.stations = [
         { name: "JET TANKSTELLE", price: 1.5, open: true },
-        { name: "Disk Eisinger", price: 1.6, open: true },
+        { name: "Landforst Obdach", price: 1.6, open: true },
       ];
       const el = await mount<Card>("tankstellen-austria-card", (e) => {
         e.setConfig({ type: "x", ...config });
@@ -313,13 +313,13 @@ describe("tankstellen-austria-card", () => {
     ]);
     expect(await tiles({ stations: { brand: true } })).toEqual([
       ["JET", "#ffb700"],
-      ["DE", ""],
+      ["LO", ""],
     ]);
     // The brand tile doesn't need the rank switched on; with both off
     // there is no tile.
     expect(await tiles({ stations: { index: false, brand: true } })).toEqual([
       ["JET", "#ffb700"],
-      ["DE", ""],
+      ["LO", ""],
     ]);
     expect(await tiles({ stations: { index: false } })).toEqual([]);
   });

@@ -30,6 +30,14 @@ describe("brandTile", () => {
     ["BP", "BP"],
     ["SOCAR", "SO"],
     ["Lagerhaus Genol", "LH"],
+    ["LH Wies", "LH"],
+    ["Diskont Tankstelle", "DT"],
+    ["DISKONT", "DT"],
+    ["DISK", "DSK"],
+    ["Disk Eisinger", "DSK"],
+    ["disk tank Heindl", "DSK"],
+    ["Rumpold", "RU"],
+    ["F. LEITNER", "FL"],
   ])("knows %s", (name, initials) => {
     const tile = brandTile(name);
     expect(tile.initials).toBe(initials);
@@ -37,8 +45,9 @@ describe("brandTile", () => {
   });
 
   it.each([
-    ["Disk Eisinger", "DE"],
     ["Essmeister Diskont", "ES"],
+    // An independent with "Diskont" in its name isn't the Hofer chain.
+    ["Diskont Rainer", "RA"],
     ["Wildenhofer Diesel Tankstelle", "WI"],
     ["24 tanken + shop", "24"],
     ["", "–"],
@@ -49,6 +58,8 @@ describe("brandTile", () => {
   it("doesn't read a brand out of the middle of a word", () => {
     expect(brandTile("Benimarkt").bg).toBeUndefined();
     expect(brandTile("Jetzinger").bg).toBeUndefined();
+    expect(brandTile("Diskonttankstelle Glauninger").bg).toBeUndefined();
+    expect(brandTile("Bleitner").bg).toBeUndefined();
   });
 
   it("keeps every brand's text readable", () => {
