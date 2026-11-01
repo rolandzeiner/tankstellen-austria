@@ -142,7 +142,7 @@ describe("tankstellen-austria-card", () => {
     );
   });
 
-  it("fills its grid cell", () => {
+  it("declares its grid options and card size", () => {
     const el = document.createElement("tankstellen-austria-card") as Card;
     expect(el.getGridOptions()).toMatchObject({ columns: 12, rows: "auto" });
     expect(el.getCardSize()).toBeGreaterThan(0);

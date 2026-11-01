@@ -1,13 +1,13 @@
 /**
- * The card fills its sections-view grid cell instead of painting over the
- * card below it -- and only there, so the add-card picker preview keeps its
- * own height.
+ * The card fills its cell in a sections or panel view (and the edit-card
+ * dialog) instead of painting over the card below it -- and only there, so
+ * the add-card picker preview keeps its own height.
  *
  * A sections view gives the card a fixed-height cell whenever rows is numeric
  * -- which the USER causes by dragging the height or width handle, since a
- * stored grid_options overrides getGridOptions(). rows: "auto" exempts
- * nobody. Only the PAIR below makes the card take that height; see
- * references/layout-and-grid.md, "A card whose :host is display: block ...".
+ * stored grid_options overrides getGridOptions(). This card's own
+ * rows: "auto" does not exempt it. Only the pair of gated rules in styles.ts
+ * makes the card take that height.
  *
  * The pair is gated on the layout attribute HA sets ("grid" in a sections
  * view, "panel" in a panel view). The add-card picker sets none and centres
@@ -16,11 +16,10 @@
  * the card declares @property({ reflect: true }) layout; importing the card
  * here would need a DOM, so card-smoke.test.ts checks that.
  *
- * happy-dom and node do no layout, so the guard is on the CSS text. It needs
- * no DOM: import it into any vitest suite, or run it on its own. The
- * portfolio lost the pair four times, each time in a card whose styles were
- * written by hand instead of copied from styles.ts.template -- which is why
- * this ships as a test rather than as advice.
+ * happy-dom and node do no layout, so the guard is on the CSS text and
+ * needs no DOM. The pair has been lost four times across sibling cards whose
+ * styles were written by hand -- which is why this ships as a test rather
+ * than as advice.
  */
 import { describe, expect, it } from "vite-plus/test";
 

@@ -140,9 +140,10 @@ export class TankstellenAustriaCard extends LitElement {
 
   @property({ attribute: false }) public hass!: HomeAssistant;
 
-  // Set by HA: "grid" in a sections view, "panel" in a panel view, unset in
-  // the add-card picker and masonry. Reflected so the styles can fill the
-  // cell only when there is one -- see the grid-cell rules in styles.ts.
+  // Set by HA: "grid" in a sections view and the edit-card dialog, "panel"
+  // in a panel view, unset in the add-card picker and masonry. Reflected so
+  // the styles fill the cell only when there is one -- see the grid-cell
+  // rules in styles.ts.
   @property({ reflect: true }) public layout?: string;
 
   // Set by HA to true while the card is the live preview in the edit-card
@@ -236,7 +237,8 @@ export class TankstellenAustriaCard extends LitElement {
   // new `hass` for every state change anywhere in the install. Re-render
   // only on: config change, UI state change, history arrival, a history or
   // maintenance notice changing, version-mismatch discovery, cooldown tick,
-  // or a new state object for an entity this card tracks.
+  // a layout or preview change from HA, or a new state object for an entity
+  // this card tracks.
   protected override shouldUpdate(changed: PropertyValues): boolean {
     if (!this._config) return false;
     if (
@@ -253,9 +255,10 @@ export class TankstellenAustriaCard extends LitElement {
     ) {
       return true;
     }
-    // Lit reflects attributes inside update(), so returning false in the
-    // cycle that changes layout leaves the attribute stale and the grid-cell
-    // rules in styles.ts never match. preview changes what renders.
+    // Lit writes reflected attributes in update(), so returning false in the
+    // cycle that changes layout leaves the attribute stale until some later
+    // change gets through, and the grid-cell rules in styles.ts don't match
+    // until then. preview hides the version banner.
     if (changed.has("layout") || changed.has("preview")) return true;
     const prev = changed.get("hass") as HomeAssistant | undefined;
     if (!prev) return true;

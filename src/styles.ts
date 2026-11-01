@@ -63,6 +63,8 @@ export const cardStyles = css`
     --tankst-tile-size: 40px;
   }
   ha-card {
+    /* Clips content to the card; in a grid cell the gated rule below puts
+       that edge at the cell's height. */
     overflow: hidden;
     /* Card responds to its own width, not the viewport — narrow
        dashboard columns trigger the compact density tier even on wide
@@ -71,8 +73,10 @@ export const cardStyles = css`
     container-name: tscard;
   }
   /* Fill the grid cell the dashboard hands us. A sections view puts a fixed
-     pixel height on the cell WRAPPER when rows is numeric -- which the user
-     also causes by dragging the row handle -- and styles nothing inside it.
+     pixel height on the cell WRAPPER when rows is numeric -- which dragging
+     a resize handle causes even here, since the stored grid_options
+     overrides getGridOptions()'s rows: "auto" -- and styles nothing inside
+     it.
      Because :host is display: block, it is ha-card's containing block, so
      the two declarations only work as a pair: without the host's, ha-card's
      100% computes to auto and the card renders at content height on top of
