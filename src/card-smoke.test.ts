@@ -153,6 +153,20 @@ describe("tankstellen-austria-card", () => {
     expect(ctor.getPropertyOptions("layout").reflect).toBe(true);
   });
 
+  it("shows the version banner on the dashboard but not in the edit-dialog preview", async () => {
+    const el = await mount<Card>("tankstellen-austria-card", (e) => {
+      e.setConfig({ type: "x" });
+      e.hass = hass();
+    });
+    const banner = () => el.shadowRoot?.querySelector(".version-notice");
+    (el as unknown as { _versionMismatch: string | null })._versionMismatch = "9.9.9";
+    await el.updateComplete;
+    expect(banner()).not.toBeNull();
+    (el as unknown as { preview: boolean }).preview = true;
+    await el.updateComplete;
+    expect(banner()).toBeNull();
+  });
+
   it("shows the loading state before hass arrives", async () => {
     const el = await mount<Card>("tankstellen-austria-card", (e) => e.setConfig({ type: "x" }));
     expect(el.shadowRoot?.querySelector('.empty[role="status"]')).not.toBeNull();

@@ -145,6 +145,11 @@ export class TankstellenAustriaCard extends LitElement {
   // cell only when there is one -- see the grid-cell rules in styles.ts.
   @property({ reflect: true }) public layout?: string;
 
+  // Set by HA to true while the card is the live preview in the edit-card
+  // dialog. The version banner stays out of it: its Reload button would
+  // reload the page and throw away the edit in progress.
+  @property({ type: Boolean }) public preview = false;
+
   @state() private _config!: TankstellenAustriaCardConfig;
   @state() private _activeTab = 0;
   @state() private _expandedStations: Set<string> = new Set();
@@ -250,8 +255,8 @@ export class TankstellenAustriaCard extends LitElement {
     }
     // Lit reflects attributes inside update(), so returning false in the
     // cycle that changes layout leaves the attribute stale and the grid-cell
-    // rules in styles.ts never match.
-    if (changed.has("layout")) return true;
+    // rules in styles.ts never match. preview changes what renders.
+    if (changed.has("layout") || changed.has("preview")) return true;
     const prev = changed.get("hass") as HomeAssistant | undefined;
     if (!prev) return true;
     // A language switch changes no entity state; without this the card keeps
@@ -537,6 +542,7 @@ export class TankstellenAustriaCard extends LitElement {
   }
 
   private _renderVersionBanner(): TemplateResult | typeof nothing {
+    if (this.preview) return nothing;
     // If the user already clicked reload in this session and the version
     // we just saw from the backend is still ahead of CARD_VERSION, the
     // reload didn't pick up the new bundle (likely a stuck SW/CDN cache).
