@@ -10,7 +10,7 @@
 import type { LitElement } from "lit";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
-import { DYNAMIC_MANUAL_COOLDOWN_MS, POST_REFRESH_CHECK_MS } from "./const";
+import { DYNAMIC_MANUAL_COOLDOWN_MS, HISTORY_REFRESH_MS, POST_REFRESH_CHECK_MS } from "./const";
 import type { HomeAssistant } from "./types";
 
 type Card = LitElement & { hass: HomeAssistant; setConfig: (c: unknown) => void };
@@ -152,5 +152,44 @@ describe("manual refresh", () => {
       IDS[0],
       expect.any(Error),
     );
+  });
+
+  it("cancels its timers when the card leaves the page", async () => {
+    const el = await mount(hass());
+    button(el).click();
+    el.remove();
+    await advance(el, POST_REFRESH_CHECK_MS);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+});
+
+describe("history polling", () => {
+  const historyCalls = (h: HomeAssistant) =>
+    (h.callWS as ReturnType<typeof vi.fn>).mock.calls.filter(
+      (c) => (c[0] as { type: string }).type === "history/history_during_period",
+    ).length;
+
+  it("stops for good once the card is removed", async () => {
+    const h = hass();
+    const el = await mount(h);
+    el.remove();
+    // Lets the first fetch land on the detached card.
+    await advance(el, 0);
+    const before = historyCalls(h);
+    await advance(el, 2 * HISTORY_REFRESH_MS);
+    expect(historyCalls(h)).toBe(before);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("starts again when the card comes back", async () => {
+    const h = hass();
+    const el = await mount(h);
+    el.remove();
+    await advance(el, 0);
+    document.body.appendChild(el);
+    await el.updateComplete;
+    const before = historyCalls(h);
+    await advance(el, HISTORY_REFRESH_MS);
+    expect(historyCalls(h)).toBeGreaterThan(before);
   });
 });

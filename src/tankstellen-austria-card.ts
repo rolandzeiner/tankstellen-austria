@@ -325,6 +325,9 @@ export class TankstellenAustriaCard extends LitElement {
     // disconnectedCallback stops the status poll; a dashboard edit-mode flip
     // reconnects without a tracked state change, so restart it from here.
     if (this.hass && this._config) this._syncApiStatus();
+    // updated() restarts the history interval, and a reconnect alone
+    // changes nothing that would run it.
+    if (!this._initDone) this.requestUpdate();
   }
 
   public override disconnectedCallback(): void {
@@ -350,8 +353,9 @@ export class TankstellenAustriaCard extends LitElement {
       this._sparklineCleanup();
       this._sparklineCleanup = undefined;
     }
-    // Let the next updated() re-start the history interval. Matters during
-    // dashboard edit mode which rapidly disconnects/reconnects the card.
+    // Let updated() re-start the history interval on reconnect. Matters
+    // during dashboard edit mode which rapidly disconnects/reconnects the
+    // card.
     this._initDone = false;
   }
 
@@ -393,8 +397,11 @@ export class TankstellenAustriaCard extends LitElement {
   }
 
   protected override updated(_changed: PropertyValues): void {
-    // One-shot bootstrap on first hass arrival.
-    if (!this._initDone && this.hass && this._config) {
+    // One-shot bootstrap on first hass arrival. Only while connected: a
+    // history or version answer that lands after removal still updates the
+    // detached card, and without the check that update would start an
+    // interval nothing ever clears.
+    if (!this._initDone && this.isConnected && this.hass && this._config) {
       this._initDone = true;
       void this._fetchAllHistory();
       this._historyInterval = window.setInterval(() => {
