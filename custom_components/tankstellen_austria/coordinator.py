@@ -58,6 +58,7 @@ from .const import (
     USER_AGENT,
 )
 from .outage import async_note_fault, classify_refresh
+from .refuel import BestRefuelCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -223,6 +224,9 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[Station]]]):
                 immediate=False,
             ),
         )
+        # The cheap-window entities' analysis of the price history. It reads
+        # only the recorder, so it runs on its own clock, not this one's.
+        self.best_refuel = BestRefuelCoordinator(hass, entry)
 
     # ------------------------------------------------------------------
     # Public helpers

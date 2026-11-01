@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 from typing import Any
 
 from homeassistant.components.sensor import (
@@ -15,7 +16,9 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.util import dt as dt_util
 
+from .best_refuel import next_window_start
 from .const import (
     ATTRIBUTION,
     CONF_FUEL_TYPES,
@@ -25,6 +28,7 @@ from .const import (
     FUEL_TYPES,
 )
 from .coordinator import TankstellenConfigEntry, TankstellenCoordinator
+from .refuel import BestRefuelEntity
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -87,10 +91,18 @@ async def async_setup_entry(
         CONF_LONG_TERM_STATISTICS, DEFAULT_LONG_TERM_STATISTICS
     )
 
-    entities = [
+    entities: list[SensorEntity] = [
         TankstellenSensor(coordinator, entry, ft, long_term_statistics)
         for ft in fuel_types
     ]
+    # Same rule as the cheap-window binary sensors: none in dynamic mode.
+    if not coordinator.dynamic_mode:
+        entities.extend(
+            NextCheapWindowSensor(
+                coordinator.best_refuel, entry, ft, "next_cheap_window"
+            )
+            for ft in fuel_types
+        )
     async_add_entities(entities)
 
 
@@ -247,3 +259,17 @@ class TankstellenSensor(CoordinatorEntity[TankstellenCoordinator], SensorEntity)
         if not self.coordinator.data:
             return []
         return self.coordinator.data.get(self._fuel_type, [])
+
+
+class NextCheapWindowSensor(BestRefuelEntity, SensorEntity):
+    """When the typically cheapest hours start next."""
+
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
+
+    @property
+    def native_value(self) -> datetime | None:
+        """The next opening of the window, in local time; unknown without one."""
+        result = self.result
+        if result is None or result.hour is None:
+            return None
+        return next_window_start(dt_util.now(), result.hour)

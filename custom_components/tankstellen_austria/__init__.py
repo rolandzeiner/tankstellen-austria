@@ -30,7 +30,7 @@ from .outage import async_clear_outage
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 _LOGGER = logging.getLogger(__name__)
-PLATFORMS: list[Platform] = [Platform.SENSOR]
+PLATFORMS: list[Platform] = [Platform.BINARY_SENSOR, Platform.SENSOR]
 
 
 @websocket_command({vol.Required("type"): "tankstellen_austria/card_version"})
@@ -117,6 +117,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: TankstellenConfigEntry) 
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(_async_reload_entry))
+    # The recorder query runs off the setup path: the cheap-window entities
+    # stay unknown for a moment rather than holding up HA's start. Dynamic
+    # mode has no such entities, so nothing to analyse.
+    if not coordinator.dynamic_mode:
+        entry.async_create_background_task(
+            hass,
+            coordinator.best_refuel.async_refresh(),
+            f"{DOMAIN} best refuel {entry.entry_id}",
+        )
 
     return True
 

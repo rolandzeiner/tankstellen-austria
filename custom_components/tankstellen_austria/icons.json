@@ -1,9 +1,16 @@
 {
   "entity": {
+    "binary_sensor": {
+      "cheap_window": {
+        "default": "mdi:clock-outline",
+        "state": { "on": "mdi:clock-check-outline" }
+      }
+    },
     "sensor": {
       "fuel_die": { "default": "mdi:gas-station" },
       "fuel_sup": { "default": "mdi:gas-station" },
-      "fuel_gas": { "default": "mdi:gas-cylinder" }
+      "fuel_gas": { "default": "mdi:gas-cylinder" },
+      "next_cheap_window": { "default": "mdi:clock-start" }
     }
   }
 }

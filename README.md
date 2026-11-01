@@ -28,7 +28,7 @@ Austrian fuel prices in Home Assistant, from E-Control's [Spritpreisrechner](htt
 
 - One price sensor per fuel type, carrying the five cheapest nearby stations with opening hours, payment methods and distance.
 - A card with a tab per fuel type, station details, navigation links, a seven-day price chart and a visual editor, in German and English.
-- A best-time-to-refuel tip worked out from up to four weeks of your price history, marked on the chart.
+- A best-time-to-refuel tip worked out from up to four weeks of your price history, marked on the chart and available as sensors for automations.
 - Prices that follow your phone or car as you drive, with fixed and moving locations side by side.
 - Show only the stations that take your card, or highlight them, and see which stations are closed or closing soon.
 - Fill-up cost per car at the cheapest station, with the cost per 100 km.
@@ -116,6 +116,24 @@ One sensor per fuel type you selected. The entry name is the device name, so an 
 
 `payment_methods` holds `cash`, `debit_card` and `credit_card` as booleans, and `others` as a list of the strings E-Control sends, such as `Austrocard` or `UTA`.
 
+### Cheap window
+
+Two more entities per fuel type carry the card's refuel tip, so an automation can use it. They compute the same window from the same 28 days of history, so the card and the entities agree.
+
+| Entity | State |
+|---|---|
+| `binary_sensor.<entry name>_<fuel type>_cheap_window` | `on` during the cheapest hours of the day |
+| `sensor.<entry name>_<fuel type>_next_cheap_window` | When the window opens next (timestamp) |
+
+Both are `unknown` until there are 7 days of history, and `unavailable` when the recorder isn't running. Neither exists in dynamic mode, where the card hides its tip too. The binary sensor's attributes:
+
+| Attribute | Description |
+|---|---|
+| `start_hour`, `end_hour` | The window in local hours. `end_hour` is exclusive and can be smaller than `start_hour` when the window crosses midnight. |
+| `weekday` | The cheapest weekday (`monday` … `sunday`) when it stands out, otherwise `null` |
+| `confidence` | `high`, `medium` or `low`, as on the card's badge |
+| `confidence_score`, `span_days`, `coverage_pct`, `gap_cents` | What the confidence is made of (see *How the window is computed*). Not stored in the recorder history. |
+
 ### Long-term statistics
 
 Off by default. Without it, the sensors keep only state history, which the recorder purges after `purge_keep_days` (10 by default). With it on, Home Assistant also records hourly minimum, maximum and average prices, and those survive the purge.
@@ -171,7 +189,7 @@ The visual editor covers every option. The defaults below apply when you leave a
 
 ### Best refuel time
 
-The card reads up to four weeks of the sensor's history (again every 30 minutes) and looks for the run of hours that is cheapest compared with the rest of each week. The window is as long as the data says: one hour when one hour stands out, most of the day when prices only jump at noon. It is drawn as a green band on the chart, a weekday is added when that signal is strong too, and a High, Medium or Low confidence badge explains itself on hover.
+The card, and the integration for the *Cheap window* entities, read up to four weeks of the sensor's history (again every 30 minutes) and look for the run of hours that is cheapest compared with the rest of each week. The window is as long as the data says: one hour when one hour stands out, most of the day when prices only jump at noon. It is drawn as a green band on the chart, a weekday is added when that signal is strong too, and a High, Medium or Low confidence badge explains itself on hover.
 
 Home Assistant keeps 10 days of history by default, so confidence stays low until you keep more:
 

@@ -72,6 +72,51 @@
     }
   },
   "entity": {
+    "binary_sensor": {
+      "cheap_window": {
+        "name": "{fuel} günstiges Zeitfenster",
+        "state_attributes": {
+          "start_hour": {
+            "name": "Beginn"
+          },
+          "end_hour": {
+            "name": "Ende"
+          },
+          "weekday": {
+            "name": "Günstigster Wochentag",
+            "state": {
+              "monday": "Montag",
+              "tuesday": "Dienstag",
+              "wednesday": "Mittwoch",
+              "thursday": "Donnerstag",
+              "friday": "Freitag",
+              "saturday": "Samstag",
+              "sunday": "Sonntag"
+            }
+          },
+          "confidence": {
+            "name": "Verlässlichkeit",
+            "state": {
+              "high": "Hoch",
+              "medium": "Mittel",
+              "low": "Niedrig"
+            }
+          },
+          "confidence_score": {
+            "name": "Verlässlichkeitswert"
+          },
+          "span_days": {
+            "name": "Verlauf (Tage)"
+          },
+          "coverage_pct": {
+            "name": "Abgedeckte Stunden (%)"
+          },
+          "gap_cents": {
+            "name": "Ersparnis (Cent/l)"
+          }
+        }
+      }
+    },
     "sensor": {
       "fuel_die": {
         "name": "Diesel"
@@ -81,6 +126,9 @@
       },
       "fuel_gas": {
         "name": "CNG Erdgas"
+      },
+      "next_cheap_window": {
+        "name": "{fuel} nächstes günstiges Zeitfenster"
       }
     }
   },
@@ -108,6 +156,9 @@
     },
     "api_all_failed": {
       "message": "Alle Kraftstoffarten fehlgeschlagen ({failed_count}/{total_count}); erster Fehler bei {fuel_type}: {error}"
+    },
+    "recorder_unavailable": {
+      "message": "Der Recorder läuft nicht, daher gibt es keinen Preisverlauf für die günstigsten Stunden"
     }
   },
   "issues": {
