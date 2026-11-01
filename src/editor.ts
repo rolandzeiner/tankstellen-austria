@@ -183,6 +183,7 @@ export class TankstellenAustriaCardEditor extends LitElement implements Lovelace
     const stationFields: HaFormSchema[] = [
       { name: "count", selector: { number: { min: 0, max: 5, step: 1, mode: "slider" } } },
       toggle("stations", "index"),
+      ...(stations.index === false ? [] : [toggle("stations", "brand")]),
       toggle("stations", "map_links"),
       select("map_provider", ["auto", "google", "apple"]),
       toggle("stations", "distance"),

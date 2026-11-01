@@ -105,6 +105,7 @@
     "section_footer": "Logo & attribution",
     "stations_count": "Number of stations",
     "stations_index": "Show rank",
+    "stations_brand": "Brand instead of rank",
     "stations_map_links": "Show navigation links",
     "stations_map_provider": "Navigation app",
     "stations_distance": "Show distance",

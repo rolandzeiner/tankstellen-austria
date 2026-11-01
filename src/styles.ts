@@ -748,6 +748,21 @@ export const cardStyles = css`
     font-weight: var(--ha-font-weight-bold, 700);
     font-variant-numeric: tabular-nums;
   }
+  /* Brand initials run to three letters ("OMV", "JET"). */
+  .index-tile.brand {
+    font-size: 0.625rem;
+    letter-spacing: -0.02em;
+  }
+  /* A station without a known brand: neutral, so it never passes for one
+     (the accent blue would read as SOCAR or OMV). */
+  .index-tile.brand:not(.brand-known) {
+    background: color-mix(in srgb, var(--primary-text-color) 9%, transparent);
+    color: var(--primary-text-color);
+  }
+  .index-tile.brand-known {
+    background: var(--tankst-tile-bg);
+    color: var(--tankst-tile-fg);
+  }
   .info {
     flex: 1;
     min-width: 0;

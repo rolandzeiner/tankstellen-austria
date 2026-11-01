@@ -15,6 +15,7 @@ import {
 } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import { classMap } from "lit/directives/class-map.js";
+import { styleMap } from "lit/directives/style-map.js";
 
 import type {
   CarConfig,
@@ -33,6 +34,7 @@ import {
   POST_REFRESH_CHECK_MS,
   HISTORY_REFRESH_MS,
 } from "./const";
+import { brandTile } from "./utils/brand";
 import { estimateCardHeight } from "./utils/card-size";
 import { fromGrouped, normaliseConfig, toGrouped } from "./utils/config";
 import { findTankstellenEntities, fuelTypeOf } from "./utils/entities";
@@ -1033,6 +1035,25 @@ export class TankstellenAustriaCard extends LitElement {
     `;
   }
 
+  // The rank, or with stations.brand the brand's initials on its colour.
+  // Decorative either way: the row's aria-label names the station.
+  private _renderIndexTile(s: Station, idx: number): TemplateResult {
+    if (this._config.show_brand !== true) {
+      return html`<div class="index-tile" aria-hidden="true">${idx + 1}</div>`;
+    }
+    const tile = brandTile(s.name);
+    const colours = tile.bg
+      ? { "--tankst-tile-bg": tile.bg, "--tankst-tile-fg": tile.fg ?? "" }
+      : {};
+    return html`<div
+      class=${classMap({ "index-tile": true, brand: true, "brand-known": !!tile.bg })}
+      style=${styleMap(colours)}
+      aria-hidden="true"
+    >
+      ${tile.initials}
+    </div>`;
+  }
+
   private _renderStation(
     s: Station,
     idx: number,
@@ -1109,7 +1130,7 @@ export class TankstellenAustriaCard extends LitElement {
           @click=${() => this._onStationClick(key)}
           @keydown=${(ev: KeyboardEvent) => this._onStationKeydown(ev, key, hasDetail)}
         >
-          ${showIndex ? html`<div class="index-tile" aria-hidden="true">${idx + 1}</div>` : nothing}
+          ${showIndex ? this._renderIndexTile(s, idx) : nothing}
           <div class="info">
             <div class="name">
               ${hasName ? html`<span lang="de">${s.name}</span>` : "–"}

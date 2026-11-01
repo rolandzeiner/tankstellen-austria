@@ -289,6 +289,34 @@ describe("tankstellen-austria-card", () => {
     expect(el.shadowRoot?.querySelector("svg.sparkline path")).not.toBeNull();
   });
 
+  it("shows brand initials in the rank tile with stations.brand", async () => {
+    const tiles = async (config: Record<string, unknown>) => {
+      const h = hass();
+      h.states["sensor.tankstellen_diesel"]!.attributes.stations = [
+        { name: "JET TANKSTELLE", price: 1.5, open: true },
+        { name: "Disk Eisinger", price: 1.6, open: true },
+      ];
+      const el = await mount<Card>("tankstellen-austria-card", (e) => {
+        e.setConfig({ type: "x", ...config });
+        e.hass = h;
+      });
+      const found = [...el.shadowRoot!.querySelectorAll<HTMLElement>(".index-tile")];
+      el.remove();
+      return found.map((t) => [
+        t.textContent?.trim(),
+        t.style.getPropertyValue("--tankst-tile-bg"),
+      ]);
+    };
+    expect(await tiles({})).toEqual([
+      ["1", ""],
+      ["2", ""],
+    ]);
+    expect(await tiles({ stations: { brand: true } })).toEqual([
+      ["JET", "#ffb700"],
+      ["DE", ""],
+    ]);
+  });
+
   it("renders an unset config like one with every default spelled out", async () => {
     // OPTION_DEFAULTS is what the editor draws on unset toggles; the card's
     // render code holds its own defaults. A wrong entry in the table would

@@ -102,6 +102,8 @@ export interface TankstellenAustriaCardConfig extends LovelaceCardConfig {
   max_stations?: number; // 0..5
 
   show_index?: boolean;
+  // The rank tile shows the brand's initials and colour instead (v2).
+  show_brand?: boolean;
   show_map_links?: boolean;
   // Where the navigation link opens. "auto" (also the absent-key default)
   // routes per device: Apple Maps on iOS, geo: chooser on Android, Google
@@ -167,6 +169,8 @@ export interface StationsOptions {
   count?: number; // 0..5
   sort?: "price" | "distance";
   index?: boolean;
+  // Brand initials and colour in the rank tile instead of the rank.
+  brand?: boolean;
   distance?: boolean;
   opening_hours?: boolean;
   payment_methods?: boolean;
