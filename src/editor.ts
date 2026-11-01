@@ -88,6 +88,15 @@ const FILLED: Readonly<Record<string, readonly string[]>> = {
   stations: ["count", "sort", "tile_shape", "map_provider", "payment_mode"],
 };
 
+// One outline icon per editor section, as in the sibling cards' editors.
+const GROUP_ICONS = {
+  stations: "mdi:gas-station-outline",
+  header: "mdi:page-layout-header",
+  chart: "mdi:chart-line",
+  cars: "mdi:car-outline",
+  footer: "mdi:page-layout-footer",
+} as const satisfies Record<keyof typeof OPTION_DEFAULTS, string>;
+
 const toggle = (group: keyof typeof OPTION_DEFAULTS, name: string): HaFormSchema => ({
   name,
   default: (OPTION_DEFAULTS[group] as Record<string, unknown>)[name],
@@ -169,7 +178,7 @@ export class TankstellenAustriaCardEditor extends LitElement implements Lovelace
    *  appear/disappear based on the parent toggle. Inside each group the
    *  fields keep their v1 order: the ones most users change come first. */
   private _schema(): ReadonlyArray<HaFormSchema> {
-    const { stations = {}, header = {}, chart = {}, cars = {} } = this._config;
+    const { stations = {}, header = {}, chart = {}, cars = {}, footer = {} } = this._config;
     const select = (name: string, values: readonly string[]): HaFormSchema => ({
       name,
       selector: {
@@ -198,10 +207,11 @@ export class TankstellenAustriaCardEditor extends LitElement implements Lovelace
       stationFields.push(select("payment_mode", ["filter", "highlight"]));
     }
 
-    const group = (name: string, schema: HaFormSchema[]): HaFormSchema => ({
+    const group = (name: keyof typeof GROUP_ICONS, schema: HaFormSchema[]): HaFormSchema => ({
       type: "expandable",
       name,
       title: this._et(`section_${name}`),
+      icon: GROUP_ICONS[name],
       schema,
     });
 
@@ -237,7 +247,10 @@ export class TankstellenAustriaCardEditor extends LitElement implements Lovelace
         toggle("cars", "show"),
         ...(cars.show === true ? [toggle("cars", "fill_up"), toggle("cars", "consumption")] : []),
       ]),
-      group("footer", [toggle("footer", "adaptive_logo"), toggle("footer", "show")]),
+      group("footer", [
+        toggle("footer", "show"),
+        ...(footer.show === false ? [] : [toggle("footer", "adaptive_logo")]),
+      ]),
     ];
   }
 
@@ -286,18 +299,15 @@ export class TankstellenAustriaCardEditor extends LitElement implements Lovelace
     // Spread on top of existing config so keys the form doesn't show
     // (tab_labels, or a group's payment_filter / items) survive.
     const next: Record<string, unknown> = { ...this._config, ...value };
-    for (const [name, fields] of Object.entries(FILLED)) {
+    // A value equal to its default stays out of the saved YAML: the selects
+    // render() filled in, and a toggle switched back to where it started.
+    // Saved, a default would pin the card to it. A group left empty goes too.
+    for (const [name, defaults] of Object.entries(OPTION_DEFAULTS)) {
       const group = next[name];
-      if (!group || typeof group !== "object") continue;
+      if (!group || typeof group !== "object" || Array.isArray(group)) continue;
       const cleaned: Record<string, unknown> = { ...group };
-      const defaults = OPTION_DEFAULTS[name as keyof typeof OPTION_DEFAULTS] as Record<
-        string,
-        unknown
-      >;
-      // render() filled these in for display; a value equal to the default
-      // stays out of the saved YAML.
-      for (const field of fields) {
-        if (cleaned[field] === defaults[field]) delete cleaned[field];
+      for (const [field, fallback] of Object.entries(defaults)) {
+        if (cleaned[field] === fallback) delete cleaned[field];
       }
       if (Object.keys(cleaned).length > 0) next[name] = cleaned;
       else delete next[name];
@@ -378,7 +388,7 @@ export class TankstellenAustriaCardEditor extends LitElement implements Lovelace
           <button
             class="recorder-copy-btn"
             type="button"
-            aria-label=${this._et("copy_sensor_id")}
+            aria-label=${this._et("copy_recorder_snippet")}
             @click=${() => this._onCopyRecorderSnippet(snippet)}
           >
             <ha-icon icon="mdi:content-copy" aria-hidden="true"></ha-icon>

@@ -357,6 +357,8 @@ export interface HaFormExpandableSchema {
   type: "expandable";
   name: string;
   title?: string;
+  /** MDI icon drawn before the title. */
+  icon?: string;
   /** When true, ha-form keeps the inner schema's values flat in `data`
    *  instead of under `data[name]`. The editor leaves it off. */
   flatten?: boolean;

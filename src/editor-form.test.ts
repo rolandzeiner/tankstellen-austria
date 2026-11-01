@@ -87,12 +87,30 @@ describe("editor schema", () => {
   });
 
   it("hides the sub-options of a group that is off", async () => {
-    const { form } = await mount({ chart: { show: false }, header: { show: false } });
+    const { form } = await mount({
+      chart: { show: false },
+      header: { show: false },
+      footer: { show: false },
+    });
     const names = fields(form.schema).map((f) => `${f.path.join(".")}.${f.name}`);
     expect(names).toContain("chart.show");
     expect(names).not.toContain("chart.best_refuel");
     expect(names).not.toContain("header.price");
     expect(names).not.toContain("cars.fill_up");
+    expect(names).toContain("footer.show");
+    expect(names).not.toContain("footer.adaptive_logo");
+  });
+
+  it("gives every section an icon", async () => {
+    const { form } = await mount({});
+    const sections = form.schema.filter((s) => "type" in s && s.type === "expandable");
+    expect(sections.map((s) => ("icon" in s ? s.icon : undefined))).toEqual([
+      expect.stringMatching(/^mdi:/),
+      expect.stringMatching(/^mdi:/),
+      expect.stringMatching(/^mdi:/),
+      expect.stringMatching(/^mdi:/),
+      expect.stringMatching(/^mdi:/),
+    ]);
   });
 
   it.each(["en", "de"])("has a %s label for every field and option", async (language) => {
@@ -148,6 +166,13 @@ describe("editor output", () => {
       type: "custom:tankstellen-austria-card",
       header: { price: false },
     });
+  });
+
+  it("drops an option set back to its default, and the group it leaves empty", async () => {
+    const { form, changes } = await mount({ chart: { min_max: false } });
+    change(form, { ...form.data, header: { price: false } });
+    change(form, { ...form.data, header: { price: true }, chart: { min_max: true } });
+    expect(changes.at(-1)).toEqual({ type: "custom:tankstellen-austria-card" });
   });
 
   it("keeps a select that differs from its default", async () => {

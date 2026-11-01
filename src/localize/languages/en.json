@@ -98,7 +98,7 @@
     "car_choose_icon": "Choose icon",
     "car_delete": "Delete car",
     "add_car": "+ Add car",
-    "copy_sensor_id": "Copy sensor ID to clipboard",
+    "copy_recorder_snippet": "Copy the recorder snippet",
     "tank_size_range_error": "Please enter a value between 1 and 200 litres",
     "consumption_range_error": "Please enter a value between 0 and 30 l/100 km",
     "section_stations": "Stations",

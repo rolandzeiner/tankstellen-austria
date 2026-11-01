@@ -98,7 +98,7 @@
     "car_choose_icon": "Symbol wählen",
     "car_delete": "Fahrzeug entfernen",
     "add_car": "+ Fahrzeug hinzufügen",
-    "copy_sensor_id": "Sensor-ID in die Zwischenablage kopieren",
+    "copy_recorder_snippet": "Recorder-Ausschnitt kopieren",
     "tank_size_range_error": "Bitte einen Wert zwischen 1 und 200 Litern eingeben",
     "consumption_range_error": "Bitte einen Wert zwischen 0 und 30 l/100 km eingeben",
     "section_stations": "Tankstellen",
