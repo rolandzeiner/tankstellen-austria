@@ -71,6 +71,11 @@ export const cardStyles = css`
        screens. */
     container-type: inline-size;
     container-name: tscard;
+    /* A column, so that in a fixed-height cell the tabs and footer keep
+       their size and the content between them scrolls (.wrap). In an
+       auto-height cell nothing is short of room and nothing changes. */
+    display: flex;
+    flex-direction: column;
   }
   /* Fill the grid cell the dashboard hands us. A sections view puts a fixed
      pixel height on the cell WRAPPER when rows is numeric -- which dragging
@@ -99,6 +104,14 @@ export const cardStyles = css`
     display: flex;
     flex-direction: column;
     gap: var(--tankst-row-gap);
+    /* The one scroller: takes whatever height the tabs and footer leave,
+       and when the user dragged the cell shorter than the card, header and
+       stations scroll together. Pinning the header instead leaves no room:
+       with the sparkline and tip it is about 300 px on its own.
+       min-block-size: 0 is what lets this flex child shrink at all. */
+    flex: 1 1 auto;
+    min-block-size: 0;
+    overflow-y: auto;
   }
   .empty {
     padding: 24px 0;
@@ -152,6 +165,9 @@ export const cardStyles = css`
     border-bottom: 1px solid var(--divider-color, rgba(127, 127, 127, 0.18));
     overflow-x: auto;
     scrollbar-width: none;
+    /* overflow-x makes its automatic minimum height 0, so in ha-card's
+       flex column a short cell would squash the tabs first. */
+    flex-shrink: 0;
   }
   .tabs::-webkit-scrollbar {
     display: none;
@@ -687,6 +703,11 @@ export const cardStyles = css`
     margin: 0 calc(var(--tankst-pad-x) * -1) calc(var(--tankst-pad-y) * -1);
     border-top: 1px solid var(--divider-color, rgba(127, 127, 127, 0.15));
   }
+  /* The list runs edge to edge of the scrolling .wrap, so a ring drawn
+     outside the row would be cut at both sides. Draw it inside. */
+  .stations .station-main:focus-visible {
+    outline-offset: -2px;
+  }
   .station {
     border-bottom: 1px solid var(--divider-color, rgba(127, 127, 127, 0.1));
   }
@@ -950,6 +971,10 @@ export const cardStyles = css`
   }
   .btn-primary:focus-visible {
     outline-offset: 3px;
+  }
+  /* .tabs scrolls sideways, which clips a ring drawn outside the tab. */
+  .tab:focus-visible {
+    outline-offset: -2px;
   }
 
   /* Forced-colors fallback (Windows High Contrast). */

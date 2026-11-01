@@ -32,6 +32,7 @@ import {
   POST_REFRESH_CHECK_MS,
   HISTORY_REFRESH_MS,
 } from "./const";
+import { estimateCardHeight } from "./utils/card-size";
 import { normaliseConfig } from "./utils/config";
 import { findTankstellenEntities, fuelTypeOf } from "./utils/entities";
 import { hasPaymentMethods, matchesPaymentFilter, matchingPaymentMethods } from "./utils/payment";
@@ -215,8 +216,23 @@ export class TankstellenAustriaCard extends LitElement {
     }
   }
 
+  // In 50 px units, from the config and whatever hass already says. See
+  // estimateCardHeight for what HA does with it.
   public getCardSize(): number {
-    return 6;
+    const cfg: Partial<TankstellenAustriaCardConfig> = this._config ?? {};
+    const entities = this.hass && this._config ? this._resolveEntities() : [];
+    const active = entities[this._activeTab] ?? entities[0];
+    const fuelType = active
+      ? fuelTypeOf(this.hass, active.entity_id, active.attributes)
+      : undefined;
+    const cars = (cfg.cars ?? []).filter((c) => fuelType === undefined || c.fuel_type === fuelType);
+    const px = estimateCardHeight(cfg, {
+      entityCount: Math.max(1, entities.length),
+      stationCount: active?.attributes.stations?.length ?? 5,
+      carCount: cars.length,
+      dynamic: active?.attributes.dynamic_mode === true,
+    });
+    return Math.ceil(px / 50);
   }
 
   public getGridOptions(): {

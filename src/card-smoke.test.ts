@@ -145,7 +145,17 @@ describe("tankstellen-austria-card", () => {
   it("declares its grid options and card size", () => {
     const el = document.createElement("tankstellen-austria-card") as Card;
     expect(el.getGridOptions()).toMatchObject({ columns: 12, rows: "auto" });
-    expect(el.getCardSize()).toBeGreaterThan(0);
+    // No config or hass yet: five stations, sparkline and tip assumed.
+    expect(el.getCardSize()).toBe(13);
+  });
+
+  it("sizes itself from the stations the sensor has", async () => {
+    const el = await mount<Card>("tankstellen-austria-card", (e) => {
+      e.setConfig({ type: "x" });
+      e.hass = hass();
+    });
+    // 173 + 99 + 19 + 2 × 65 = 421 px.
+    expect(el.getCardSize()).toBe(9);
   });
 
   it("reflects the layout HA sets, so the grid-cell rules can match", () => {
