@@ -310,9 +310,15 @@ class TankstellenConfigFlow(ConfigFlow, domain=DOMAIN):
                     # the new unique_id matches a *different* existing entry.
                     await self.async_set_unique_id(new_unique_id)
                     self._abort_if_unique_id_mismatch()
+                    # options={}: the form showed every setting merged, so
+                    # what was submitted is the whole truth. The options
+                    # flow writes the same record to entry.options, and
+                    # every reader merges options over data, so a copy left
+                    # there would outrank this write.
                     return self.async_update_and_abort(
                         entry,
                         data=_build_entry_data(user_input, lat, lng, fuel_types),
+                        options={},
                     )
 
         current = {**entry.data, **entry.options}
