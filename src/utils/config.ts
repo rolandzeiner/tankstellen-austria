@@ -45,7 +45,6 @@ export function normaliseConfig(input: TankstellenAustriaCardConfig): Tankstelle
       (e): e is string => typeof e === "string" && e.includes("."),
     );
   } else if (cfg.entities != null) {
-    // eslint-disable-next-line no-console
     console.warn(
       "[Tankstellen Austria] config.entities must be an array of entity IDs — ignoring",
       cfg.entities,

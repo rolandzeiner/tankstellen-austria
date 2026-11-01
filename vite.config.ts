@@ -77,6 +77,9 @@ export default defineConfig(({ mode }) => {
     },
     lint: {
       ignorePatterns: ["custom_components/**/www/**"],
+      // Oxlint's default plugins plus vitest; listing plugins replaces the
+      // defaults, so all four are named.
+      plugins: ["typescript", "unicorn", "oxc", "vitest"],
       jsPlugins: [{ name: "vite-plus", specifier: "vite-plus/oxlint-plugin" }],
       rules: {
         "vite-plus/prefer-vite-plus-imports": "error",
@@ -85,12 +88,35 @@ export default defineConfig(({ mode }) => {
         "typescript/no-unnecessary-type-assertion": "error",
         "eslint/no-shadow": "error",
         "unicorn/no-array-sort": "error",
+        // Test hygiene, from the vitest plugin listed above: a committed
+        // .only or .skip quietly drops tests, a test without an assertion
+        // passes whatever the code does, and a duplicate title makes a
+        // failure ambiguous to read.
+        "vitest/no-focused-tests": "error",
+        "vitest/no-disabled-tests": "error",
+        "vitest/no-identical-title": "error",
+        "vitest/expect-expect": "error",
+        "vitest/no-standalone-expect": "error",
+        "vitest/no-conditional-expect": "error",
+        "vitest/no-commented-out-tests": "error",
+        "vitest/valid-title": "error",
+        // expect(value, message) is Vitest API; the rule's default of one
+        // argument is Jest's.
+        "vitest/valid-expect": ["error", { maxArgs: 2 }],
+        // On by default with the plugin; wants a type on every vi.fn().
+        // About 60 untyped mocks across the portfolio, no bug behind any.
+        "vitest/require-mock-type-parameters": "off",
       },
       // typeCheck makes `vp check` report tsc's errors (strict tsconfig
       // included), so it can stand in for `tsc --noEmit`.
       // denyWarnings: a warning fails `vp check` (and CI) instead of
       // scrolling past with exit 0.
-      options: { typeAware: true, typeCheck: true, denyWarnings: true },
+      options: {
+        typeAware: true,
+        typeCheck: true,
+        denyWarnings: true,
+        reportUnusedDisableDirectives: "error",
+      },
     },
   };
 });

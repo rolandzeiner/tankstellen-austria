@@ -385,7 +385,6 @@ export class TankstellenAustriaCard extends LitElement {
       );
       this._historyError = false;
     } catch (err) {
-      // eslint-disable-next-line no-console
       console.warn("[Tankstellen Austria] history refresh failed", err);
       this._historyError = true;
     }
@@ -1344,7 +1343,6 @@ export class TankstellenAustriaCard extends LitElement {
       });
       if (p && typeof (p as Promise<void>).catch === "function") {
         (p as Promise<void>).catch((err) => {
-          // eslint-disable-next-line no-console
           console.warn("[Tankstellen Austria] update_entity failed for", e.entity_id, err);
         });
       }
@@ -1363,7 +1361,6 @@ export class TankstellenAustriaCard extends LitElement {
           this._noNewData = true;
         }
       } catch (err) {
-        // eslint-disable-next-line no-console
         console.warn("[Tankstellen Austria] post-refresh check failed", err);
       }
     }, POST_REFRESH_CHECK_MS);
