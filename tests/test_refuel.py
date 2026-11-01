@@ -85,7 +85,8 @@ async def _setup(
     entry = make_entry(data={CONF_FUEL_TYPES: fuel_types or ["DIE"], **(data or {})})
     entry.add_to_hass(hass)
     await hass.config_entries.async_setup(entry.entry_id)
-    await hass.async_block_till_done()
+    # The first cheap-window refresh runs as a background task.
+    await hass.async_block_till_done(wait_background_tasks=True)
 
 
 async def test_on_inside_the_window_off_outside(
