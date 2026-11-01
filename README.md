@@ -188,8 +188,8 @@ cars:
 | Option | Default | Description |
 |---|---|---|
 | `count` | `5` | Stations to list, 0 to 5. `0` hides the list. |
-| `index` | `true` | Rank number per station |
-| `brand` | `false` | The station's brand initials and colour instead of the rank (OMV, Avanti, BP, Shell, Eni, JET, Turmöl, AVIA, SOCAR, Lagerhaus/Genol; other stations get their initials on a grey tile). Colours only, no logos. |
+| `index` | `true` | Rank number per station. In the editor, switching it on turns `brand` off |
+| `brand` | `false` | The station's brand initials and colour in the tile, in place of the rank; works with `index` off, and the editor turns `index` off when you switch it on (OMV, Avanti, BP, Shell, Eni, JET, Turmöl, AVIA, SOCAR, Lagerhaus/Genol; other stations get their initials on a grey tile). Colours only, no logos. |
 | `tile_shape` | `square` | The rank tile's shape: `square` (rounded corners) or `circle`; applies to the rank and the brand alike |
 | `map_links` | `true` | Navigation link per station |
 | `map_provider` | `auto` | `auto` (Apple Maps on iOS, the app chooser on Android, Google Maps elsewhere), `google` or `apple` |

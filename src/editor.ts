@@ -253,10 +253,10 @@ export class TankstellenAustriaCardEditor extends LitElement implements Lovelace
         const filter = this._config.stations?.payment_filter ?? [];
         return [
           { name: "count", selector: { number: { min: 0, max: 5, step: 1, mode: "slider" } } },
+          // Rank and brand share the tile: either one, or neither.
           toggle("stations", "index"),
-          ...(on("index")
-            ? [toggle("stations", "brand"), this._select("tile_shape", ["square", "circle"])]
-            : []),
+          toggle("stations", "brand"),
+          ...(on("index") || on("brand") ? [this._select("tile_shape", ["square", "circle"])] : []),
           toggle("stations", "map_links"),
           this._select("map_provider", ["auto", "google", "apple"]),
           toggle("stations", "distance"),
@@ -699,6 +699,12 @@ export class TankstellenAustriaCardEditor extends LitElement implements Lovelace
   private _onGroupChanged(group: Group, ev: CustomEvent<{ value: Data }>): void {
     ev.stopPropagation();
     const merged: Data = { ...(this._config[group] as Data | undefined), ...ev.detail.value };
+    if (group === "stations") {
+      // Switching one of rank and brand on switches the other off.
+      const was = (key: string): boolean => this._opt("stations", key) === true;
+      if (merged.brand === true && !was("brand")) merged.index = false;
+      else if (merged.index === true && !was("index")) merged.brand = false;
+    }
     if (group === "stations" && Array.isArray(merged.payment_filter)) {
       const typed = (merged.payment_filter as unknown[]).map((v) => sanitizeShort(String(v)));
       merged.payment_filter = [...new Set(typed.filter(Boolean))];

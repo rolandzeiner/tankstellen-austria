@@ -315,6 +315,13 @@ describe("tankstellen-austria-card", () => {
       ["JET", "#ffb700"],
       ["DE", ""],
     ]);
+    // The brand tile doesn't need the rank switched on; with both off
+    // there is no tile.
+    expect(await tiles({ stations: { index: false, brand: true } })).toEqual([
+      ["JET", "#ffb700"],
+      ["DE", ""],
+    ]);
+    expect(await tiles({ stations: { index: false } })).toEqual([]);
   });
 
   it("draws round rank tiles with stations.tile_shape: circle", async () => {

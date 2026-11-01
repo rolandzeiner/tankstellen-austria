@@ -95,7 +95,7 @@
     "section_footer": "Logo & attribution",
     "stations_count": "Number of stations",
     "stations_index": "Show rank",
-    "stations_brand": "Brand instead of rank",
+    "stations_brand": "Show brand",
     "stations_tile_shape": "Tile shape",
     "stations_map_links": "Show navigation links",
     "stations_map_provider": "Navigation app",
@@ -148,6 +148,7 @@
     "car_icon": "Icon",
     "car_unnamed": "Car {n}",
     "car_move_up": "Move up",
-    "car_move_down": "Move down"
+    "car_move_down": "Move down",
+    "stations_brand_helper": "Replaces the rank"
   }
 }

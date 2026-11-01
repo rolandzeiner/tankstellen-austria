@@ -258,6 +258,22 @@ describe("editor output", () => {
     expect(changes.at(-1)).toEqual({ type: "custom:tankstellen-austria-card" });
   });
 
+  it("makes rank and brand either-or, and lets both be off", async () => {
+    const { el, changes } = await mount({});
+    let stations = await open(el, "stations");
+    expect(names(stations)).toEqual(expect.arrayContaining(["index", "brand", "tile_shape"]));
+    await change(el, stations, { ...stations.data, brand: true });
+    expect(changes.at(-1)?.stations).toEqual({ index: false, brand: true });
+    stations = await open(el, "stations");
+    await change(el, stations, { ...stations.data, index: true });
+    expect(changes.at(-1)).toEqual({ type: "custom:tankstellen-austria-card" });
+    stations = await open(el, "stations");
+    await change(el, stations, { ...stations.data, index: false });
+    expect(changes.at(-1)?.stations).toEqual({ index: false });
+    // With neither tile there is no shape to pick.
+    expect(names(await open(el, "stations"))).not.toContain("tile_shape");
+  });
+
   it("keeps a select that differs from its default", async () => {
     const { el, changes } = await mount({});
     const stations = await open(el, "stations");

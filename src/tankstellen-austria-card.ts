@@ -1064,7 +1064,8 @@ export class TankstellenAustriaCard extends LitElement {
     paymentFilter: readonly string[],
     highlightMode: boolean,
   ): TemplateResult {
-    const showIndex = this._config.show_index !== false;
+    // The tile shows the rank or the brand; either one draws it.
+    const showIndex = this._config.show_index !== false || this._config.show_brand === true;
     const showMapLinks = this._config.show_map_links !== false;
     // Opt-in: render only when explicitly enabled. An existing card config
     // predating this feature has no `show_distance` key, so it stays hidden

@@ -95,7 +95,7 @@
     "section_footer": "Logo & Quellenangabe",
     "stations_count": "Anzahl Tankstellen",
     "stations_index": "Platzierung anzeigen",
-    "stations_brand": "Marke statt Platzierung",
+    "stations_brand": "Marke anzeigen",
     "stations_tile_shape": "Form der Kachel",
     "stations_map_links": "Navigations-Links anzeigen",
     "stations_map_provider": "Navigations-App",
@@ -148,6 +148,7 @@
     "car_icon": "Symbol",
     "car_unnamed": "Fahrzeug {n}",
     "car_move_up": "Nach oben",
-    "car_move_down": "Nach unten"
+    "car_move_down": "Nach unten",
+    "stations_brand_helper": "Ersetzt die Platzierung"
   }
 }
