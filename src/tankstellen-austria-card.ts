@@ -140,6 +140,11 @@ export class TankstellenAustriaCard extends LitElement {
 
   @property({ attribute: false }) public hass!: HomeAssistant;
 
+  // Set by HA: "grid" in a sections view, "panel" in a panel view, unset in
+  // the add-card picker and masonry. Reflected so the styles can fill the
+  // cell only when there is one -- see the grid-cell rules in styles.ts.
+  @property({ reflect: true }) public layout?: string;
+
   @state() private _config!: TankstellenAustriaCardConfig;
   @state() private _activeTab = 0;
   @state() private _expandedStations: Set<string> = new Set();
@@ -243,6 +248,10 @@ export class TankstellenAustriaCard extends LitElement {
     ) {
       return true;
     }
+    // Lit reflects attributes inside update(), so returning false in the
+    // cycle that changes layout leaves the attribute stale and the grid-cell
+    // rules in styles.ts never match.
+    if (changed.has("layout")) return true;
     const prev = changed.get("hass") as HomeAssistant | undefined;
     if (!prev) return true;
     // A language switch changes no entity state; without this the card keeps

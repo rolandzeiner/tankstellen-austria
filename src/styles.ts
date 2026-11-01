@@ -13,20 +13,6 @@ export const cardStyles = css`
        selection (WCAG 1.4.11). HA's active theme drives the resolution. */
     color-scheme: light dark;
     display: block;
-    /* Fill the grid cell the dashboard gave us.
-       A sections view puts a fixed pixel height on the cell WRAPPER whenever
-       the card's rows are numeric -- which a user also causes by dragging the
-       row handle, since a stored grid_options overrides what getGridOptions()
-       returns -- and styles nothing inside that wrapper.
-       This host is display: block, so IT is the containing block for the
-       ha-card below, and a percentage height against a containing block whose
-       own height is auto computes to auto. Without this line ha-card therefore
-       sizes to its content, overflows a cell too short for it, and is painted
-       over the card underneath. Taking the cell's height here is what gives
-       ha-card's 100% something to resolve against.
-       In an auto-height cell it resolves to auto -- the height it already had
-       -- so it costs nothing there. */
-    block-size: 100%;
 
     /* Brand accent — domain-specific, no HA equivalent. */
     --tankst-accent: var(--primary-color);
@@ -77,19 +63,32 @@ export const cardStyles = css`
     --tankst-tile-size: 40px;
   }
   ha-card {
-    /* Resolves against the height :host just took from the cell, so
-       overflow: hidden clips inside the card rather than the card spilling
-       past its own cell. The two declarations only work as a pair: core cards
-       that set this one alone leave :host at its default inline display, where
-       the cell wrapper is ha-card's containing block instead. */
-    block-size: 100%;
-
     overflow: hidden;
     /* Card responds to its own width, not the viewport — narrow
        dashboard columns trigger the compact density tier even on wide
        screens. */
     container-type: inline-size;
     container-name: tscard;
+  }
+  /* Fill the grid cell the dashboard hands us. A sections view puts a fixed
+     pixel height on the cell WRAPPER when rows is numeric -- which the user
+     also causes by dragging the row handle -- and styles nothing inside it.
+     Because :host is display: block, it is ha-card's containing block, so
+     the two declarations only work as a pair: without the host's, ha-card's
+     100% computes to auto and the card renders at content height on top of
+     the card beneath it.
+     Gated on the layout HA sets on the card ("grid" in a sections view and
+     its edit dialog, "panel" in a panel view), the way Mushroom and HA's tile
+     card gate it. The add-card picker sets none and centres each preview in
+     a tile as tall as the tallest preview in its row; an ungated 100%
+     resolves against that tile and stretches the card down to it. */
+  :host([layout="grid"]),
+  :host([layout="panel"]) {
+    block-size: 100%;
+  }
+  :host([layout="grid"]) ha-card,
+  :host([layout="panel"]) ha-card {
+    block-size: 100%;
   }
   .wrap {
     padding: var(--tankst-pad-y) var(--tankst-pad-x);

@@ -148,6 +148,11 @@ describe("tankstellen-austria-card", () => {
     expect(el.getCardSize()).toBeGreaterThan(0);
   });
 
+  it("reflects the layout HA sets, so the grid-cell rules can match", () => {
+    const ctor = customElements.get("tankstellen-austria-card") as unknown as typeof LitElement;
+    expect(ctor.getPropertyOptions("layout").reflect).toBe(true);
+  });
+
   it("shows the loading state before hass arrives", async () => {
     const el = await mount<Card>("tankstellen-austria-card", (e) => e.setConfig({ type: "x" }));
     expect(el.shadowRoot?.querySelector('.empty[role="status"]')).not.toBeNull();
