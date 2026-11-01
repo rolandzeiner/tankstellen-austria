@@ -1,7 +1,7 @@
 # <sub><sub><img src="https://raw.githubusercontent.com/rolandzeiner/tankstellen-austria/main/custom_components/tankstellen_austria/brand/icon.png" width="40" height="40" alt=""></sub></sub> Tankstellen Austria
 
 [![Marketplace](https://img.shields.io/badge/Marketplace-Catalog-41BDF5.svg)](https://www.home-assistant.io/integrations/marketplace/)
-[![HA min version](https://img.shields.io/badge/Home%20Assistant-%3E%3D2025.1-blue.svg)](https://www.home-assistant.io/)
+[![HA min version](https://img.shields.io/badge/Home%20Assistant-%3E%3D2026.3-blue.svg)](https://www.home-assistant.io/)
 [![Version](https://img.shields.io/github/v/release/rolandzeiner/tankstellen-austria?include_prereleases&label=version&color=blue)](https://github.com/rolandzeiner/tankstellen-austria/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![vibe-coded](https://img.shields.io/badge/vibe-coded-ff69b4?logo=musicbrainz&logoColor=white)](https://en.wikipedia.org/wiki/Vibe_coding)
@@ -37,7 +37,7 @@ Austrian fuel prices in Home Assistant, from E-Control's [Spritpreisrechner](htt
 
 ## Requirements
 
-- Home Assistant **2025.1.0** or newer.
+- Home Assistant **2026.3.0** or newer.
 - No account and no API key.
 
 ## Installation

@@ -69,7 +69,7 @@ def _extract_price(station: Any) -> float | None:
         return None
     try:
         return float(amount)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return None
 
 

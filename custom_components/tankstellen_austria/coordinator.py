@@ -720,5 +720,5 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[Station]]]):
 # runtime_data payload so `entry.runtime_data` is `TankstellenCoordinator`
 # without an explicit annotation at every call site. Defined after the class
 # so the forward reference resolves naturally. PEP 695 `type` statement
-# uses lazy evaluation, so Python 3.12+ only.
+# uses lazy evaluation (Python 3.12+).
 type TankstellenConfigEntry = ConfigEntry[TankstellenCoordinator]
