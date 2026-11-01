@@ -340,7 +340,8 @@ export type HASelector =
         custom_value?: boolean;
         options: ReadonlyArray<{ value: string; label: string }>;
       };
-    };
+    }
+  | { icon: { placeholder?: string } };
 
 export interface HaFormBaseSchema {
   name: string;

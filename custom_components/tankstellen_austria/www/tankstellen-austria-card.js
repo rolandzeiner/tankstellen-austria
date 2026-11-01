@@ -59,29 +59,29 @@ if(super(e),e.type!==Pe.ATTRIBUTE||e.name!==`class`||e.strings?.length>2)throw E
 * Copyright 2018 Google LLC
 * SPDX-License-Identifier: BSD-3-Clause
 */
-if(super(e),e.type!==Pe.ATTRIBUTE||e.name!==`style`||e.strings?.length>2)throw Error("The `styleMap` directive must be used in the `style` attribute and must be the only part in the attribute.")}render(e){return Object.keys(e).reduce((t,n)=>{let r=e[n];return r==null?t:t+`${n=n.includes(`-`)?n:n.replace(/(?:^(webkit|moz|ms|o)|)(?=[A-Z])/g,`-$&`).toLowerCase()}:${r};`},``)}update(e,[t]){let{style:n}=e.element;if(this.ft===void 0)return this.ft=new Set(Object.keys(t)),this.render(t);for(let e of this.ft)t[e]??(this.ft.delete(e),e.includes(`-`)?n.removeProperty(e):n[e]=null);for(let e in t){let r=t[e];if(r!=null){this.ft.add(e);let t=typeof r==`string`&&r.endsWith(Re);e.includes(`-`)||t?n.setProperty(e,t?r.slice(0,-11):r,t?Le:``):n[e]=r}}return F}}),Be=`1.11.0`,Ve=12e4,He=2e4,Ue=18e5,We=[`mdi:car`,`mdi:car-sports`,`mdi:car-hatchback`,`mdi:car-estate`,`mdi:car-convertible`,`mdi:car-pickup`,`mdi:car-electric`,`mdi:car-electric-outline`,`mdi:car-side`,`mdi:van-passenger`,`mdi:motorbike`,`mdi:bus`,`mdi:truck`,`mdi:rv-truck`],Ge=`#1a1a1a`,Ke=`#ffffff`,qe=[{match:/\bomv\b/i,initials:`OMV`,bg:`#052759`,fg:`#1fff5a`},{match:/\bavanti\b/i,initials:`AVA`,bg:`#fbe800`,fg:`#1d1d1b`},{match:/\bbp\b/i,initials:`BP`,bg:`#007700`,fg:`#ffe600`},{match:/\bshell\b/i,initials:`SH`,bg:`#fbce07`,fg:Ge},{match:/\beni(?:\d+)?\b/i,initials:`ENI`,bg:`#fab600`,fg:Ge},{match:/\bjet\b/i,initials:`JET`,bg:`#ffb700`,fg:`#164194`},{match:/\bturm(?:ö|oe)l\b/i,initials:`TÖ`,bg:`#f04e23`,fg:Ge},{match:/\bavia\b/i,initials:`AV`,bg:`#e30613`,fg:Ke},{match:/\bsocar\b/i,initials:`SO`,bg:`#e4022c`,fg:Ke},{match:/\b(?:genol|lagerhaus)\b/i,initials:`LH`,bg:`#009e3c`,fg:Ge}],Je=/* @__PURE__ */ new Set([`tankstelle`,`tankstellen`,`tanken`,`diesel`,`diskont`,`shop`,`quick`,`austria`,`gmbh`,`co`,`kg`]);function Ye(e){let[t,n]=e.split(/[^\p{L}\p{N}]+/u).filter(e=>e.length>0&&!Je.has(e.toLowerCase()));return t?(n&&!/^\d/.test(t)?`${t[0]}${n[0]}`:t.slice(0,2)).toUpperCase():``}function Xe(e){let t=e??``,n=qe.find(e=>e.match.test(t));return n?{initials:n.initials,bg:n.bg,fg:n.fg}:{initials:Ye(t)||`–`}}var Ze=173,Qe=45,$e=68,et=41,tt=99,nt=19,rt=12,it=46,at=65;function ot(e,t){let n=Ze;t.entityCount>1&&(n+=Qe),e.hide_header_price===!0&&(n-=$e),e.hide_attribution===!0&&(n-=et),e.show_history!==!1&&!t.dynamic&&(n+=tt,e.show_best_refuel!==!1&&(n+=nt)),e.show_cars===!0&&(e.show_car_fillup!==!1||e.show_car_consumption!==!1)&&t.carCount>0&&(n+=rt+it*t.carCount);let r=e.max_stations??5;return n+=at*Math.min(r,t.stationCount),n}var st=[`DIE`,`SUP`,`GAS`];function ct(e){if(!e||typeof e!=`object`)return null;let t=e,n=typeof t.name==`string`?t.name.slice(0,50):``,r=st.includes(t.fuel_type)?t.fuel_type:`DIE`,i=parseInt(String(t.tank_size),10),a=Number.isFinite(i)&&i>=1?Math.min(200,i):50,o;if(typeof t.consumption==`number`||typeof t.consumption==`string`){let e=parseFloat(String(t.consumption));Number.isFinite(e)&&e>=0&&(o=Math.min(30,e))}let s={name:n,fuel_type:r,tank_size:a,icon:typeof t.icon==`string`&&t.icon.startsWith(`mdi:`)?t.icon:`mdi:car`};return o!=null&&(s.consumption=o),s}function lt(e){if(!e)throw Error(`tankstellen-austria-card: config missing`);let t={...e};if(typeof t.entities==`string`&&(t.entities=[t.entities]),Array.isArray(t.entities)?t.entities=t.entities.filter(e=>typeof e==`string`&&e.includes(`.`)):t.entities!=null&&(console.warn(`[Tankstellen Austria] config.entities must be an array of entity IDs — ignoring`,t.entities),delete t.entities),t.max_stations!=null){let e=parseInt(String(t.max_stations),10);t.max_stations=Number.isFinite(e)?Math.max(0,Math.min(5,e)):5}return Array.isArray(t.payment_filter)?t.payment_filter=t.payment_filter.filter(e=>typeof e==`string`&&e.length>0):t.payment_filter!=null&&delete t.payment_filter,Array.isArray(t.cars)?t.cars=t.cars.map(e=>ct(e)).filter(e=>e!==null):t.cars!=null&&delete t.cars,t}var ut={stations:{count:5,sort:`price`,index:!0,brand:!1,tile_shape:`square`,map_links:!0,map_provider:`auto`,distance:!1,opening_hours:!0,payment_methods:!0,payment_mode:`filter`},header:{show:!0,price:!0},chart:{show:!0,median_line:!1,hour_envelope:!1,noon_markers:!1,min_max:!0,best_refuel:!0},cars:{show:!1,fill_up:!0,consumption:!0},footer:{adaptive_logo:!1,show:!0}},dt=[`stations`,`header`,`chart`,`cars`,`footer`],H=e=>typeof e==`boolean`?!e:e,ft=[{flat:`max_stations`,group:`stations`,key:`count`},{flat:`sort_by_distance`,group:`stations`,key:`sort`,toGroup:e=>e===!0?`distance`:`price`,toFlat:e=>e===`distance`},{flat:`show_index`,group:`stations`,key:`index`},{flat:`show_brand`,group:`stations`,key:`brand`},{flat:`tile_shape`,group:`stations`,key:`tile_shape`},{flat:`show_distance`,group:`stations`,key:`distance`},{flat:`show_opening_hours`,group:`stations`,key:`opening_hours`},{flat:`show_payment_methods`,group:`stations`,key:`payment_methods`},{flat:`show_map_links`,group:`stations`,key:`map_links`},{flat:`map_provider`,group:`stations`,key:`map_provider`},{flat:`payment_filter`,group:`stations`,key:`payment_filter`},{flat:`payment_highlight_mode`,group:`stations`,key:`payment_mode`,toGroup:e=>e===!0?`highlight`:`filter`,toFlat:e=>e===`highlight`},{flat:`hide_header`,group:`header`,key:`show`,toGroup:H,toFlat:H},{flat:`hide_header_price`,group:`header`,key:`price`,toGroup:H,toFlat:H},{flat:`show_history`,group:`chart`,key:`show`},{flat:`show_best_refuel`,group:`chart`,key:`best_refuel`},{flat:`show_median_line`,group:`chart`,key:`median_line`},{flat:`show_hour_envelope`,group:`chart`,key:`hour_envelope`},{flat:`show_noon_markers`,group:`chart`,key:`noon_markers`},{flat:`show_minmax`,group:`chart`,key:`min_max`},{flat:`show_cars`,group:`cars`,key:`show`},{flat:`show_car_fillup`,group:`cars`,key:`fill_up`},{flat:`show_car_consumption`,group:`cars`,key:`consumption`},{flat:`hide_attribution`,group:`footer`,key:`show`,toGroup:H,toFlat:H},{flat:`logo_adapt_to_theme`,group:`footer`,key:`adaptive_logo`}],pt=e=>!!e&&typeof e==`object`&&!Array.isArray(e);function mt(e){let t={...e},n={};for(let r of dt)pt(e[r])&&(n[r]={...e[r]}),delete t[r];Array.isArray(e.cars)&&(n.cars={items:e.cars,...n.cars});for(let r of ft){let i=e[r.flat];if(delete t[r.flat],i===void 0)continue;let a=n[r.group]??={};a[r.key]===void 0&&(a[r.key]=r.toGroup?r.toGroup(i):i)}for(let e of dt)n[e]&&Object.keys(n[e]).length>0&&(t[e]=n[e]);return t}function ht(e){let t={...e},n={};for(let r of dt)pt(e[r])&&(n[r]=e[r]),delete t[r];for(let e of ft){let r=n[e.group]?.[e.key];r!==void 0&&(t[e.flat]=e.toFlat?e.toFlat(r):r)}return n.cars?.items!==void 0&&(t.cars=n.cars.items),t}var gt=`fuel_`;function _t(e){return!e||!e.states?[]:Object.keys(e.states).filter(t=>{if(!t.startsWith(`sensor.`))return!1;if(e.entities?.[t]?.platform===`tankstellen_austria`)return!0;let n=e.states[t];return!!(n?.attributes?.fuel_type&&Array.isArray(n.attributes.stations))})}function vt(e,t,n){let r=n?.fuel_type;if(typeof r==`string`&&r)return r;let i=e?.entities?.[t]?.translation_key;return typeof i==`string`&&i.startsWith(gt)?i.slice(5).toUpperCase():``}function yt(e){return e?!!(e.cash||e.debit_card||e.credit_card||e.others&&e.others.length>0):!1}function bt(e,t,n){return t===`cash`?e.cash?n?.cash??`cash`:null:t===`debit_card`?e.debit_card?n?.debit_card??`debit_card`:null:t===`credit_card`?e.credit_card?n?.credit_card??`credit_card`:null:(e.others??[]).find(e=>e.toLowerCase()===t.toLowerCase())??null}function xt(e,t){if(!t||!t.length)return!0;let n=e.payment_methods??{};return t.some(e=>bt(n,e)!==null)}function St(e,t,n){if(!t||!t.length)return[];let r=e.payment_methods??{},i=[];for(let e of t){let t=bt(r,e,n);t!==null&&i.push(t)}return i}function Ct(e,t=/* @__PURE__ */ new Date){if(e.open===!1)return!1;let n=e.opening_hours??[];if(!n.length)return!1;let r=t.getDay(),i=r===0?`SO`:r===6?`SA`:`MO`,a=n.find(e=>e.day===i);if(!a||!a.to||a.from===`00:00`&&a.to===`24:00`)return!1;let[o,s]=a.to.split(`:`);if(o===void 0||s===void 0)return!1;let c=parseInt(o,10),l=parseInt(s,10);if(!Number.isFinite(c)||!Number.isFinite(l))return!1;let u=new Date(t);c===0&&l===0?(u.setDate(u.getDate()+1),u.setHours(0,0,0,0)):u.setHours(c,l,0,0);let d=(u.getTime()-t.getTime())/6e4;return d>0&&d<=30}function wt(e){return e==null||!Number.isFinite(Number(e))?`–`:`€ ${Number(e).toFixed(3).replace(`.`,`,`)}`}function U(e){return e==null||!Number.isFinite(Number(e))?`–`:Number(e).toFixed(3).replace(`.`,`,`)}function Tt(e){return e==null||!Number.isFinite(e)||e<0?``:e<1e3?`${Math.round(e)} m`:`${(e/1e3).toFixed(1).replace(`.`,`,`)} km`}function Et(e,t,n=`google`){if(!e)return t?`https://www.google.com/search?q=${encodeURIComponent(t)}`:null;if(/\d/.test(e.address??``)){let t=`${e.postalCode??``} ${e.city??``} ${e.address??``}`.trim(),r=encodeURIComponent(t);return n===`apple`?`https://maps.apple.com/?q=${r}`:n===`geo`?`geo:0,0?q=${r}`:`https://maps.google.com/?q=${r}`}let r=[t,e.address,e.postalCode,e.city].filter(e=>e!=null&&e!==``);return r.length===0?null:`https://www.google.com/search?q=${encodeURIComponent(r.join(` `))}`}var Dt=6e4;async function Ot(e){try{return(await e.callWS({type:`tankstellen_austria/api_status`}))?.maintenance===!0}catch{return!1}}var kt=/* @__PURE__ */ t({card:()=>jt,common:()=>At,default:()=>Ft,editor:()=>Pt,fuel_types:()=>Mt,weekdays:()=>Nt}),At={version:`Version`,invalid_configuration:`Invalid configuration`,loading:`Loading…`,no_data:`No data available`},jt={cheapest:`Cheapest price`,average:`Avg. price`,price:`Price`,closed:`Closed`,closing_soon:`Closing soon`,open_now:`Open`,opening_hours:`Opening hours`,payment:`Payment`,cash:`Cash`,debit_card:`Debit card`,credit_card:`Credit card`,payment_filter_active:`Payment filter active`,payment_highlight_active:`Payment filter (highlight)`,mon_fri:`Mon–Fri`,sat:`Sat`,sun:`Sun`,holiday:`Holiday`,map:`Map`,per_liter:`/l`,last_7_days:`Last 7 days`,min_label:`Min`,max_label:`Max`,refresh:`Refresh`,last_updated:`Updated:`,no_new_data:`No new data`,version_update:`Tankstellen Austria updated to v{v} — please reload`,version_reload:`Reload`,version_reload_stuck:`Reload didn't load the new version. Check HACS and do a hard refresh (Ctrl+Shift+R).`,version_dismiss:`Dismiss`,fill_up:`Fill up`,best_refuel_hour:`Tip: Cheapest between {h1}:00–{h2}:00`,best_refuel_hour_weekday:`Tip: Cheapest between {h1}:00–{h2}:00, usually {day}`,not_enough_data_hint:`Not enough data yet for a tip (min. 7 days)`,confidence_high:`High`,confidence_medium:`Medium`,confidence_low:`Low`,confidence_title:`Recommendation confidence`,confidence_span:`Data span`,confidence_coverage:`Coverage`,confidence_gap:`Gap`,confidence_days:`days`,confidence_cents:`¢`,confidence_short_history_hint:`Note: Home Assistant keeps only 10 days of history by default. For better recommendations raise recorder.purge_keep_days to 30.`,median_delta_below:`{c}¢ below median`,median_delta_above:`{c}¢ above median`,median_delta_equal:`at median`,loading:`Loading…`,no_data:`No data available`,sparkline_open_more_info:`Open price history`,sparkline_aria_summary:`Price history last 7 days: minimum {min}, maximum {max}, median {median}`,sparkline_aria_simple:`Price history last 7 days: minimum {min}, maximum {max}`,history_fetch_error:`Couldn't load price history`,api_maintenance:`E-Control is down for maintenance. Prices return automatically when it's back.`,unreachable:`Can't reach E-Control`,unreachable_detail:`Prices come back on their own once the connection works again.`},Mt={DIE:`Diesel`,SUP:`Super 95`,GAS:`CNG`},Nt=[`Sunday`,`Monday`,`Tuesday`,`Wednesday`,`Thursday`,`Friday`,`Saturday`],Pt={entities:`Sensors`,entities_hint:`Leave empty for auto-detection`,entity_missing:`Sensor {entity} no longer exists. Pick a different sensor or remove it from this card's entities list.`,map_provider_auto:`Automatic (by device)`,map_provider_google:`Always Google Maps`,map_provider_apple:`Always Apple Maps`,tile_shape_square:`Rounded square`,tile_shape_circle:`Circle`,recorder_hint_intro:`Home Assistant keeps only 10 days of history by default. For better recommendations, add this block to configuration.yaml and restart:`,recorder_hint_docs:`Read the recorder docs`,copy:`Copy`,copied:`Copied`,payment_filter:`Only stations with`,payment_filter_custom_placeholder:`Custom, e.g. Routex`,payment_filter_custom_hint:`Must match the API string exactly. Common values: Routex, UTA, DKV, Austrocard, Fleetcard, ADAC`,payment_filter_add_custom:`Add custom payment method`,section_sensors:`Sensors`,section_payment_filter:`Payment filter`,section_tab_labels:`Tab labels`,tab_labels_hint:`Leave empty to use the default label`,section_cars:`Cars`,cars_both_off_hint:`No rows enabled. To hide cars entirely, turn off “Show cars”.`,car_name_placeholder:`Name (e.g. Golf TDI)`,car_tank_placeholder:`Liters`,car_consumption_placeholder:`⌀ l/100km`,car_fuel_type:`Fuel type`,car_choose_icon:`Choose icon`,car_delete:`Delete car`,add_car:`+ Add car`,copy_recorder_snippet:`Copy the recorder snippet`,tank_size_range_error:`Please enter a value between 1 and 200 litres`,consumption_range_error:`Please enter a value between 0 and 30 l/100 km`,section_stations:`Stations`,section_header:`Header`,section_chart:`Price history`,section_footer:`Logo & attribution`,stations_count:`Number of stations`,stations_index:`Show rank`,stations_brand:`Brand instead of rank`,stations_tile_shape:`Tile shape`,stations_map_links:`Show navigation links`,stations_map_provider:`Navigation app`,stations_distance:`Show distance`,stations_sort:`Order`,sort_price:`Cheapest first`,sort_distance:`Nearest first`,stations_opening_hours:`Show opening hours`,stations_payment_methods:`Show payment methods`,stations_payment_mode:`Stations without a match`,payment_mode_filter:`Hide them`,payment_mode_highlight:`Show them, highlight the matches`,header_show:`Show header`,header_price:`Show cheapest and average price`,chart_show:`Show price history`,chart_median_line:`Show 7-day median`,chart_hour_envelope:`Typical hourly range (4 wk)`,chart_noon_markers:`Noon reset markers`,chart_min_max:`Show min/max`,chart_best_refuel:`Show refuel tip`,cars_show:`Show cars`,cars_fill_up:`Show fill-up cost`,cars_consumption:`Show consumption`,footer_adaptive_logo:`Adapt E-Control logo color to theme`,footer_show:`Show attribution`},Ft={common:At,card:jt,fuel_types:Mt,weekdays:Nt,editor:Pt},It=/* @__PURE__ */ t({card:()=>Rt,common:()=>Lt,default:()=>Ht,editor:()=>Vt,fuel_types:()=>zt,weekdays:()=>Bt}),Lt={version:`Version`,invalid_configuration:`Ungültige Konfiguration`,loading:`Lädt…`,no_data:`Keine Daten verfügbar`},Rt={cheapest:`Günstigster Preis`,average:`Ø Preis`,price:`Preis`,closed:`Geschlossen`,closing_soon:`Schließt bald`,open_now:`Geöffnet`,opening_hours:`Öffnungszeiten`,payment:`Zahlungsarten`,cash:`Bar`,debit_card:`Bankomat`,credit_card:`Kreditkarte`,payment_filter_active:`Zahlungsfilter aktiv`,payment_highlight_active:`Zahlungsfilter (Hervorhebung)`,mon_fri:`Mo–Fr`,sat:`Sa`,sun:`So`,holiday:`Feiertag`,map:`Karte`,per_liter:`/l`,last_7_days:`Letzte 7 Tage`,min_label:`Min`,max_label:`Max`,refresh:`Aktualisieren`,last_updated:`Aktualisiert:`,no_new_data:`Keine neuen Daten`,version_update:`Tankstellen Austria wurde auf v{v} aktualisiert — bitte neu laden`,version_reload:`Neu laden`,version_reload_stuck:`Neu-Laden hat die neue Version nicht geladen. In HACS prüfen und einen harten Reload (Strg+Umschalt+R) ausführen.`,version_dismiss:`Ausblenden`,fill_up:`Volltanken`,best_refuel_hour:`Tipp: Am günstigsten zwischen {h1}:00–{h2}:00`,best_refuel_hour_weekday:`Tipp: Am günstigsten zwischen {h1}:00–{h2}:00, meist {day}`,not_enough_data_hint:`Noch zu wenig Daten für Empfehlung (mind. 7 Tage)`,confidence_high:`Hoch`,confidence_medium:`Mittel`,confidence_low:`Niedrig`,confidence_title:`Empfehlungsgüte`,confidence_span:`Datenumfang`,confidence_coverage:`Abdeckung`,confidence_gap:`Vorsprung`,confidence_days:`Tage`,confidence_cents:`Cent`,confidence_short_history_hint:`Hinweis: Home Assistant speichert standardmäßig nur 10 Tage Verlauf. Für bessere Empfehlungen recorder.purge_keep_days auf 30 erhöhen.`,median_delta_below:`{c}¢ unter Median`,median_delta_above:`{c}¢ über Median`,median_delta_equal:`auf Median`,loading:`Wird geladen…`,no_data:`Keine Daten verfügbar`,sparkline_open_more_info:`Preisverlauf öffnen`,sparkline_aria_summary:`Preisverlauf der letzten 7 Tage: Minimum {min}, Maximum {max}, Median {median}`,sparkline_aria_simple:`Preisverlauf der letzten 7 Tage: Minimum {min}, Maximum {max}`,history_fetch_error:`Preisverlauf konnte nicht geladen werden`,api_maintenance:`E-Control führt Wartungsarbeiten durch. Die Preise kommen automatisch zurück, sobald der Dienst wieder läuft.`,unreachable:`Keine Verbindung zur E-Control`,unreachable_detail:`Die Preise erscheinen von selbst wieder, sobald die Verbindung funktioniert.`},zt={DIE:`Diesel`,SUP:`Super 95`,GAS:`CNG Erdgas`},Bt=[`Sonntag`,`Montag`,`Dienstag`,`Mittwoch`,`Donnerstag`,`Freitag`,`Samstag`],Vt={entities:`Sensoren`,entities_hint:`Leer lassen für automatische Erkennung`,entity_missing:`Sensor {entity} existiert nicht mehr. Wähle einen anderen Sensor oder entferne ihn aus den Entitäten dieser Karte.`,map_provider_auto:`Automatisch (je Gerät)`,map_provider_google:`Immer Google Maps`,map_provider_apple:`Immer Apple Maps`,tile_shape_square:`Abgerundetes Quadrat`,tile_shape_circle:`Kreis`,recorder_hint_intro:`Home Assistant speichert standardmäßig nur 10 Tage Verlauf. Für bessere Empfehlungen diesen Block in configuration.yaml ergänzen und neu starten:`,recorder_hint_docs:`Recorder-Dokumentation lesen`,copy:`Kopieren`,copied:`Kopiert`,payment_filter:`Nur Tankstellen mit`,payment_filter_custom_placeholder:`Benutzerdefiniert, z.B. Routex`,payment_filter_custom_hint:`Der Wert muss exakt dem API-String entsprechen. Häufige Werte: Routex, UTA, DKV, Austrocard, Fleetcard, ADAC`,payment_filter_add_custom:`Benutzerdefinierte Zahlungsmethode hinzufügen`,section_sensors:`Sensoren`,section_payment_filter:`Zahlungsfilter`,section_tab_labels:`Tab-Bezeichnungen`,tab_labels_hint:`Leer lassen, um die Standard-Bezeichnung zu verwenden`,section_cars:`Fahrzeuge`,cars_both_off_hint:`Keine Zeile aktiv. Um Fahrzeuge ganz auszublenden, „Fahrzeuge anzeigen“ ausschalten.`,car_name_placeholder:`Name (z.B. Golf TDI)`,car_tank_placeholder:`Liter`,car_consumption_placeholder:`⌀ l/100km`,car_fuel_type:`Kraftstoffart`,car_choose_icon:`Symbol wählen`,car_delete:`Fahrzeug entfernen`,add_car:`+ Fahrzeug hinzufügen`,copy_recorder_snippet:`Recorder-Ausschnitt kopieren`,tank_size_range_error:`Bitte einen Wert zwischen 1 und 200 Litern eingeben`,consumption_range_error:`Bitte einen Wert zwischen 0 und 30 l/100 km eingeben`,section_stations:`Tankstellen`,section_header:`Kopfzeile`,section_chart:`Preisverlauf`,section_footer:`Logo & Quellenangabe`,stations_count:`Anzahl Tankstellen`,stations_index:`Platzierung anzeigen`,stations_brand:`Marke statt Platzierung`,stations_tile_shape:`Form der Kachel`,stations_map_links:`Navigations-Links anzeigen`,stations_map_provider:`Navigations-App`,stations_distance:`Luftlinie anzeigen`,stations_sort:`Reihenfolge`,sort_price:`Günstigste zuerst`,sort_distance:`Nächste zuerst`,stations_opening_hours:`Öffnungszeiten anzeigen`,stations_payment_methods:`Zahlungsarten anzeigen`,stations_payment_mode:`Tankstellen ohne Treffer`,payment_mode_filter:`Ausblenden`,payment_mode_highlight:`Anzeigen, Treffer hervorheben`,header_show:`Kopfzeile anzeigen`,header_price:`Günstigsten und Durchschnittspreis anzeigen`,chart_show:`Preisverlauf anzeigen`,chart_median_line:`7-Tage-Median einblenden`,chart_hour_envelope:`Typischer Stundenverlauf (4 Wo)`,chart_noon_markers:`12:00-Markierung (Preisreset)`,chart_min_max:`Min/Max anzeigen`,chart_best_refuel:`Tank-Tipp anzeigen`,cars_show:`Fahrzeuge anzeigen`,cars_fill_up:`Tankkosten anzeigen`,cars_consumption:`Verbrauch anzeigen`,footer_adaptive_logo:`E-Control-Logo an Theme-Farbe anpassen`,footer_show:`Quellenangabe anzeigen`},Ht={common:Lt,card:Rt,fuel_types:zt,weekdays:Bt,editor:Vt},Ut=kt,W=It,Wt={en:Ut,de:W};function G(e,t){return e.split(`.`).reduce((e,t)=>{if(e&&typeof e==`object`&&t in e)return e[t]},t)}function Gt(e,t){let n=G(e,t);return typeof n==`string`?n:void 0}function Kt(e){return(e.configLanguage||e.hassLanguage||`de`).replace(`-`,`_`)}function qt(e,t,n){let r=Gt(e,Wt[Kt(t)]??W);if(r===void 0&&(r=Gt(e,W)),r===void 0&&(r=e),n)for(let[e,t]of Object.entries(n))r=r.replace(`{${e}}`,t);return r}function Jt(e){let t=G(`weekdays`,Wt[Kt(e)]??W);if(Array.isArray(t)&&t.every(e=>typeof e==`string`))return t;let n=G(`weekdays`,W);return Array.isArray(n)?n:[]}function Yt(e,t){let n=(G(`fuel_types`,Wt[Kt(t)]??W)??G(`fuel_types`,W))?.[e];return typeof n==`string`?n:e}var Xt=/* @__PURE__ */ new Map,Zt=/* @__PURE__ */ new Map;function Qt(e){if(typeof e.lu==`number`)return Math.round(e.lu*1e3);let t=e.lu??e.last_updated??e.last_changed;return t?new Date(t).getTime():0}function $t(e,t){let n=e[0]?.time??1/0;return[...t.filter(e=>e.time<n),...e]}function en(e){return(e??[]).map(e=>({time:typeof e.start==`number`?e.start:e.start?new Date(e.start).getTime():0,value:typeof e.mean==`number`?e.mean:NaN})).filter(e=>Number.isFinite(e.value)&&e.time>0)}async function tn(e,t,n,r){try{return en((await e.callWS({type:`recorder/statistics_during_period`,start_time:n.toISOString(),end_time:r.toISOString(),statistic_ids:[t],period:`hour`,types:[`mean`]}))?.[t])}catch(e){return console.warn(`[Tankstellen Austria] statistics fetch failed for`,t,e),[]}}async function nn(e,t,n={}){if(!e?.callWS)return[];let r=Zt.get(t);if(r)return r;let i=n.days??28,a=/* @__PURE__ */ new Date,o=/* @__PURE__ */ new Date(a.getTime()-i*24*60*60*1e3),s=e.states?.[t]?.attributes?.state_class===`measurement`,c=(async()=>{try{let n=((await e.callWS({type:`history/history_during_period`,start_time:o.toISOString(),end_time:a.toISOString(),entity_ids:[t],minimal_response:!0,significant_changes_only:!0}))?.[t]??[]).map(e=>({time:Qt(e),value:parseFloat(String(e.s??e.state??``))})).filter(e=>Number.isFinite(e.value)&&e.time>0),r=s?$t(n,await tn(e,t,o,a)):n;return Xt.set(t,r),r}catch(e){return console.warn(`[Tankstellen Austria] history fetch failed for`,t,`— sparkline and best-refuel will be empty:`,e),Xt.get(t)??[]}finally{Zt.delete(t)}})();return Zt.set(t,c),c}function rn(e){return Xt.get(e)??[]}function an(e){let t=e.length;if(t===0)return``;if(t===1)return`M ${e[0].x.toFixed(2)} ${e[0].y.toFixed(2)}`;if(t===2)return`M ${e[0].x.toFixed(2)} ${e[0].y.toFixed(2)} L ${e[1].x.toFixed(2)} ${e[1].y.toFixed(2)}`;let n=Array.from({length:t-1});for(let r=0;r<t-1;r++){let t=e[r+1].x-e[r].x;n[r]=t===0?0:(e[r+1].y-e[r].y)/t}let r=Array.from({length:t});r[0]=n[0],r[t-1]=n[t-2];for(let e=1;e<t-1;e++)r[e]=(n[e-1]+n[e])/2;for(let e=0;e<t-1;e++){if(n[e]===0){r[e]=0,r[e+1]=0;continue}let t=r[e]/n[e],i=r[e+1]/n[e],a=t*t+i*i;if(a>9){let o=3/Math.sqrt(a);r[e]=o*t*n[e],r[e+1]=o*i*n[e]}}let i=`M ${e[0].x.toFixed(2)} ${e[0].y.toFixed(2)}`;for(let n=0;n<t-1;n++){let t=e[n+1].x-e[n].x,a=e[n].x+t/3,o=e[n].y+r[n]*t/3,s=e[n+1].x-t/3,c=e[n+1].y-r[n+1]*t/3;i+=` C ${a.toFixed(2)} ${o.toFixed(2)}, ${s.toFixed(2)} ${c.toFixed(2)}, ${e[n+1].x.toFixed(2)} ${e[n+1].y.toFixed(2)}`}return i}function on(e,t){return!e||!t||e.length<2||e.length!==t.length?``:`${an(e)} ${an([...t].reverse()).replace(/^M\s+([-\d.]+)\s+([-\d.]+)/,(e,t,n)=>`L ${t} ${n}`)} Z`}function K(e,t,n){return Math.max(t,Math.min(n,e))}function sn(e,t){let n=e.filter(e=>Number.isFinite(e.value)&&e.weight>0);if(n.length===0)return NaN;if(n.length===1)return n[0].value;let r=[...n];r.sort((e,t)=>e.value-t.value);let i=r.reduce((e,t)=>e+t.weight,0),a=K(t,0,1)*i,o=0;for(let e of r)if(o+=e.weight,o>=a)return e.value;return r[r.length-1].value}var q=280,J=48,cn=6048e5;function ln(e){if(!e?.hasEnoughData||e.hour==null)return null;let t=/* @__PURE__ */ new Date,n=new Date(t);if(e.weekday!=null){let r=(t.getDay()-e.weekday+7)%7;r===0&&t.getHours()<e.hour&&(r=7),n.setDate(n.getDate()-r)}else t.getHours()<e.hour&&n.setDate(n.getDate()-1);n.setHours(e.hour,0,0,0);let r=n.getTime();return{startMs:r,endMs:r+(((e.hour_end??(e.hour+1)%24)-e.hour+24)%24||1)*36e5}}function un(e){let t=Date.now()-cn,n=e.filter(e=>e.time>=t),r=e.filter(e=>e.time<t),i=r.length?r[r.length-1]:null;return i?[{time:t,value:i.value},...n]:n}function dn(e){if(e.length<2)return null;let t=[...e];t.sort((e,t)=>e-t);let n=(t.length-1)/2,r=(t[Math.floor(n)]+t[Math.ceil(n)])/2,i=(e[e.length-1]-r)*100,a=Math.abs(i).toFixed(1);return i<=-.05?{key:`median_delta_below`,cents:a,cls:`median-delta-good`}:i>=.05?{key:`median_delta_above`,cents:a,cls:`median-delta-bad`}:{key:`median_delta_equal`,cents:a,cls:`median-delta-neutral`}}function fn(e,t){let n=[...e];n.sort((e,t)=>e-t);let r=(n.length-1)/2;return t((n[Math.floor(r)]+n[Math.ceil(r)])/2)}function pn(e){let t={template:I,hoverPoints:[],medianDelta:null,viewBoxWidth:q,viewBoxHeight:J};try{let n=e.points;if(!n||n.length<2)return t;let r=un(n);if(r.length<2)return t;let i=r[r.length-1];i.time<Date.now()-18e5&&(r=[...r,{time:Date.now(),value:i.value}]);let a=r.map(e=>e.value),o=Math.min(...a),s=Math.max(...a),c=o,l=s,u=e.showHourEnvelope?e.hourEnvelope??null:null;if(u)for(let e=0;e<24;e++){let t=u.minByHour[e],n=u.maxByHour[e];t!=null&&n!=null&&(c=Math.min(c,t),l=Math.max(l,n))}let d=l-c||.01,f=e=>44-(e-c)/d*40,p=r.map((e,t)=>({x:t/(r.length-1)*q,y:f(e.value)})),m=an(p),h=m?`${m} L ${q.toFixed(2)} ${J.toFixed(2)} L 0 ${J.toFixed(2)} Z`:``,g=I;if(u){let e=[],t=[];for(let n=0;n<r.length;n++){let i=new Date(r[n].time).getHours(),a=u.maxByHour[i],o=u.minByHour[i];a!=null&&o!=null&&(e.push({x:p[n].x,y:f(a)}),t.push({x:p[n].x,y:f(o)}))}if(e.length>=2){let n=on(e,t);n&&(g=me`<path d=${n} fill="var(--primary-color)" fill-opacity="0.08" stroke="none"/>`)}}let _=r[0].time,v=r[r.length-1].time,y=e=>{if(e<=_||e>=v)return null;let t=0,n=r.length-1;for(;t<n-1;){let i=t+n>>1;r[i].time<=e?t=i:n=i}let i=r[t+1].time-r[t].time,a=i>0?(e-r[t].time)/i:0;return p[t].x+a*(p[t+1].x-p[t].x)},b=[];if(e.showNoonMarkers&&r.length>=2){let e=new Date(_);for(e.setHours(12,0,0,0),e.getTime()<_&&e.setDate(e.getDate()+1);e.getTime()<=v;e.setDate(e.getDate()+1),e.setHours(12,0,0,0)){let t=y(e.getTime());t!=null&&b.push(me`
-          <line x1=${t.toFixed(1)} y1="0" x2=${t.toFixed(1)} y2=${J}
+if(super(e),e.type!==Pe.ATTRIBUTE||e.name!==`style`||e.strings?.length>2)throw Error("The `styleMap` directive must be used in the `style` attribute and must be the only part in the attribute.")}render(e){return Object.keys(e).reduce((t,n)=>{let r=e[n];return r==null?t:t+`${n=n.includes(`-`)?n:n.replace(/(?:^(webkit|moz|ms|o)|)(?=[A-Z])/g,`-$&`).toLowerCase()}:${r};`},``)}update(e,[t]){let{style:n}=e.element;if(this.ft===void 0)return this.ft=new Set(Object.keys(t)),this.render(t);for(let e of this.ft)t[e]??(this.ft.delete(e),e.includes(`-`)?n.removeProperty(e):n[e]=null);for(let e in t){let r=t[e];if(r!=null){this.ft.add(e);let t=typeof r==`string`&&r.endsWith(Re);e.includes(`-`)||t?n.setProperty(e,t?r.slice(0,-11):r,t?Le:``):n[e]=r}}return F}}),Be=`1.11.0`,Ve=12e4,He=2e4,Ue=18e5,We=`#1a1a1a`,Ge=`#ffffff`,Ke=[{match:/\bomv\b/i,initials:`OMV`,bg:`#052759`,fg:`#1fff5a`},{match:/\bavanti\b/i,initials:`AVA`,bg:`#fbe800`,fg:`#1d1d1b`},{match:/\bbp\b/i,initials:`BP`,bg:`#007700`,fg:`#ffe600`},{match:/\bshell\b/i,initials:`SH`,bg:`#fbce07`,fg:We},{match:/\beni(?:\d+)?\b/i,initials:`ENI`,bg:`#fab600`,fg:We},{match:/\bjet\b/i,initials:`JET`,bg:`#ffb700`,fg:`#164194`},{match:/\bturm(?:ö|oe)l\b/i,initials:`TÖ`,bg:`#f04e23`,fg:We},{match:/\bavia\b/i,initials:`AV`,bg:`#e30613`,fg:Ge},{match:/\bsocar\b/i,initials:`SO`,bg:`#e4022c`,fg:Ge},{match:/\b(?:genol|lagerhaus)\b/i,initials:`LH`,bg:`#009e3c`,fg:We}],qe=/* @__PURE__ */ new Set([`tankstelle`,`tankstellen`,`tanken`,`diesel`,`diskont`,`shop`,`quick`,`austria`,`gmbh`,`co`,`kg`]);function Je(e){let[t,n]=e.split(/[^\p{L}\p{N}]+/u).filter(e=>e.length>0&&!qe.has(e.toLowerCase()));return t?(n&&!/^\d/.test(t)?`${t[0]}${n[0]}`:t.slice(0,2)).toUpperCase():``}function Ye(e){let t=e??``,n=Ke.find(e=>e.match.test(t));return n?{initials:n.initials,bg:n.bg,fg:n.fg}:{initials:Je(t)||`–`}}var Xe=173,Ze=45,Qe=68,$e=41,et=99,tt=19,nt=12,rt=46,it=65;function at(e,t){let n=Xe;t.entityCount>1&&(n+=Ze),e.hide_header_price===!0&&(n-=Qe),e.hide_attribution===!0&&(n-=$e),e.show_history!==!1&&!t.dynamic&&(n+=et,e.show_best_refuel!==!1&&(n+=tt)),e.show_cars===!0&&(e.show_car_fillup!==!1||e.show_car_consumption!==!1)&&t.carCount>0&&(n+=nt+rt*t.carCount);let r=e.max_stations??5;return n+=it*Math.min(r,t.stationCount),n}var ot=[`DIE`,`SUP`,`GAS`];function st(e){if(!e||typeof e!=`object`)return null;let t=e,n=typeof t.name==`string`?t.name.slice(0,50):``,r=ot.includes(t.fuel_type)?t.fuel_type:`DIE`,i=parseInt(String(t.tank_size),10),a=Number.isFinite(i)&&i>=1?Math.min(200,i):50,o;if(typeof t.consumption==`number`||typeof t.consumption==`string`){let e=parseFloat(String(t.consumption));Number.isFinite(e)&&e>=0&&(o=Math.min(30,e))}let s={name:n,fuel_type:r,tank_size:a,icon:typeof t.icon==`string`&&t.icon.startsWith(`mdi:`)?t.icon:`mdi:car`};return o!=null&&(s.consumption=o),s}function ct(e){if(!e)throw Error(`tankstellen-austria-card: config missing`);let t={...e};if(typeof t.entities==`string`&&(t.entities=[t.entities]),Array.isArray(t.entities)?t.entities=t.entities.filter(e=>typeof e==`string`&&e.includes(`.`)):t.entities!=null&&(console.warn(`[Tankstellen Austria] config.entities must be an array of entity IDs — ignoring`,t.entities),delete t.entities),t.max_stations!=null){let e=parseInt(String(t.max_stations),10);t.max_stations=Number.isFinite(e)?Math.max(0,Math.min(5,e)):5}return Array.isArray(t.payment_filter)?t.payment_filter=t.payment_filter.filter(e=>typeof e==`string`&&e.length>0):t.payment_filter!=null&&delete t.payment_filter,Array.isArray(t.cars)?t.cars=t.cars.map(e=>st(e)).filter(e=>e!==null):t.cars!=null&&delete t.cars,t}var lt={stations:{count:5,sort:`price`,index:!0,brand:!1,tile_shape:`square`,map_links:!0,map_provider:`auto`,distance:!1,opening_hours:!0,payment_methods:!0,payment_mode:`filter`},header:{show:!0,price:!0},chart:{show:!0,median_line:!1,hour_envelope:!1,noon_markers:!1,min_max:!0,best_refuel:!0},cars:{show:!1,fill_up:!0,consumption:!0},footer:{adaptive_logo:!1,show:!0}},ut=[`stations`,`header`,`chart`,`cars`,`footer`],H=e=>typeof e==`boolean`?!e:e,dt=[{flat:`max_stations`,group:`stations`,key:`count`},{flat:`sort_by_distance`,group:`stations`,key:`sort`,toGroup:e=>e===!0?`distance`:`price`,toFlat:e=>e===`distance`},{flat:`show_index`,group:`stations`,key:`index`},{flat:`show_brand`,group:`stations`,key:`brand`},{flat:`tile_shape`,group:`stations`,key:`tile_shape`},{flat:`show_distance`,group:`stations`,key:`distance`},{flat:`show_opening_hours`,group:`stations`,key:`opening_hours`},{flat:`show_payment_methods`,group:`stations`,key:`payment_methods`},{flat:`show_map_links`,group:`stations`,key:`map_links`},{flat:`map_provider`,group:`stations`,key:`map_provider`},{flat:`payment_filter`,group:`stations`,key:`payment_filter`},{flat:`payment_highlight_mode`,group:`stations`,key:`payment_mode`,toGroup:e=>e===!0?`highlight`:`filter`,toFlat:e=>e===`highlight`},{flat:`hide_header`,group:`header`,key:`show`,toGroup:H,toFlat:H},{flat:`hide_header_price`,group:`header`,key:`price`,toGroup:H,toFlat:H},{flat:`show_history`,group:`chart`,key:`show`},{flat:`show_best_refuel`,group:`chart`,key:`best_refuel`},{flat:`show_median_line`,group:`chart`,key:`median_line`},{flat:`show_hour_envelope`,group:`chart`,key:`hour_envelope`},{flat:`show_noon_markers`,group:`chart`,key:`noon_markers`},{flat:`show_minmax`,group:`chart`,key:`min_max`},{flat:`show_cars`,group:`cars`,key:`show`},{flat:`show_car_fillup`,group:`cars`,key:`fill_up`},{flat:`show_car_consumption`,group:`cars`,key:`consumption`},{flat:`hide_attribution`,group:`footer`,key:`show`,toGroup:H,toFlat:H},{flat:`logo_adapt_to_theme`,group:`footer`,key:`adaptive_logo`}],ft=e=>!!e&&typeof e==`object`&&!Array.isArray(e);function pt(e){let t={...e},n={};for(let r of ut)ft(e[r])&&(n[r]={...e[r]}),delete t[r];Array.isArray(e.cars)&&(n.cars={items:e.cars,...n.cars});for(let r of dt){let i=e[r.flat];if(delete t[r.flat],i===void 0)continue;let a=n[r.group]??={};a[r.key]===void 0&&(a[r.key]=r.toGroup?r.toGroup(i):i)}for(let e of ut)n[e]&&Object.keys(n[e]).length>0&&(t[e]=n[e]);return t}function mt(e){let t={...e},n={};for(let r of ut)ft(e[r])&&(n[r]=e[r]),delete t[r];for(let e of dt){let r=n[e.group]?.[e.key];r!==void 0&&(t[e.flat]=e.toFlat?e.toFlat(r):r)}return n.cars?.items!==void 0&&(t.cars=n.cars.items),t}var ht=`fuel_`;function gt(e){return!e||!e.states?[]:Object.keys(e.states).filter(t=>{if(!t.startsWith(`sensor.`))return!1;if(e.entities?.[t]?.platform===`tankstellen_austria`)return!0;let n=e.states[t];return!!(n?.attributes?.fuel_type&&Array.isArray(n.attributes.stations))})}function _t(e,t,n){let r=n?.fuel_type;if(typeof r==`string`&&r)return r;let i=e?.entities?.[t]?.translation_key;return typeof i==`string`&&i.startsWith(ht)?i.slice(5).toUpperCase():``}function vt(e){return e?!!(e.cash||e.debit_card||e.credit_card||e.others&&e.others.length>0):!1}function yt(e,t,n){return t===`cash`?e.cash?n?.cash??`cash`:null:t===`debit_card`?e.debit_card?n?.debit_card??`debit_card`:null:t===`credit_card`?e.credit_card?n?.credit_card??`credit_card`:null:(e.others??[]).find(e=>e.toLowerCase()===t.toLowerCase())??null}function bt(e,t){if(!t||!t.length)return!0;let n=e.payment_methods??{};return t.some(e=>yt(n,e)!==null)}function xt(e,t,n){if(!t||!t.length)return[];let r=e.payment_methods??{},i=[];for(let e of t){let t=yt(r,e,n);t!==null&&i.push(t)}return i}function St(e,t=/* @__PURE__ */ new Date){if(e.open===!1)return!1;let n=e.opening_hours??[];if(!n.length)return!1;let r=t.getDay(),i=r===0?`SO`:r===6?`SA`:`MO`,a=n.find(e=>e.day===i);if(!a||!a.to||a.from===`00:00`&&a.to===`24:00`)return!1;let[o,s]=a.to.split(`:`);if(o===void 0||s===void 0)return!1;let c=parseInt(o,10),l=parseInt(s,10);if(!Number.isFinite(c)||!Number.isFinite(l))return!1;let u=new Date(t);c===0&&l===0?(u.setDate(u.getDate()+1),u.setHours(0,0,0,0)):u.setHours(c,l,0,0);let d=(u.getTime()-t.getTime())/6e4;return d>0&&d<=30}function U(e){return e==null||!Number.isFinite(Number(e))?`–`:`€ ${Number(e).toFixed(3).replace(`.`,`,`)}`}function W(e){return e==null||!Number.isFinite(Number(e))?`–`:Number(e).toFixed(3).replace(`.`,`,`)}function Ct(e){return e==null||!Number.isFinite(e)||e<0?``:e<1e3?`${Math.round(e)} m`:`${(e/1e3).toFixed(1).replace(`.`,`,`)} km`}function wt(e,t,n=`google`){if(!e)return t?`https://www.google.com/search?q=${encodeURIComponent(t)}`:null;if(/\d/.test(e.address??``)){let t=`${e.postalCode??``} ${e.city??``} ${e.address??``}`.trim(),r=encodeURIComponent(t);return n===`apple`?`https://maps.apple.com/?q=${r}`:n===`geo`?`geo:0,0?q=${r}`:`https://maps.google.com/?q=${r}`}let r=[t,e.address,e.postalCode,e.city].filter(e=>e!=null&&e!==``);return r.length===0?null:`https://www.google.com/search?q=${encodeURIComponent(r.join(` `))}`}var Tt=6e4;async function Et(e){try{return(await e.callWS({type:`tankstellen_austria/api_status`}))?.maintenance===!0}catch{return!1}}var Dt=/* @__PURE__ */ t({card:()=>kt,common:()=>Ot,default:()=>Nt,editor:()=>Mt,fuel_types:()=>At,weekdays:()=>jt}),Ot={version:`Version`,invalid_configuration:`Invalid configuration`,loading:`Loading…`,no_data:`No data available`},kt={cheapest:`Cheapest price`,average:`Avg. price`,price:`Price`,closed:`Closed`,closing_soon:`Closing soon`,open_now:`Open`,opening_hours:`Opening hours`,payment:`Payment`,cash:`Cash`,debit_card:`Debit card`,credit_card:`Credit card`,payment_filter_active:`Payment filter active`,payment_highlight_active:`Payment filter (highlight)`,mon_fri:`Mon–Fri`,sat:`Sat`,sun:`Sun`,holiday:`Holiday`,map:`Map`,per_liter:`/l`,last_7_days:`Last 7 days`,min_label:`Min`,max_label:`Max`,refresh:`Refresh`,last_updated:`Updated:`,no_new_data:`No new data`,version_update:`Tankstellen Austria updated to v{v} — please reload`,version_reload:`Reload`,version_reload_stuck:`Reload didn't load the new version. Check HACS and do a hard refresh (Ctrl+Shift+R).`,version_dismiss:`Dismiss`,fill_up:`Fill up`,best_refuel_hour:`Tip: Cheapest between {h1}:00–{h2}:00`,best_refuel_hour_weekday:`Tip: Cheapest between {h1}:00–{h2}:00, usually {day}`,not_enough_data_hint:`Not enough data yet for a tip (min. 7 days)`,confidence_high:`High`,confidence_medium:`Medium`,confidence_low:`Low`,confidence_title:`Recommendation confidence`,confidence_span:`Data span`,confidence_coverage:`Coverage`,confidence_gap:`Gap`,confidence_days:`days`,confidence_cents:`¢`,confidence_short_history_hint:`Note: Home Assistant keeps only 10 days of history by default. For better recommendations raise recorder.purge_keep_days to 30.`,median_delta_below:`{c}¢ below median`,median_delta_above:`{c}¢ above median`,median_delta_equal:`at median`,loading:`Loading…`,no_data:`No data available`,sparkline_open_more_info:`Open price history`,sparkline_aria_summary:`Price history last 7 days: minimum {min}, maximum {max}, median {median}`,sparkline_aria_simple:`Price history last 7 days: minimum {min}, maximum {max}`,history_fetch_error:`Couldn't load price history`,api_maintenance:`E-Control is down for maintenance. Prices return automatically when it's back.`,unreachable:`Can't reach E-Control`,unreachable_detail:`Prices come back on their own once the connection works again.`},At={DIE:`Diesel`,SUP:`Super 95`,GAS:`CNG`},jt=[`Sunday`,`Monday`,`Tuesday`,`Wednesday`,`Thursday`,`Friday`,`Saturday`],Mt={entities:`Sensors`,entity_missing:`Sensor {entity} no longer exists. Pick a different sensor or remove it from this card's entities list.`,map_provider_auto:`Automatic (by device)`,map_provider_google:`Always Google Maps`,map_provider_apple:`Always Apple Maps`,tile_shape_square:`Rounded square`,tile_shape_circle:`Circle`,recorder_hint_intro:`Home Assistant keeps only 10 days of history by default. For better recommendations, add this block to configuration.yaml and restart:`,recorder_hint_docs:`Read the recorder docs`,copy:`Copy`,copied:`Copied`,section_tab_labels:`Tab labels`,tab_labels_hint:`Leave empty to use the default label`,section_cars:`Cars`,cars_both_off_hint:`No rows enabled. To hide cars entirely, turn off “Show cars”.`,car_fuel_type:`Fuel type`,car_delete:`Delete car`,add_car:`Add car`,copy_recorder_snippet:`Copy the recorder snippet`,consumption_range_error:`Please enter a value between 0 and 30 l/100 km`,section_stations:`Stations`,section_header:`Header`,section_chart:`Price history`,section_footer:`Logo & attribution`,stations_count:`Number of stations`,stations_index:`Show rank`,stations_brand:`Brand instead of rank`,stations_tile_shape:`Tile shape`,stations_map_links:`Show navigation links`,stations_map_provider:`Navigation app`,stations_distance:`Show distance`,stations_sort:`Order`,sort_price:`Cheapest first`,sort_distance:`Nearest first`,stations_opening_hours:`Show opening hours`,stations_payment_methods:`Show payment methods`,stations_payment_mode:`Stations without a match`,payment_mode_filter:`Hide them`,payment_mode_highlight:`Show them, highlight the matches`,header_show:`Show header`,header_price:`Show cheapest and average price`,chart_show:`Show price history`,chart_median_line:`Show 7-day median`,chart_hour_envelope:`Typical hourly range (4 wk)`,chart_noon_markers:`Noon reset markers`,chart_min_max:`Show min/max`,chart_best_refuel:`Show refuel tip`,cars_show:`Show cars`,cars_fill_up:`Show fill-up cost`,cars_consumption:`Show consumption`,footer_adaptive_logo:`Adapt E-Control logo color to theme`,footer_show:`Show attribution`,stations_payment_filter:`Only stations with`,stations_payment_filter_helper:`Pick from the list or type a method; it must match the name E-Control uses, e.g. Routex, UTA, DKV.`,summary_hidden:`Hidden`,summary_stations:`Up to {count} stations`,summary_stations_one:`1 station`,summary_filter:`Only {methods}`,summary_brand:`Brand`,summary_header_price:`With prices`,summary_header_title:`Title only`,summary_chart_best_refuel:`Refuel tip`,summary_chart_min_max:`Min/max`,summary_chart_median_line:`Median`,summary_chart_hour_envelope:`Hourly range`,summary_chart_noon_markers:`Noon markers`,summary_chart_plain:`Line only`,summary_cars:`{count} cars`,summary_cars_one:`1 car`,summary_cars_none:`No cars yet`,summary_shown:`Shown`,summary_adaptive_logo:`Logo follows theme`,car_name:`Name`,car_name_helper:`e.g. Golf TDI`,car_tank_size:`Tank size`,car_consumption:`Average consumption`,car_icon:`Icon`,car_unnamed:`Car {n}`,car_move_up:`Move up`,car_move_down:`Move down`},Nt={common:Ot,card:kt,fuel_types:At,weekdays:jt,editor:Mt},Pt=/* @__PURE__ */ t({card:()=>It,common:()=>Ft,default:()=>Bt,editor:()=>zt,fuel_types:()=>Lt,weekdays:()=>Rt}),Ft={version:`Version`,invalid_configuration:`Ungültige Konfiguration`,loading:`Lädt…`,no_data:`Keine Daten verfügbar`},It={cheapest:`Günstigster Preis`,average:`Ø Preis`,price:`Preis`,closed:`Geschlossen`,closing_soon:`Schließt bald`,open_now:`Geöffnet`,opening_hours:`Öffnungszeiten`,payment:`Zahlungsarten`,cash:`Bar`,debit_card:`Bankomat`,credit_card:`Kreditkarte`,payment_filter_active:`Zahlungsfilter aktiv`,payment_highlight_active:`Zahlungsfilter (Hervorhebung)`,mon_fri:`Mo–Fr`,sat:`Sa`,sun:`So`,holiday:`Feiertag`,map:`Karte`,per_liter:`/l`,last_7_days:`Letzte 7 Tage`,min_label:`Min`,max_label:`Max`,refresh:`Aktualisieren`,last_updated:`Aktualisiert:`,no_new_data:`Keine neuen Daten`,version_update:`Tankstellen Austria wurde auf v{v} aktualisiert — bitte neu laden`,version_reload:`Neu laden`,version_reload_stuck:`Neu-Laden hat die neue Version nicht geladen. In HACS prüfen und einen harten Reload (Strg+Umschalt+R) ausführen.`,version_dismiss:`Ausblenden`,fill_up:`Volltanken`,best_refuel_hour:`Tipp: Am günstigsten zwischen {h1}:00–{h2}:00`,best_refuel_hour_weekday:`Tipp: Am günstigsten zwischen {h1}:00–{h2}:00, meist {day}`,not_enough_data_hint:`Noch zu wenig Daten für Empfehlung (mind. 7 Tage)`,confidence_high:`Hoch`,confidence_medium:`Mittel`,confidence_low:`Niedrig`,confidence_title:`Empfehlungsgüte`,confidence_span:`Datenumfang`,confidence_coverage:`Abdeckung`,confidence_gap:`Vorsprung`,confidence_days:`Tage`,confidence_cents:`Cent`,confidence_short_history_hint:`Hinweis: Home Assistant speichert standardmäßig nur 10 Tage Verlauf. Für bessere Empfehlungen recorder.purge_keep_days auf 30 erhöhen.`,median_delta_below:`{c}¢ unter Median`,median_delta_above:`{c}¢ über Median`,median_delta_equal:`auf Median`,loading:`Wird geladen…`,no_data:`Keine Daten verfügbar`,sparkline_open_more_info:`Preisverlauf öffnen`,sparkline_aria_summary:`Preisverlauf der letzten 7 Tage: Minimum {min}, Maximum {max}, Median {median}`,sparkline_aria_simple:`Preisverlauf der letzten 7 Tage: Minimum {min}, Maximum {max}`,history_fetch_error:`Preisverlauf konnte nicht geladen werden`,api_maintenance:`E-Control führt Wartungsarbeiten durch. Die Preise kommen automatisch zurück, sobald der Dienst wieder läuft.`,unreachable:`Keine Verbindung zur E-Control`,unreachable_detail:`Die Preise erscheinen von selbst wieder, sobald die Verbindung funktioniert.`},Lt={DIE:`Diesel`,SUP:`Super 95`,GAS:`CNG Erdgas`},Rt=[`Sonntag`,`Montag`,`Dienstag`,`Mittwoch`,`Donnerstag`,`Freitag`,`Samstag`],zt={entities:`Sensoren`,entity_missing:`Sensor {entity} existiert nicht mehr. Wähle einen anderen Sensor oder entferne ihn aus den Entitäten dieser Karte.`,map_provider_auto:`Automatisch (je Gerät)`,map_provider_google:`Immer Google Maps`,map_provider_apple:`Immer Apple Maps`,tile_shape_square:`Abgerundetes Quadrat`,tile_shape_circle:`Kreis`,recorder_hint_intro:`Home Assistant speichert standardmäßig nur 10 Tage Verlauf. Für bessere Empfehlungen diesen Block in configuration.yaml ergänzen und neu starten:`,recorder_hint_docs:`Recorder-Dokumentation lesen`,copy:`Kopieren`,copied:`Kopiert`,section_tab_labels:`Tab-Bezeichnungen`,tab_labels_hint:`Leer lassen, um die Standard-Bezeichnung zu verwenden`,section_cars:`Fahrzeuge`,cars_both_off_hint:`Keine Zeile aktiv. Um Fahrzeuge ganz auszublenden, „Fahrzeuge anzeigen“ ausschalten.`,car_fuel_type:`Kraftstoffart`,car_delete:`Fahrzeug entfernen`,add_car:`Fahrzeug hinzufügen`,copy_recorder_snippet:`Recorder-Ausschnitt kopieren`,consumption_range_error:`Bitte einen Wert zwischen 0 und 30 l/100 km eingeben`,section_stations:`Tankstellen`,section_header:`Kopfzeile`,section_chart:`Preisverlauf`,section_footer:`Logo & Quellenangabe`,stations_count:`Anzahl Tankstellen`,stations_index:`Platzierung anzeigen`,stations_brand:`Marke statt Platzierung`,stations_tile_shape:`Form der Kachel`,stations_map_links:`Navigations-Links anzeigen`,stations_map_provider:`Navigations-App`,stations_distance:`Luftlinie anzeigen`,stations_sort:`Reihenfolge`,sort_price:`Günstigste zuerst`,sort_distance:`Nächste zuerst`,stations_opening_hours:`Öffnungszeiten anzeigen`,stations_payment_methods:`Zahlungsarten anzeigen`,stations_payment_mode:`Tankstellen ohne Treffer`,payment_mode_filter:`Ausblenden`,payment_mode_highlight:`Anzeigen, Treffer hervorheben`,header_show:`Kopfzeile anzeigen`,header_price:`Günstigsten und Durchschnittspreis anzeigen`,chart_show:`Preisverlauf anzeigen`,chart_median_line:`7-Tage-Median einblenden`,chart_hour_envelope:`Typischer Stundenverlauf (4 Wo)`,chart_noon_markers:`12:00-Markierung (Preisreset)`,chart_min_max:`Min/Max anzeigen`,chart_best_refuel:`Tank-Tipp anzeigen`,cars_show:`Fahrzeuge anzeigen`,cars_fill_up:`Tankkosten anzeigen`,cars_consumption:`Verbrauch anzeigen`,footer_adaptive_logo:`E-Control-Logo an Theme-Farbe anpassen`,footer_show:`Quellenangabe anzeigen`,stations_payment_filter:`Nur Tankstellen mit`,stations_payment_filter_helper:`Aus der Liste wählen oder eintippen; der Name muss dem von E-Control entsprechen, z. B. Routex, UTA, DKV.`,summary_hidden:`Ausgeblendet`,summary_stations:`Bis zu {count} Tankstellen`,summary_stations_one:`1 Tankstelle`,summary_filter:`Nur {methods}`,summary_brand:`Marke`,summary_header_price:`Mit Preisen`,summary_header_title:`Nur Titel`,summary_chart_best_refuel:`Tank-Tipp`,summary_chart_min_max:`Min/Max`,summary_chart_median_line:`Median`,summary_chart_hour_envelope:`Stundenverlauf`,summary_chart_noon_markers:`12:00-Markierung`,summary_chart_plain:`Nur Verlauf`,summary_cars:`{count} Fahrzeuge`,summary_cars_one:`1 Fahrzeug`,summary_cars_none:`Noch keine Fahrzeuge`,summary_shown:`Eingeblendet`,summary_adaptive_logo:`Logo passt sich an`,car_name:`Name`,car_name_helper:`z. B. Golf TDI`,car_tank_size:`Tankgröße`,car_consumption:`Durchschnittsverbrauch`,car_icon:`Symbol`,car_unnamed:`Fahrzeug {n}`,car_move_up:`Nach oben`,car_move_down:`Nach unten`},Bt={common:Ft,card:It,fuel_types:Lt,weekdays:Rt,editor:zt},Vt=Dt,G=Pt,Ht={en:Vt,de:G};function K(e,t){return e.split(`.`).reduce((e,t)=>{if(e&&typeof e==`object`&&t in e)return e[t]},t)}function Ut(e,t){let n=K(e,t);return typeof n==`string`?n:void 0}function Wt(e){return(e.configLanguage||e.hassLanguage||`de`).replace(`-`,`_`)}function Gt(e,t,n){let r=Ut(e,Ht[Wt(t)]??G);if(r===void 0&&(r=Ut(e,G)),r===void 0&&(r=e),n)for(let[e,t]of Object.entries(n))r=r.replace(`{${e}}`,t);return r}function Kt(e){let t=K(`weekdays`,Ht[Wt(e)]??G);if(Array.isArray(t)&&t.every(e=>typeof e==`string`))return t;let n=K(`weekdays`,G);return Array.isArray(n)?n:[]}function qt(e,t){let n=(K(`fuel_types`,Ht[Wt(t)]??G)??K(`fuel_types`,G))?.[e];return typeof n==`string`?n:e}var Jt=/* @__PURE__ */ new Map,Yt=/* @__PURE__ */ new Map;function Xt(e){if(typeof e.lu==`number`)return Math.round(e.lu*1e3);let t=e.lu??e.last_updated??e.last_changed;return t?new Date(t).getTime():0}function Zt(e,t){let n=e[0]?.time??1/0;return[...t.filter(e=>e.time<n),...e]}function Qt(e){return(e??[]).map(e=>({time:typeof e.start==`number`?e.start:e.start?new Date(e.start).getTime():0,value:typeof e.mean==`number`?e.mean:NaN})).filter(e=>Number.isFinite(e.value)&&e.time>0)}async function $t(e,t,n,r){try{return Qt((await e.callWS({type:`recorder/statistics_during_period`,start_time:n.toISOString(),end_time:r.toISOString(),statistic_ids:[t],period:`hour`,types:[`mean`]}))?.[t])}catch(e){return console.warn(`[Tankstellen Austria] statistics fetch failed for`,t,e),[]}}async function en(e,t,n={}){if(!e?.callWS)return[];let r=Yt.get(t);if(r)return r;let i=n.days??28,a=/* @__PURE__ */ new Date,o=/* @__PURE__ */ new Date(a.getTime()-i*24*60*60*1e3),s=e.states?.[t]?.attributes?.state_class===`measurement`,c=(async()=>{try{let n=((await e.callWS({type:`history/history_during_period`,start_time:o.toISOString(),end_time:a.toISOString(),entity_ids:[t],minimal_response:!0,significant_changes_only:!0}))?.[t]??[]).map(e=>({time:Xt(e),value:parseFloat(String(e.s??e.state??``))})).filter(e=>Number.isFinite(e.value)&&e.time>0),r=s?Zt(n,await $t(e,t,o,a)):n;return Jt.set(t,r),r}catch(e){return console.warn(`[Tankstellen Austria] history fetch failed for`,t,`— sparkline and best-refuel will be empty:`,e),Jt.get(t)??[]}finally{Yt.delete(t)}})();return Yt.set(t,c),c}function tn(e){return Jt.get(e)??[]}function nn(e){let t=e.length;if(t===0)return``;if(t===1)return`M ${e[0].x.toFixed(2)} ${e[0].y.toFixed(2)}`;if(t===2)return`M ${e[0].x.toFixed(2)} ${e[0].y.toFixed(2)} L ${e[1].x.toFixed(2)} ${e[1].y.toFixed(2)}`;let n=Array.from({length:t-1});for(let r=0;r<t-1;r++){let t=e[r+1].x-e[r].x;n[r]=t===0?0:(e[r+1].y-e[r].y)/t}let r=Array.from({length:t});r[0]=n[0],r[t-1]=n[t-2];for(let e=1;e<t-1;e++)r[e]=(n[e-1]+n[e])/2;for(let e=0;e<t-1;e++){if(n[e]===0){r[e]=0,r[e+1]=0;continue}let t=r[e]/n[e],i=r[e+1]/n[e],a=t*t+i*i;if(a>9){let o=3/Math.sqrt(a);r[e]=o*t*n[e],r[e+1]=o*i*n[e]}}let i=`M ${e[0].x.toFixed(2)} ${e[0].y.toFixed(2)}`;for(let n=0;n<t-1;n++){let t=e[n+1].x-e[n].x,a=e[n].x+t/3,o=e[n].y+r[n]*t/3,s=e[n+1].x-t/3,c=e[n+1].y-r[n+1]*t/3;i+=` C ${a.toFixed(2)} ${o.toFixed(2)}, ${s.toFixed(2)} ${c.toFixed(2)}, ${e[n+1].x.toFixed(2)} ${e[n+1].y.toFixed(2)}`}return i}function rn(e,t){return!e||!t||e.length<2||e.length!==t.length?``:`${nn(e)} ${nn([...t].reverse()).replace(/^M\s+([-\d.]+)\s+([-\d.]+)/,(e,t,n)=>`L ${t} ${n}`)} Z`}function q(e,t,n){return Math.max(t,Math.min(n,e))}function an(e,t){let n=e.filter(e=>Number.isFinite(e.value)&&e.weight>0);if(n.length===0)return NaN;if(n.length===1)return n[0].value;let r=[...n];r.sort((e,t)=>e.value-t.value);let i=r.reduce((e,t)=>e+t.weight,0),a=q(t,0,1)*i,o=0;for(let e of r)if(o+=e.weight,o>=a)return e.value;return r[r.length-1].value}var J=280,Y=48,on=6048e5;function sn(e){if(!e?.hasEnoughData||e.hour==null)return null;let t=/* @__PURE__ */ new Date,n=new Date(t);if(e.weekday!=null){let r=(t.getDay()-e.weekday+7)%7;r===0&&t.getHours()<e.hour&&(r=7),n.setDate(n.getDate()-r)}else t.getHours()<e.hour&&n.setDate(n.getDate()-1);n.setHours(e.hour,0,0,0);let r=n.getTime();return{startMs:r,endMs:r+(((e.hour_end??(e.hour+1)%24)-e.hour+24)%24||1)*36e5}}function cn(e){let t=Date.now()-on,n=e.filter(e=>e.time>=t),r=e.filter(e=>e.time<t),i=r.length?r[r.length-1]:null;return i?[{time:t,value:i.value},...n]:n}function ln(e){if(e.length<2)return null;let t=[...e];t.sort((e,t)=>e-t);let n=(t.length-1)/2,r=(t[Math.floor(n)]+t[Math.ceil(n)])/2,i=(e[e.length-1]-r)*100,a=Math.abs(i).toFixed(1);return i<=-.05?{key:`median_delta_below`,cents:a,cls:`median-delta-good`}:i>=.05?{key:`median_delta_above`,cents:a,cls:`median-delta-bad`}:{key:`median_delta_equal`,cents:a,cls:`median-delta-neutral`}}function un(e,t){let n=[...e];n.sort((e,t)=>e-t);let r=(n.length-1)/2;return t((n[Math.floor(r)]+n[Math.ceil(r)])/2)}function dn(e){let t={template:I,hoverPoints:[],medianDelta:null,viewBoxWidth:J,viewBoxHeight:Y};try{let n=e.points;if(!n||n.length<2)return t;let r=cn(n);if(r.length<2)return t;let i=r[r.length-1];i.time<Date.now()-18e5&&(r=[...r,{time:Date.now(),value:i.value}]);let a=r.map(e=>e.value),o=Math.min(...a),s=Math.max(...a),c=o,l=s,u=e.showHourEnvelope?e.hourEnvelope??null:null;if(u)for(let e=0;e<24;e++){let t=u.minByHour[e],n=u.maxByHour[e];t!=null&&n!=null&&(c=Math.min(c,t),l=Math.max(l,n))}let d=l-c||.01,f=e=>44-(e-c)/d*40,p=r.map((e,t)=>({x:t/(r.length-1)*J,y:f(e.value)})),m=nn(p),h=m?`${m} L ${J.toFixed(2)} ${Y.toFixed(2)} L 0 ${Y.toFixed(2)} Z`:``,g=I;if(u){let e=[],t=[];for(let n=0;n<r.length;n++){let i=new Date(r[n].time).getHours(),a=u.maxByHour[i],o=u.minByHour[i];a!=null&&o!=null&&(e.push({x:p[n].x,y:f(a)}),t.push({x:p[n].x,y:f(o)}))}if(e.length>=2){let n=rn(e,t);n&&(g=me`<path d=${n} fill="var(--primary-color)" fill-opacity="0.08" stroke="none"/>`)}}let _=r[0].time,v=r[r.length-1].time,y=e=>{if(e<=_||e>=v)return null;let t=0,n=r.length-1;for(;t<n-1;){let i=t+n>>1;r[i].time<=e?t=i:n=i}let i=r[t+1].time-r[t].time,a=i>0?(e-r[t].time)/i:0;return p[t].x+a*(p[t+1].x-p[t].x)},b=[];if(e.showNoonMarkers&&r.length>=2){let e=new Date(_);for(e.setHours(12,0,0,0),e.getTime()<_&&e.setDate(e.getDate()+1);e.getTime()<=v;e.setDate(e.getDate()+1),e.setHours(12,0,0,0)){let t=y(e.getTime());t!=null&&b.push(me`
+          <line x1=${t.toFixed(1)} y1="0" x2=${t.toFixed(1)} y2=${Y}
                 stroke="var(--secondary-text-color)" stroke-width="0.5"
                 stroke-dasharray="2,3" opacity="0.55"/>
-        `)}}let x=e.showMedianLine?dn(a):null,S=e.showMedianLine?me`<line x1="0" y1=${fn(a,f).toFixed(1)}
-                  x2=${q} y2=${fn(a,f).toFixed(1)}
+        `)}}let x=e.showMedianLine?ln(a):null,S=e.showMedianLine?me`<line x1="0" y1=${un(a,f).toFixed(1)}
+                  x2=${J} y2=${un(a,f).toFixed(1)}
                   stroke="var(--secondary-text-color)" stroke-width="0.5"
-                  stroke-dasharray="4,3" opacity="0.55"/>`:I,C=ln(e.analysis),w=null,T=null;if(C){let e=y(C.startMs),t=y(C.endMs);w=e??(C.startMs<=_?0:null),T=t??(C.endMs>=v?q:null)}let E=w!=null&&T!=null&&T>w?me`<rect x=${w.toFixed(1)} y="0"
-                  width=${(T-w).toFixed(1)} height=${J}
+                  stroke-dasharray="4,3" opacity="0.55"/>`:I,C=sn(e.analysis),w=null,T=null;if(C){let e=y(C.startMs),t=y(C.endMs);w=e??(C.startMs<=_?0:null),T=t??(C.endMs>=v?J:null)}let E=w!=null&&T!=null&&T>w?me`<rect x=${w.toFixed(1)} y="0"
+                  width=${(T-w).toFixed(1)} height=${Y}
                   fill="var(--success-color,#4CAF50)" fill-opacity="0.10"
-                  stroke="none"/>`:I,D=r.map((e,t)=>({t:e.time,v:e.value,x:+p[t].x.toFixed(1),y:+p[t].y.toFixed(1)})),O=`spark-grad-${Math.random().toString(36).slice(2,8)}`,ee=e.showMedianLine?(()=>{let t=dn(a);if(!t)return I;let n={median_delta_below:e.translations.median_delta_below,median_delta_above:e.translations.median_delta_above,median_delta_equal:e.translations.median_delta_equal}[t.key].replace(`{c}`,t.cents);return P`
+                  stroke="none"/>`:I,D=r.map((e,t)=>({t:e.time,v:e.value,x:+p[t].x.toFixed(1),y:+p[t].y.toFixed(1)})),O=`spark-grad-${Math.random().toString(36).slice(2,8)}`,ee=e.showMedianLine?(()=>{let t=ln(a);if(!t)return I;let n={median_delta_below:e.translations.median_delta_below,median_delta_above:e.translations.median_delta_above,median_delta_equal:e.translations.median_delta_equal}[t.key].replace(`{c}`,t.cents);return P`
             <span class="median-delta ${t.cls}">${n}</span>
-          `})():I,k=[...a];k.sort((e,t)=>e-t);let A=(k.length-1)/2,te=k.length>0?(k[Math.floor(A)]+k[Math.ceil(A)])/2:0,ne=(e.showMedianLine?e.translations.sparkline_aria_summary:e.translations.sparkline_aria_simple).replace(`{min}`,U(o)).replace(`{max}`,U(s)).replace(`{median}`,U(te));return{template:P`
+          `})():I,k=[...a];k.sort((e,t)=>e-t);let A=(k.length-1)/2,te=k.length>0?(k[Math.floor(A)]+k[Math.ceil(A)])/2:0,ne=(e.showMedianLine?e.translations.sparkline_aria_summary:e.translations.sparkline_aria_simple).replace(`{min}`,W(o)).replace(`{max}`,W(s)).replace(`{median}`,W(te));return{template:P`
       <div class="sparkline-svg-wrap">
       <svg
         class="sparkline"
-        viewBox="0 0 ${q} ${J}"
+        viewBox="0 0 ${J} ${Y}"
         preserveAspectRatio="none"
         role="img"
         aria-label=${ne}
         data-points=${JSON.stringify(D)}
-        data-width=${q}
-        data-height=${J}
+        data-width=${J}
+        data-height=${Y}
       >
         <title>${ne}</title>
         <defs>
@@ -105,7 +105,7 @@ if(super(e),e.type!==Pe.ATTRIBUTE||e.name!==`style`||e.strings?.length>2)throw E
         />
         <line
           class="sparkline-hover-line"
-          x1="0" y1="0" x2="0" y2=${J}
+          x1="0" y1="0" x2="0" y2=${Y}
           stroke="var(--primary-text-color)" stroke-width="0.6"
           stroke-dasharray="2,2" opacity="0" pointer-events="none"
         />
@@ -119,17 +119,17 @@ if(super(e),e.type!==Pe.ATTRIBUTE||e.name!==`style`||e.strings?.length>2)throw E
       <div class="sparkline-labels">
         ${e.showMinMax?P`<span>
               <span class="sparkline-minmax-label">${e.translations.min_label}</span>
-              ${U(o)}
+              ${W(o)}
             </span>`:I}
         <span class="sparkline-period">
           ${e.translations.last_7_days}${ee===I?I:P` · ${ee}`}
         </span>
         ${e.showMinMax?P`<span>
               <span class="sparkline-minmax-label">${e.translations.max_label}</span>
-              ${U(s)}
+              ${W(s)}
             </span>`:I}
       </div>
-    `,hoverPoints:D,medianDelta:x,viewBoxWidth:q,viewBoxHeight:J}}catch(e){return console.warn(`[Tankstellen Austria] sparkline render failed:`,e),t}}function mn(e,t){let n=()=>void 0;try{let n=()=>{let t=e.querySelector(`svg.sparkline`),n=e.querySelector(`.sparkline-tooltip`);if(!t||!n)return null;let r=t.querySelector(`.sparkline-hover-line`),i=e.querySelector(`.sparkline-hover-dot`),a=n.querySelector(`.sparkline-tooltip-time`),o=n.querySelector(`.sparkline-tooltip-price`);if(!r||!i||!a||!o)return null;let s;try{s=JSON.parse(t.dataset.points||`[]`)}catch{s=[]}if(!s.length)return null;let c=Number(t.dataset.width)||q,l=Number(t.dataset.height)||J;return{svgEl:t,line:r,dot:i,tooltip:n,timeEl:a,priceEl:o,pts:s,vbWidth:c,vbHeight:l}},r=r=>{let i=n();if(!i)return;let{svgEl:a,line:o,dot:s,tooltip:c,timeEl:l,priceEl:u,pts:d,vbWidth:f,vbHeight:p}=i,m=a.getBoundingClientRect();if(m.width===0)return;let h=Math.max(0,Math.min(1,(r-m.left)/m.width))*f,g=d[0],_=Math.abs(g.x-h);for(let e of d){let t=Math.abs(e.x-h);t<_&&(g=e,_=t)}o.setAttribute(`x1`,String(g.x)),o.setAttribute(`x2`,String(g.x)),o.setAttribute(`opacity`,`0.5`),s.style.left=`${g.x/f*100}%`,s.style.top=`${g.y/p*100}%`,s.style.opacity=`1`,l.textContent=t.formatTime(g.t),u.textContent=t.formatPrice(g.v),c.hidden=!1;let v=e.getBoundingClientRect(),y=g.x/f*m.width+(m.left-v.left);c.style.left=`0px`;let b=c.offsetWidth,x=y-b/2,S=Math.max(0,Math.min(v.width-b,x));c.style.left=`${S}px`},i=()=>{let e=n();e&&(e.line.setAttribute(`opacity`,`0`),e.dot.style.opacity=`0`,e.tooltip.hidden=!0)},a=new AbortController,{signal:o}=a;return e.addEventListener(`pointermove`,e=>r(e.clientX),{signal:o}),e.addEventListener(`pointerleave`,i,{signal:o}),e.addEventListener(`pointercancel`,i,{signal:o}),()=>{a.abort()}}catch(e){return console.warn(`[Tankstellen Austria] sparkline hover setup failed:`,e),n}}var hn=36e5,Y=864e5,gn=14*Y,_n=3*Y;function vn(e){let t=new Date(e);t.setHours(0,0,0,0);let n=t.getDay();return t.setDate(t.getDate()-(n===0?6:n-1)),t.getTime()}function yn(e,t){let n=[],r=(e,t,r)=>{if(r<=t||!Number.isFinite(e))return;let i=t;for(;i<r;){let t=Math.floor(i/hn)*hn+hn,a=Math.min(r,t),o=new Date(i);n.push({price:e,t:i,hour:o.getHours(),weekday:o.getDay(),weekKey:vn(i),durationMs:a-i}),i=a}};for(let t=0;t<e.length-1;t++)r(e[t].value,e[t].time,e[t+1].time);let i=e[e.length-1];return r(i.value,i.time,t),n}function bn(e){let t=/* @__PURE__ */ new Map;for(let n of e){let e=t.get(n.weekKey);e?e.push(n):t.set(n.weekKey,[n])}return t}function*xn(e){for(let t of bn(e).values()){let e=0;for(let n of t)e+=n.durationMs;if(e<_n)continue;let n=t.map(e=>({value:e.price,weight:e.durationMs}));yield{weekChunks:t,totalMs:e,p05:sn(n,.05),p95:sn(n,.95)}}}var Sn=.005;function Cn(e,t,n){let r=e=>e!==void 0&&!Number.isNaN(e)&&e-n<=Sn,i=0;for(let n=1;n<=23&&r(e[(t+n)%24]);n++)i=n;let a=0;for(let n=1;n<=23&&r(e[(t-n+24)%24]);n++)a=n;return{start:(t-a+24)%24,end:(t+i+1)%24}}function wn(e,t){let n=e.map(e=>e.length>=t?sn(e,.5):NaN),r=-1,i=1/0;return n.forEach((e,t)=>{!Number.isNaN(e)&&e<i&&(i=e,r=t)}),{medians:n,bestIdx:r,bestVal:i,minVal:i}}function Tn(e,t){let n=e.medians.filter(e=>!Number.isNaN(e));return n.sort((e,t)=>e-t),n.length<2||e.bestIdx<0?0:K((n[Math.floor((n.length-1)/2)]-e.minVal)*100/t,0,1)}function En(e){if(!e||e.length<2)return null;let t=Date.now(),n=t-e[0].time;if(n<7*Y)return{hasEnoughData:!1};let r=yn(e,t);if(r.length===0)return{hasEnoughData:!1};let i=Array.from({length:24},()=>[]),a=Array.from({length:7},()=>[]);for(let{weekChunks:e,totalMs:n,p05:o,p95:s}of xn(r)){let r=0;for(let t of e)r+=K(t.price,o,s)*t.durationMs;let c=r/n;for(let n of e){let e=K(n.price,o,s),r=.5**((t-n.t)/gn),l={value:e-c,weight:n.durationMs*r};i[n.hour].push(l),a[n.weekday].push(l)}}let o=wn(i,3);if(o.bestIdx<0)return{hasEnoughData:!1};let s=wn(a,3),c=n/Y,l=Math.min(1,c/28),u=i.filter(e=>e.length>=3).length/24,d=Tn(o,1.5),f=o.medians.filter(e=>!Number.isNaN(e));f.sort((e,t)=>e-t);let p=f.length>=2?(f[Math.floor((f.length-1)/2)]-o.minVal)*100:0,m=(l+u+d)/3,h=m>=.75?`high`:m>=.5?`medium`:`low`,g=a.filter(e=>e.length>=3).length/7,_=Tn(s,.8),v=(s.bestIdx>=0?(l+g+_)/3:0)>=.75,y=Cn(o.medians,o.bestIdx,o.minVal);return{hasEnoughData:!0,hour:y.start,hour_end:y.end,weekday:v?s.bestIdx:null,confidence:{level:h,score:m,span_days:Math.round(c),coverage_pct:Math.round(u*100),gap_cents:Math.round(p*10)/10}}}function Dn(e){if(!e||e.length<2)return null;let t=Date.now();if(t-e[0].time<7*Y)return null;let n=yn(e,t);if(n.length===0)return null;let r=Array.from({length:24},()=>[]);for(let{weekChunks:e,p05:t,p95:i}of xn(n))for(let n of e)r[n.hour].push({value:K(n.price,t,i),weight:n.durationMs});let i=Array.from({length:24},()=>null),a=Array.from({length:24},()=>null),o=0;for(let e=0;e<24;e++){let t=r[e];t.length<3||(i[e]=sn(t,.1),a[e]=sn(t,.9),o++)}return o<6?null:{minByHour:i,maxByHour:a}}var On=c`
+    `,hoverPoints:D,medianDelta:x,viewBoxWidth:J,viewBoxHeight:Y}}catch(e){return console.warn(`[Tankstellen Austria] sparkline render failed:`,e),t}}function fn(e,t){let n=()=>void 0;try{let n=()=>{let t=e.querySelector(`svg.sparkline`),n=e.querySelector(`.sparkline-tooltip`);if(!t||!n)return null;let r=t.querySelector(`.sparkline-hover-line`),i=e.querySelector(`.sparkline-hover-dot`),a=n.querySelector(`.sparkline-tooltip-time`),o=n.querySelector(`.sparkline-tooltip-price`);if(!r||!i||!a||!o)return null;let s;try{s=JSON.parse(t.dataset.points||`[]`)}catch{s=[]}if(!s.length)return null;let c=Number(t.dataset.width)||J,l=Number(t.dataset.height)||Y;return{svgEl:t,line:r,dot:i,tooltip:n,timeEl:a,priceEl:o,pts:s,vbWidth:c,vbHeight:l}},r=r=>{let i=n();if(!i)return;let{svgEl:a,line:o,dot:s,tooltip:c,timeEl:l,priceEl:u,pts:d,vbWidth:f,vbHeight:p}=i,m=a.getBoundingClientRect();if(m.width===0)return;let h=Math.max(0,Math.min(1,(r-m.left)/m.width))*f,g=d[0],_=Math.abs(g.x-h);for(let e of d){let t=Math.abs(e.x-h);t<_&&(g=e,_=t)}o.setAttribute(`x1`,String(g.x)),o.setAttribute(`x2`,String(g.x)),o.setAttribute(`opacity`,`0.5`),s.style.left=`${g.x/f*100}%`,s.style.top=`${g.y/p*100}%`,s.style.opacity=`1`,l.textContent=t.formatTime(g.t),u.textContent=t.formatPrice(g.v),c.hidden=!1;let v=e.getBoundingClientRect(),y=g.x/f*m.width+(m.left-v.left);c.style.left=`0px`;let b=c.offsetWidth,x=y-b/2,S=Math.max(0,Math.min(v.width-b,x));c.style.left=`${S}px`},i=()=>{let e=n();e&&(e.line.setAttribute(`opacity`,`0`),e.dot.style.opacity=`0`,e.tooltip.hidden=!0)},a=new AbortController,{signal:o}=a;return e.addEventListener(`pointermove`,e=>r(e.clientX),{signal:o}),e.addEventListener(`pointerleave`,i,{signal:o}),e.addEventListener(`pointercancel`,i,{signal:o}),()=>{a.abort()}}catch(e){return console.warn(`[Tankstellen Austria] sparkline hover setup failed:`,e),n}}var pn=36e5,mn=864e5,hn=14*mn,gn=3*mn;function _n(e){let t=new Date(e);t.setHours(0,0,0,0);let n=t.getDay();return t.setDate(t.getDate()-(n===0?6:n-1)),t.getTime()}function vn(e,t){let n=[],r=(e,t,r)=>{if(r<=t||!Number.isFinite(e))return;let i=t;for(;i<r;){let t=Math.floor(i/pn)*pn+pn,a=Math.min(r,t),o=new Date(i);n.push({price:e,t:i,hour:o.getHours(),weekday:o.getDay(),weekKey:_n(i),durationMs:a-i}),i=a}};for(let t=0;t<e.length-1;t++)r(e[t].value,e[t].time,e[t+1].time);let i=e[e.length-1];return r(i.value,i.time,t),n}function yn(e){let t=/* @__PURE__ */ new Map;for(let n of e){let e=t.get(n.weekKey);e?e.push(n):t.set(n.weekKey,[n])}return t}function*bn(e){for(let t of yn(e).values()){let e=0;for(let n of t)e+=n.durationMs;if(e<gn)continue;let n=t.map(e=>({value:e.price,weight:e.durationMs}));yield{weekChunks:t,totalMs:e,p05:an(n,.05),p95:an(n,.95)}}}var xn=.005;function Sn(e,t,n){let r=e=>e!==void 0&&!Number.isNaN(e)&&e-n<=xn,i=0;for(let n=1;n<=23&&r(e[(t+n)%24]);n++)i=n;let a=0;for(let n=1;n<=23&&r(e[(t-n+24)%24]);n++)a=n;return{start:(t-a+24)%24,end:(t+i+1)%24}}function Cn(e,t){let n=e.map(e=>e.length>=t?an(e,.5):NaN),r=-1,i=1/0;return n.forEach((e,t)=>{!Number.isNaN(e)&&e<i&&(i=e,r=t)}),{medians:n,bestIdx:r,bestVal:i,minVal:i}}function wn(e,t){let n=e.medians.filter(e=>!Number.isNaN(e));return n.sort((e,t)=>e-t),n.length<2||e.bestIdx<0?0:q((n[Math.floor((n.length-1)/2)]-e.minVal)*100/t,0,1)}function Tn(e){if(!e||e.length<2)return null;let t=Date.now(),n=t-e[0].time;if(n<7*mn)return{hasEnoughData:!1};let r=vn(e,t);if(r.length===0)return{hasEnoughData:!1};let i=Array.from({length:24},()=>[]),a=Array.from({length:7},()=>[]);for(let{weekChunks:e,totalMs:n,p05:o,p95:s}of bn(r)){let r=0;for(let t of e)r+=q(t.price,o,s)*t.durationMs;let c=r/n;for(let n of e){let e=q(n.price,o,s),r=.5**((t-n.t)/hn),l={value:e-c,weight:n.durationMs*r};i[n.hour].push(l),a[n.weekday].push(l)}}let o=Cn(i,3);if(o.bestIdx<0)return{hasEnoughData:!1};let s=Cn(a,3),c=n/mn,l=Math.min(1,c/28),u=i.filter(e=>e.length>=3).length/24,d=wn(o,1.5),f=o.medians.filter(e=>!Number.isNaN(e));f.sort((e,t)=>e-t);let p=f.length>=2?(f[Math.floor((f.length-1)/2)]-o.minVal)*100:0,m=(l+u+d)/3,h=m>=.75?`high`:m>=.5?`medium`:`low`,g=a.filter(e=>e.length>=3).length/7,_=wn(s,.8),v=(s.bestIdx>=0?(l+g+_)/3:0)>=.75,y=Sn(o.medians,o.bestIdx,o.minVal);return{hasEnoughData:!0,hour:y.start,hour_end:y.end,weekday:v?s.bestIdx:null,confidence:{level:h,score:m,span_days:Math.round(c),coverage_pct:Math.round(u*100),gap_cents:Math.round(p*10)/10}}}function En(e){if(!e||e.length<2)return null;let t=Date.now();if(t-e[0].time<7*mn)return null;let n=vn(e,t);if(n.length===0)return null;let r=Array.from({length:24},()=>[]);for(let{weekChunks:e,p05:t,p95:i}of bn(n))for(let n of e)r[n.hour].push({value:q(n.price,t,i),weight:n.durationMs});let i=Array.from({length:24},()=>null),a=Array.from({length:24},()=>null),o=0;for(let e=0;e<24;e++){let t=r[e];t.length<3||(i[e]=an(t,.1),a[e]=an(t,.9),o++)}return o<6?null:{minByHour:i,maxByHour:a}}var Dn=c`
   :host {
     /* color-scheme enables light-dark() and steers forced-colors palette
        selection (WCAG 1.4.11). HA's active theme drives the resolution. */
@@ -1200,7 +1200,7 @@ if(super(e),e.type!==Pe.ATTRIBUTE||e.name!==`style`||e.strings?.length>2)throw E
       scroll-behavior: auto !important;
     }
   }
-`,kn=c`
+`,On=c`
   :host {
     /* color-scheme enables light-dark() and steers forced-colors palette
        selection. The editor is its own Lit element with its own shadow
@@ -1222,14 +1222,6 @@ if(super(e),e.type!==Pe.ATTRIBUTE||e.name!==`style`||e.strings?.length>2)throw E
     flex-direction: column;
     gap: 12px;
   }
-  .editor-section {
-    background: var(--secondary-background-color, rgba(0, 0, 0, 0.04));
-    border-radius: 12px;
-    padding: 14px 16px;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
   .section-header {
     font-size: 0.75rem;
     font-weight: 600;
@@ -1246,7 +1238,7 @@ if(super(e),e.type!==Pe.ATTRIBUTE||e.name!==`style`||e.strings?.length>2)throw E
 
   /* Recorder hint + copy button */
   .recorder-hint {
-    margin: 4px 0 2px 16px;
+    margin: 0;
     padding: 8px 10px;
     border-radius: 6px;
     background: var(--secondary-background-color, rgba(255, 255, 255, 0.04));
@@ -1277,23 +1269,6 @@ if(super(e),e.type!==Pe.ATTRIBUTE||e.name!==`style`||e.strings?.length>2)throw E
     flex-wrap: wrap;
     gap: 8px;
   }
-  .recorder-copy-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 3px 8px;
-    border-radius: 4px;
-    background: transparent;
-    border: 1px solid var(--divider-color);
-    color: var(--primary-text-color);
-    font-size: 0.75rem;
-    cursor: pointer;
-    font-family: inherit;
-  }
-  .recorder-copy-btn:hover {
-    background: var(--primary-background-color);
-  }
-  .recorder-copy-btn ha-icon,
   .recorder-docs-link ha-icon {
     --mdc-icon-size: 14px;
   }
@@ -1309,220 +1284,92 @@ if(super(e),e.type!==Pe.ATTRIBUTE||e.name!==`style`||e.strings?.length>2)throw E
     text-decoration: underline;
   }
 
-  /* Tab labels */
-  .tab-label-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-  .tab-label-default {
-    flex: 0 0 40%;
-    font-size: 0.875rem;
-    color: var(--secondary-text-color);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .tab-label-input {
-    flex: 1;
-    min-width: 0;
-    padding: 6px 10px;
-    border-radius: 6px;
-    border: 1px solid var(--divider-color);
-    background: var(--card-background-color, #fff);
-    color: var(--primary-text-color);
-    font-size: 0.875rem;
-    font-family: inherit;
-  }
-  .tab-label-input:focus {
-    outline: none;
-    border-color: var(--primary-color);
-  }
-
-  /* Payment filter chips */
-  .pm-filter-chips {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-  }
-  .pm-filter-chip {
-    padding: 6px 12px;
-    min-height: 32px;
-    border-radius: 14px;
-    font-size: 0.8125rem;
-    cursor: pointer;
-    border: 1px solid var(--divider-color);
-    background: var(--card-background-color, #fff);
-    color: var(--primary-text-color);
-    transition: all var(--ha-animation-duration-fast, 150ms) ease;
-    font-family: inherit;
-  }
-  .pm-filter-chip.active {
-    background: var(--primary-color);
-    color: var(--text-primary-color, #fff);
-    border-color: var(--primary-color);
-  }
-  .pm-filter-chip:hover {
-    opacity: 0.85;
-  }
-  .pm-filter-chip.confirm {
-    background: var(--tankst-error);
-    color: #fff;
-    border-color: var(--tankst-error);
-  }
-  .pm-custom-row {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-  .pm-custom-row ha-selector {
-    flex: 1;
-    /* Flex items default to min-width:auto; the selector's input has an
-       intrinsic minimum that would otherwise push the + button off-row. */
-    min-width: 0;
-  }
-  .pm-custom-row ha-icon-button {
-    color: var(--primary-color);
-    flex-shrink: 0;
-  }
-
-  /* Cars editor */
-  .car-editor-group {
+  /* Tab labels, under the sensor picker */
+  .tab-labels {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 4px;
   }
-  .car-editor-row {
+
+  /* Section panels: the body pads the form the way HA's own editors do. */
+  ha-expansion-panel {
+    --expansion-panel-content-padding: 0 16px 16px;
+  }
+  ha-expansion-panel ha-icon[slot="leading-icon"] {
+    color: var(--secondary-text-color);
+  }
+  .panel-body {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  /* Cars: one outlined list, a row per car, one open at a time */
+  .car-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    border: 1px solid var(--divider-color);
+    border-radius: var(--ha-card-border-radius, 12px);
+    overflow: hidden;
+  }
+  .car-item + .car-item {
+    border-top: 1px solid var(--divider-color);
+  }
+  .car-head {
     display: flex;
     align-items: center;
-    gap: 4px;
-    flex-wrap: wrap;
+    gap: 2px;
+    padding-inline-end: 4px;
   }
-  .car-input {
-    background: var(--input-fill-color, rgba(0, 0, 0, 0.06));
-    border: 1px solid var(--divider-color);
-    border-radius: 8px;
-    padding: 6px 8px;
-    font-size: 0.875rem;
-    color: var(--primary-text-color);
-    outline: none;
-    font-family: inherit;
+  .car-toggle {
+    flex: 1;
+    min-width: 0;
+    min-height: 56px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 12px;
+    background: none;
+    border: 0;
+    color: inherit;
+    font: inherit;
+    text-align: start;
+    cursor: pointer;
+  }
+  .car-toggle:focus-visible {
+    outline: 2px solid var(--tankst-accent, var(--primary-color));
+    outline-offset: -2px;
+  }
+  .car-toggle ha-icon {
+    color: var(--secondary-text-color);
+    flex-shrink: 0;
+  }
+  .car-text {
+    display: flex;
+    flex-direction: column;
     min-width: 0;
   }
-  .car-input:focus {
-    border-color: var(--primary-color);
+  .car-name,
+  .car-details {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
-  .car-name-input {
-    flex: 1 1 50px;
-    min-width: 50px;
-  }
-  .car-tank-input {
-    width: 54px;
-    flex-shrink: 0;
-  }
-  .car-consumption-input {
-    width: 60px;
-    flex-shrink: 0;
-  }
-  .car-select {
-    background: var(--input-fill-color, rgba(0, 0, 0, 0.06));
-    border: 1px solid var(--divider-color);
-    border-radius: 8px;
-    padding: 6px 2px;
-    font-size: 0.875rem;
-    color: var(--primary-text-color);
-    cursor: pointer;
-    font-family: inherit;
-    flex-shrink: 0;
-    max-width: 90px;
-  }
-  .car-delete-btn {
-    background: none;
-    border: none;
-    color: var(--tankst-error);
-    cursor: pointer;
-    padding: 4px;
-    border-radius: 6px;
-    display: flex;
-    align-items: center;
-    flex-shrink: 0;
-    margin-left: auto;
-  }
-  .car-delete-btn:hover {
-    background: rgba(219, 68, 55, 0.1);
-  }
-  .car-add-btn {
-    align-self: flex-start;
-    background: none;
-    border: 1px dashed var(--divider-color);
-    border-radius: 8px;
-    color: var(--primary-color);
-    cursor: pointer;
-    font-size: 0.875rem;
-    padding: 8px 14px;
-    width: 100%;
-    font-family: inherit;
-    transition: background var(--ha-animation-duration-fast, 150ms) ease;
-  }
-  .car-add-btn:hover {
-    background: rgba(0, 0, 0, 0.04);
-  }
-  .car-icon-btn {
-    background: var(--secondary-background-color, rgba(0, 0, 0, 0.06));
-    border: 1px solid var(--divider-color);
-    border-radius: 8px;
-    color: var(--primary-color);
-    cursor: pointer;
-    padding: 6px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    transition: background var(--ha-animation-duration-fast, 150ms) ease, border-color var(--ha-animation-duration-fast, 150ms) ease;
-    --mdc-icon-size: 20px;
-  }
-  .car-icon-btn.active {
-    border-color: var(--primary-color);
-    background: rgba(var(--rgb-primary-color, 33, 150, 243), 0.1);
-  }
-  .car-icon-btn:hover {
-    border-color: var(--primary-color);
-  }
-  .car-icon-picker {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    padding: 6px 8px;
-    background: var(--secondary-background-color, rgba(0, 0, 0, 0.04));
-    border-radius: 8px;
-    border: 1px solid var(--divider-color);
-  }
-  .car-icon-option {
-    background: none;
-    border: 1px solid transparent;
-    border-radius: 6px;
+  .car-details {
+    font-size: 0.8125rem;
     color: var(--secondary-text-color);
-    cursor: pointer;
-    padding: 6px;
-    min-width: 32px;
-    min-height: 32px;
+  }
+  .car-body {
+    padding: 4px 12px 12px;
     display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all var(--ha-animation-duration-fast, 150ms) ease;
-    --mdc-icon-size: 20px;
+    flex-direction: column;
+    gap: 8px;
   }
-  .car-icon-option:hover {
-    background: var(--card-background-color, #fff);
-    color: var(--primary-color);
-    border-color: var(--divider-color);
+  .car-add {
+    align-self: flex-start;
   }
-  .car-icon-option.active {
-    background: var(--primary-color);
-    color: var(--text-primary-color, #fff);
-    border-color: var(--primary-color);
-  }
-`;async function An(e,t,n){if(!e?.callWS)return null;try{let r=await e.callWS({type:t});if(r?.version&&r.version!==n)return r.version}catch{}return null}async function jn(){try{if(typeof window<`u`&&`caches`in window){let e=await caches.keys();await Promise.all(e.map(e=>caches.delete(e)))}}catch{}location.reload()}function Mn(e){return e.mismatchVersion?e.stuck?P`
+`;async function kn(e,t,n){if(!e?.callWS)return null;try{let r=await e.callWS({type:t});if(r?.version&&r.version!==n)return r.version}catch{}return null}async function An(){try{if(typeof window<`u`&&`caches`in window){let e=await caches.keys();await Promise.all(e.map(e=>caches.delete(e)))}}catch{}location.reload()}function jn(e){return e.mismatchVersion?e.stuck?P`
       <div class="version-notice" role="alert" aria-live="assertive">
         <span>${e.t(`version_reload_stuck`)}</span>
         <button
@@ -1544,43 +1391,75 @@ if(super(e),e.type!==Pe.ATTRIBUTE||e.name!==`style`||e.strings?.length>2)throw E
         ${e.t(`version_reload`)}
       </button>
     </div>
-  `:I}var Nn=`https://www.e-control.at/`,Pn=`/tankstellen-austria/e-control_logo.svg`;function Fn(e){return typeof e==`string`&&/^https?:\/\//i.test(e)?e:``}function In(e){return typeof e==`string`?e.startsWith(`geo:0,0?q=`)?e:Fn(e):``}function Ln(e,t){return/iPhone|iPad|iPod/.test(e)||/Macintosh/.test(e)&&t>1?`ios`:/Android/.test(e)?`android`:`desktop`}function Rn(e,t){return e===`google`||e===`apple`?e:t===`ios`?`apple`:t===`android`?`geo`:`google`}function zn(e,t,n){e.dispatchEvent(new CustomEvent(t,{detail:n,bubbles:!0,composed:!0}))}function X(e,t,n,r){var i=arguments.length,a=i<3?t:r===null?r=Object.getOwnPropertyDescriptor(t,n):r,o;if(typeof Reflect==`object`&&typeof Reflect.decorate==`function`)a=Reflect.decorate(e,t,n,r);else for(var s=e.length-1;s>=0;s--)(o=e[s])&&(a=(i<3?o(a):i>3?o(t,n,a):o(t,n))||a);return i>3&&a&&Object.defineProperty(t,n,a),a}function Bn(e){return e.replace(/[<>"'&]/g,``).slice(0,50).trim()}var Vn={stations:[`count`,`sort`,`tile_shape`,`map_provider`,`payment_mode`]},Hn={stations:`mdi:gas-station-outline`,header:`mdi:page-layout-header`,chart:`mdi:chart-line`,cars:`mdi:car-outline`,footer:`mdi:page-layout-footer`},Z=(e,t)=>({name:t,default:ut[e][t],selector:{boolean:{}}}),Un={text:{}},Q=class extends z{constructor(...e){super(...e),this._config={type:`tankstellen-austria-card`},this._expandedCarIcon=null,this._pendingRemove=null,this._pmDraft=``,this._copiedPulse=!1,this._computeLabel=(e,t,n)=>{let r=this._fieldKey(e.name,n);if(r===e.name){let t=this.hass?.localize?.(`ui.panel.lovelace.editor.card.generic.${e.name}`);if(t)return t}let i=this._et(r);return i===`editor.${r}`?e.name:i},this._computeHelper=(e,t)=>{let n=`${this._fieldKey(e.name,t)}_helper`,r=this._et(n);return r===`editor.${n}`?void 0:r},this._onFormChanged=e=>{let t=e.detail.value,n={...this._config,...t};for(let[e,t]of Object.entries(ut)){let r=n[e];if(!r||typeof r!=`object`||Array.isArray(r))continue;let i={...r};for(let[e,n]of Object.entries(t))i[e]===n&&delete i[e];Object.keys(i).length>0?n[e]=i:delete n[e]}this._config=n,zn(this,`config-changed`,{config:this._config})},this._stop=e=>{e.stopPropagation()},this._onCustomPmChanged=e=>{e.stopPropagation(),this._pmDraft=e.detail?.value??``},this._onCustomPmKeydown=e=>{e.stopPropagation(),e.key===`Enter`&&this._onAddCustomPm()},this._onAddCustomPm=()=>{let e=Bn(this._pmDraft);if(!e)return;this._pendingRemove=null;let t=[...this._config.stations?.payment_filter??[]];t.includes(e)||(t.push(e),this._setStations({payment_filter:t})),this._pmDraft=``},this._onAddCar=e=>{e.stopPropagation();let t=[...this._config.cars?.items??[]];t.push({name:``,fuel_type:`DIE`,tank_size:50,icon:`mdi:car`}),this._setCars(t)}}setConfig(e){this._config=mt(e)}disconnectedCallback(){super.disconnectedCallback(),this._copiedTimeout!==void 0&&(clearTimeout(this._copiedTimeout),this._copiedTimeout=void 0)}_ctx(){return{configLanguage:this._config?.language,hassLanguage:this.hass?.language}}_et(e,t){return qt(`editor.${e}`,this._ctx(),t)}_ct(e,t){return qt(`card.${e}`,this._ctx(),t)}_fireChanged(){zn(this,`config-changed`,{config:{...this._config}})}_schema(){let{stations:e={},header:t={},chart:n={},cars:r={},footer:i={}}=this._config,a=(e,t)=>({name:e,selector:{select:{mode:`dropdown`,options:t.map(t=>({value:t,label:this._et(`${e}_${t}`)}))}}}),o=[{name:`count`,selector:{number:{min:0,max:5,step:1,mode:`slider`}}},Z(`stations`,`index`),...e.index===!1?[]:[Z(`stations`,`brand`),a(`tile_shape`,[`square`,`circle`])],Z(`stations`,`map_links`),a(`map_provider`,[`auto`,`google`,`apple`]),Z(`stations`,`distance`),a(`sort`,[`price`,`distance`]),Z(`stations`,`opening_hours`),Z(`stations`,`payment_methods`)];e.payment_methods!==!1&&(e.payment_filter??[]).length>0&&o.push(a(`payment_mode`,[`filter`,`highlight`]));let s=(e,t)=>({type:`expandable`,name:e,title:this._et(`section_${e}`),icon:Hn[e],schema:t});return[{name:`entities`,selector:{entity:{multiple:!0,filter:{domain:`sensor`,integration:`tankstellen_austria`}}}},s(`stations`,o),s(`header`,[Z(`header`,`show`),...t.show===!1?[]:[Z(`header`,`price`)]]),s(`chart`,[Z(`chart`,`show`),...n.show===!1?[]:[`median_line`,`hour_envelope`,`noon_markers`,`min_max`,`best_refuel`].map(e=>Z(`chart`,e))]),s(`cars`,[Z(`cars`,`show`),...r.show===!0?[Z(`cars`,`fill_up`),Z(`cars`,`consumption`)]:[]]),s(`footer`,[Z(`footer`,`show`),...i.show===!1?[]:[Z(`footer`,`adaptive_logo`)]])]}_fieldKey(e,t){return[...t?.path??[],e].join(`_`)}render(){let e=this._config.chart??{},t=e.show!==!1&&e.best_refuel!==!1,n=Object.fromEntries((Vn.stations??[]).map(e=>[e,ut.stations[e]])),r=(this._config.entities??[]).filter(e=>!!this.hass&&!this.hass.states[e]);return P`
+  `:I}var Mn=`https://www.e-control.at/`,Nn=`/tankstellen-austria/e-control_logo.svg`;function Pn(e){return typeof e==`string`&&/^https?:\/\//i.test(e)?e:``}function Fn(e){return typeof e==`string`?e.startsWith(`geo:0,0?q=`)?e:Pn(e):``}function In(e,t){return/iPhone|iPad|iPod/.test(e)||/Macintosh/.test(e)&&t>1?`ios`:/Android/.test(e)?`android`:`desktop`}function Ln(e,t){return e===`google`||e===`apple`?e:t===`ios`?`apple`:t===`android`?`geo`:`google`}function Rn(e,t,n){e.dispatchEvent(new CustomEvent(t,{detail:n,bubbles:!0,composed:!0}))}function X(e,t,n,r){var i=arguments.length,a=i<3?t:r===null?r=Object.getOwnPropertyDescriptor(t,n):r,o;if(typeof Reflect==`object`&&typeof Reflect.decorate==`function`)a=Reflect.decorate(e,t,n,r);else for(var s=e.length-1;s>=0;s--)(o=e[s])&&(a=(i<3?o(a):i>3?o(t,n,a):o(t,n))||a);return i>3&&a&&Object.defineProperty(t,n,a),a}var zn=[`stations`,`header`,`chart`,`cars`,`footer`],Bn={stations:`mdi:gas-station-outline`,header:`mdi:page-layout-header`,chart:`mdi:chart-line`,cars:`mdi:car-outline`,footer:`mdi:page-layout-footer`},Vn={stations:[`count`,`sort`,`tile_shape`,`map_provider`,`payment_mode`]},Hn=[`DIE`,`SUP`,`GAS`],Un=[`cash`,`debit_card`,`credit_card`],Wn={name:``,fuel_type:`DIE`,tank_size:50,icon:`mdi:car`};function Gn(e){return e.replace(/[<>"'&]/g,``).slice(0,50).trim()}var Z=(e,t)=>({name:t,default:lt[e][t],selector:{boolean:{}}});function Kn(e){let t={...e};for(let e of zn){let n=t[e];if(!n||typeof n!=`object`||Array.isArray(n))continue;let r=lt[e],i={};for(let[e,t]of Object.entries(n))t!=null&&t!==r[e]&&(Array.isArray(t)&&t.length===0||(i[e]=t));Object.keys(i).length>0?t[e]=i:delete t[e]}return Array.isArray(t.entities)&&t.entities.length===0&&delete t.entities,t}var Q=class extends z{constructor(...e){super(...e),this._config={type:`tankstellen-austria-card`},this._open=/* @__PURE__ */ new Set,this._openCar=null,this._copiedPulse=!1,this._labels=/* @__PURE__ */ new Map,this._helpers=/* @__PURE__ */ new Map,this._onEntitiesChanged=e=>{e.stopPropagation();let t=e.detail.value.entities,n={...this._config};t&&t.length>0?n.entities=t:delete n.entities,this._commit(n)},this._onTabLabelsChanged=e=>{e.stopPropagation();let t={};for(let[n,r]of Object.entries(e.detail.value)){let e=typeof r==`string`?Gn(r):``;e&&(t[n]=e)}let n={...this._config};Object.keys(t).length>0?n.tab_labels=t:delete n.tab_labels,this._commit(n)},this._onAddCar=()=>{let e=[...this._config.cars?.items??[],{...Wn}];this._openCar=e.length-1,this._setCars(e)}}setConfig(e){this._config=pt(e)}disconnectedCallback(){super.disconnectedCallback(),this._copiedTimeout!==void 0&&(clearTimeout(this._copiedTimeout),this._copiedTimeout=void 0)}_ctx(){return{configLanguage:this._config?.language,hassLanguage:this.hass?.language}}_et(e,t){return Gt(`editor.${e}`,this._ctx(),t)}_ct(e,t){return Gt(`card.${e}`,this._ctx(),t)}_maybe(e){let t=this._et(e);return t===`editor.${e}`?void 0:t}_commit(e){this._config=Kn(e),Rn(this,`config-changed`,{config:this._config})}_opt(e,t){return this._config[e]?.[t]??lt[e][t]}_labelFor(e){let t=e??``,n=this._labels.get(t);return n||(n=t=>{if(e===null){let e=this.hass?.localize?.(`ui.panel.lovelace.editor.card.generic.${t.name}`);if(e)return e}return this._maybe(e===null?t.name:`${e}_${t.name}`)??t.name},this._labels.set(t,n)),n}_helperFor(e){let t=e??``,n=this._helpers.get(t);return n||(n=t=>this._maybe(`${e===null?``:`${e}_`}${t.name}_helper`),this._helpers.set(t,n)),n}_select(e,t){return{name:e,selector:{select:{mode:`dropdown`,options:t.map(t=>({value:t,label:this._et(`${e}_${t}`)}))}}}}_groupSchema(e){let t=t=>this._opt(e,t)===!0;switch(e){case`stations`:{let e=this._config.stations?.payment_filter??[];return[{name:`count`,selector:{number:{min:0,max:5,step:1,mode:`slider`}}},Z(`stations`,`index`),...t(`index`)?[Z(`stations`,`brand`),this._select(`tile_shape`,[`square`,`circle`])]:[],Z(`stations`,`map_links`),this._select(`map_provider`,[`auto`,`google`,`apple`]),Z(`stations`,`distance`),this._select(`sort`,[`price`,`distance`]),Z(`stations`,`opening_hours`),Z(`stations`,`payment_methods`),...t(`payment_methods`)?[this._paymentFilterField()]:[],...t(`payment_methods`)&&e.length>0?[this._select(`payment_mode`,[`filter`,`highlight`])]:[]]}case`header`:return[Z(`header`,`show`),...t(`show`)?[Z(`header`,`price`)]:[]];case`chart`:return[Z(`chart`,`show`),...t(`show`)?[`median_line`,`hour_envelope`,`noon_markers`,`min_max`,`best_refuel`].map(e=>Z(`chart`,e)):[]];case`cars`:return[Z(`cars`,`show`),...t(`show`)?[Z(`cars`,`fill_up`),Z(`cars`,`consumption`)]:[]];case`footer`:return[Z(`footer`,`show`),...t(`show`)?[Z(`footer`,`adaptive_logo`)]:[]]}}_paymentFilterField(){let e=new Set(Un);for(let t of this._config.entities??[]){let n=this.hass?.states[t]?.attributes?.stations??[];for(let t of n)for(let n of t.payment_methods?.others??[])e.add(n)}for(let t of this._config.stations?.payment_filter??[])e.add(t);let t=e=>Un.includes(e)?this._ct(e):e;return{name:`payment_filter`,selector:{select:{multiple:!0,custom_value:!0,options:[...e].map(e=>({value:e,label:t(e)}))}}}}_carSchema(){return[{name:`name`,selector:{text:{}}},{name:`fuel_type`,selector:{select:{mode:`dropdown`,options:Hn.map(e=>({value:e,label:qt(e,this._ctx())}))}}},{name:`tank_size`,selector:{number:{min:1,max:200,step:1,mode:`box`,unit_of_measurement:`l`}}},{name:`consumption`,selector:{number:{min:0,max:30,step:.1,mode:`box`,unit_of_measurement:`l/100 km`}}},{name:`icon`,selector:{icon:{placeholder:`mdi:car`}}}]}_summary(e){let t=this._et(`summary_hidden`),n=[];switch(e){case`stations`:{let e=Number(this._opt(`stations`,`count`));if(e===0)return t;n.push(e===1?this._et(`summary_stations_one`):this._et(`summary_stations`,{count:String(e)})),n.push(this._et(`sort_${String(this._opt(`stations`,`sort`))}`));let r=this._config.stations?.payment_filter??[];r.length>0&&this._opt(`stations`,`payment_methods`)===!0?n.push(this._et(`summary_filter`,{methods:r.join(`, `)})):this._opt(`stations`,`brand`)===!0&&n.push(this._et(`summary_brand`));break}case`header`:if(this._opt(`header`,`show`)!==!0)return t;n.push(this._et(this._opt(`header`,`price`)===!0?`summary_header_price`:`summary_header_title`));break;case`chart`:if(this._opt(`chart`,`show`)!==!0)return t;for(let e of[`best_refuel`,`min_max`,`median_line`,`hour_envelope`,`noon_markers`])this._opt(`chart`,e)===!0&&n.push(this._et(`summary_chart_${e}`));n.length===0&&n.push(this._et(`summary_chart_plain`));break;case`cars`:{if(this._opt(`cars`,`show`)!==!0)return t;let e=this._config.cars?.items?.length??0;n.push(e===0?this._et(`summary_cars_none`):e===1?this._et(`summary_cars_one`):this._et(`summary_cars`,{count:String(e)}));break}case`footer`:if(this._opt(`footer`,`show`)!==!0)return t;n.push(this._et(`summary_shown`)),this._opt(`footer`,`adaptive_logo`)===!0&&n.push(this._et(`summary_adaptive_logo`))}return n.slice(0,3).join(` · `)}render(){let e=(this._config.entities??[]).filter(e=>!!this.hass&&!this.hass.states[e]);return P`
       <div class="editor">
         <ha-form
+          data-form="entities"
           .hass=${this.hass}
-          .data=${{...this._config,stations:{...n,...this._config.stations}}}
-          .schema=${this._schema()}
-          .computeLabel=${this._computeLabel}
-          .computeHelper=${this._computeHelper}
-          @value-changed=${this._onFormChanged}
+          .data=${{entities:this._config.entities}}
+          .schema=${[{name:`entities`,selector:{entity:{multiple:!0,filter:{domain:`sensor`,integration:`tankstellen_austria`}}}}]}
+          .computeLabel=${this._labelFor(null)}
+          .computeHelper=${this._helperFor(null)}
+          @value-changed=${this._onEntitiesChanged}
         ></ha-form>
-
-        ${r.map(e=>P`
-            <ha-alert alert-type="warning">
-              ${this._et(`entity_missing`,{entity:e})}
-            </ha-alert>
+        ${e.map(e=>P`
+            <ha-alert alert-type="warning">${this._et(`entity_missing`,{entity:e})}</ha-alert>
           `)}
-
-        ${t?this._renderRecorderHint():I}
-        ${this._renderTabLabelsSection()}
-        ${this._renderPaymentChipsSection()}
-        ${this._renderCarsRosterSection()}
+        ${this._renderTabLabels()} ${zn.map(e=>this._renderPanel(e))}
       </div>
-    `}_renderRecorderHint(){let e=`recorder:
-  purge_keep_days: 30`,t=this._copiedPulse?this._et(`copied`):this._et(`copy`);return P`
+    `}_renderPanel(e){return P`
+      <ha-expansion-panel
+        outlined
+        data-group=${e}
+        .header=${this._et(`section_${e}`)}
+        .secondary=${this._summary(e)}
+        @expanded-will-change=${t=>this._setOpen(e,t.detail.expanded)}
+      >
+        <ha-icon slot="leading-icon" icon=${Bn[e]}></ha-icon>
+        ${this._open.has(e)?this._renderBody(e):I}
+      </ha-expansion-panel>
+    `}_renderBody(e){let t=Object.fromEntries((Vn[e]??[]).map(t=>[t,lt[e][t]])),n=e===`chart`&&this._opt(`chart`,`show`)===!0&&this._opt(`chart`,`best_refuel`)===!0;return P`
+      <div class="panel-body">
+        <ha-form
+          data-form=${e}
+          .hass=${this.hass}
+          .data=${{...t,...this._config[e]}}
+          .schema=${this._groupSchema(e)}
+          .computeLabel=${this._labelFor(e)}
+          .computeHelper=${this._helperFor(e)}
+          @value-changed=${t=>this._onGroupChanged(e,t)}
+        ></ha-form>
+        ${n?this._renderRecorderHint():I}
+        ${e===`cars`&&this._opt(`cars`,`show`)===!0?this._renderCars():I}
+      </div>
+    `}_renderTabLabels(){if(!this.hass)return I;let e=(this._config.entities??[]).filter(e=>!!this.hass.states[e]);if(e.length<2)return I;let t=new Map(e.map(e=>[e,this._defaultTabLabel(e)]));return P`
+      <div class="tab-labels">
+        <div class="section-header">${this._et(`section_tab_labels`)}</div>
+        <ha-form
+          data-form="tab_labels"
+          .hass=${this.hass}
+          .data=${this._config.tab_labels??{}}
+          .schema=${e.map(e=>({name:e,selector:{text:{}}}))}
+          .computeLabel=${e=>t.get(e.name)??e.name}
+          @value-changed=${this._onTabLabelsChanged}
+        ></ha-form>
+        <div class="editor-hint">${this._et(`tab_labels_hint`)}</div>
+      </div>
+    `}_defaultTabLabel(e){let t=this.hass.states[e],n=qt(_t(this.hass,e,t.attributes),this._ctx());if(t.attributes?.dynamic_mode===!0){let e=t.attributes.dynamic_tracker_label;e&&(n+=` · ${e}`)}return n}_renderRecorderHint(){let e=`recorder:
+  purge_keep_days: 30`;return P`
       <div class="recorder-hint">
         <div class="recorder-hint-text">${this._et(`recorder_hint_intro`)}</div>
         <pre class="recorder-snippet"><code>${e}</code></pre>
         <div class="recorder-hint-actions">
-          <button
-            class="recorder-copy-btn"
-            type="button"
+          <ha-button
+            appearance="plain"
+            size="small"
             aria-label=${this._et(`copy_recorder_snippet`)}
             @click=${()=>this._onCopyRecorderSnippet(e)}
           >
-            <ha-icon icon="mdi:content-copy" aria-hidden="true"></ha-icon>
-            <span class="recorder-copy-label">${t}</span>
-          </button>
+            <ha-icon slot="start" icon="mdi:content-copy" aria-hidden="true"></ha-icon>
+            ${this._copiedPulse?this._et(`copied`):this._et(`copy`)}
+          </ha-button>
           <a
             class="recorder-docs-link"
             href="https://www.home-assistant.io/integrations/recorder/"
@@ -1592,191 +1471,65 @@ if(super(e),e.type!==Pe.ATTRIBUTE||e.name!==`style`||e.strings?.length>2)throw E
           </a>
         </div>
       </div>
-    `}_renderTabLabelsSection(){if(!this.hass)return I;let e=(this._config.entities??[]).map(e=>({eid:e,stateObj:this.hass.states[e]})).filter(e=>!!e.stateObj);if(e.length<2)return I;let t=this._config.tab_labels??{};return P`
-      <div class="editor-section">
-        <div class="section-header">${this._et(`section_tab_labels`)}</div>
-        ${e.map(({eid:e,stateObj:n})=>{let r=Yt(vt(this.hass,e,n.attributes),this._ctx());if(n.attributes?.dynamic_mode===!0){let e=n.attributes.dynamic_tracker_label;e&&(r+=` · ${e}`)}let i=typeof t[e]==`string`?t[e]:``,a=`tablbl-${e.replace(/[^a-z0-9_-]/gi,`-`)}`;return P`
-            <div class="tab-label-row">
-              <label class="tab-label-default" for=${a} title=${r}>${r}</label>
-              <input
-                id=${a}
-                class="tab-label-input"
-                type="text"
-                autocomplete="off"
-                maxlength="50"
-                placeholder=${r}
-                .value=${i}
-                @click=${this._stop}
-                @pointerdown=${this._stop}
-                @keydown=${this._stop}
-                @keyup=${this._stop}
-                @keypress=${this._stop}
-                @change=${t=>this._onTabLabelChange(e,t)}
-              />
-            </div>
-          `})}
-        <div class="editor-hint">${this._et(`tab_labels_hint`)}</div>
-      </div>
-    `}_collectApiPaymentKeys(){let e=/* @__PURE__ */ new Set([`cash`,`debit_card`,`credit_card`]);if(!this.hass)return e;for(let t of this._config.entities??[]){let n=this.hass.states[t]?.attributes?.stations??[];for(let t of n)for(let n of t.payment_methods?.others??[])e.add(n)}return e}_renderPaymentChipsSection(){if(this._config.stations?.payment_methods===!1)return I;let e=this._collectApiPaymentKeys(),t=this._config.stations?.payment_filter??[],n=new Set(e);for(let e of t)n.add(e);return P`
-      <div class="editor-section">
-        <div class="section-header">${this._et(`section_payment_filter`)}</div>
-        <div class="pm-filter-chips">
-          ${[...n].map(n=>this._renderPaymentChip(n,t,e))}
-        </div>
-        <div class="pm-custom-row">
-          <ha-selector
-            .hass=${this.hass}
-            .selector=${Un}
-            .value=${this._pmDraft}
-            .label=${this._et(`payment_filter_custom_placeholder`)}
-            .required=${!1}
-            @value-changed=${this._onCustomPmChanged}
-            @keydown=${this._onCustomPmKeydown}
-            @keyup=${this._stop}
-            @keypress=${this._stop}
-          ></ha-selector>
-          <ha-icon-button
-            .label=${this._et(`payment_filter_add_custom`)}
-            title=${this._et(`payment_filter_add_custom`)}
-            @click=${this._onAddCustomPm}
+    `}_renderCars(){let e=this._config.cars?.items??[];return P`
+      ${this._opt(`cars`,`fill_up`)!==!0&&this._opt(`cars`,`consumption`)!==!0?P`<div class="editor-hint">${this._et(`cars_both_off_hint`)}</div>`:I}
+      ${e.length>0?P`<ul class="car-list">
+            ${e.map((t,n)=>this._renderCar(t,n,e.length))}
+          </ul>`:I}
+      <ha-button appearance="plain" class="car-add" @click=${this._onAddCar}>
+        <ha-icon slot="start" icon="mdi:plus" aria-hidden="true"></ha-icon>
+        ${this._et(`add_car`)}
+      </ha-button>
+    `}_renderCar(e,t,n){let r=this._openCar===t,i=`tsa-car-${t}`,a=[qt(e.fuel_type,this._ctx()),`${e.tank_size} l`,...e.consumption==null?[]:[`${e.consumption} l/100 km`]].join(` · `),o=e.consumption!=null&&(e.consumption<0||e.consumption>30);return P`
+      <li class="car-item">
+        <div class="car-head">
+          <button
+            class="car-toggle"
+            type="button"
+            aria-expanded=${r?`true`:`false`}
+            aria-controls=${i}
+            @click=${()=>this._openCar=r?null:t}
           >
-            <ha-icon icon="mdi:plus-circle" aria-hidden="true"></ha-icon>
+            <ha-icon icon=${e.icon||`mdi:car`} aria-hidden="true"></ha-icon>
+            <span class="car-text">
+              <span class="car-name"
+                >${e.name||this._et(`car_unnamed`,{n:String(t+1)})}</span
+              >
+              <span class="car-details">${a}</span>
+            </span>
+          </button>
+          <ha-icon-button
+            .label=${this._et(`car_move_up`)}
+            .disabled=${t===0}
+            @click=${()=>this._moveCar(t,-1)}
+          >
+            <ha-icon icon="mdi:arrow-up" aria-hidden="true"></ha-icon>
+          </ha-icon-button>
+          <ha-icon-button
+            .label=${this._et(`car_move_down`)}
+            .disabled=${t===n-1}
+            @click=${()=>this._moveCar(t,1)}
+          >
+            <ha-icon icon="mdi:arrow-down" aria-hidden="true"></ha-icon>
+          </ha-icon-button>
+          <ha-icon-button .label=${this._et(`car_delete`)} @click=${()=>this._deleteCar(t)}>
+            <ha-icon icon="mdi:delete-outline" aria-hidden="true"></ha-icon>
           </ha-icon-button>
         </div>
-        <div class="editor-hint">${this._et(`payment_filter_custom_hint`)}</div>
-      </div>
-    `}_renderPaymentChip(e,t,n){let r=t.includes(e),i=e===this._pendingRemove,a=!n.has(e),o=e===`cash`?this._ct(`cash`):e===`debit_card`?this._ct(`debit_card`):e===`credit_card`?this._ct(`credit_card`):e;return P`
-      <button
-        class=${V({"pm-filter-chip":!0,active:r,confirm:i})}
-        type="button"
-        aria-pressed=${r?`true`:`false`}
-        @click=${()=>this._togglePaymentChip(e,a)}
-      >
-        ${i?`✕ ${o}?`:o}
-      </button>
-    `}_renderCarsRosterSection(){let e=this._config.cars??{};if(e.show!==!0)return I;let t=e.fill_up!==!1,n=e.consumption!==!1,r=e.items??[];return P`
-      <div class="editor-section">
-        <div class="section-header">${this._et(`section_cars`)}</div>
-        ${!t&&!n?P`<div class="editor-hint">${this._et(`cars_both_off_hint`)}</div>`:I}
-        ${r.map((e,t)=>this._renderCarRow(e,t))}
-        <button class="car-add-btn" type="button" @click=${this._onAddCar}>
-          ${this._et(`add_car`)}
-        </button>
-      </div>
-    `}_renderCarRow(e,t){let n=this._expandedCarIcon===t,r=e.icon||`mdi:car`,i=`tsa-car-icon-picker-${t}`,a=e.tank_size!=null&&(e.tank_size<1||e.tank_size>200),o=e.consumption!=null&&(e.consumption<0||e.consumption>30),s=`tsa-car-tank-err-${t}`,c=`tsa-car-consumption-err-${t}`;return P`
-      <div class="car-editor-group">
-        <div class="car-editor-row">
-          <button
-            class=${V({"car-icon-btn":!0,active:n})}
-            type="button"
-            aria-label=${this._et(`car_choose_icon`)}
-            aria-expanded=${n?`true`:`false`}
-            aria-controls=${i}
-            title=${this._et(`car_choose_icon`)}
-            @click=${e=>this._onToggleIconPicker(e,t)}
-          >
-            <ha-icon icon=${r} aria-hidden="true"></ha-icon>
-          </button>
-          <input
-            class="car-input car-name-input"
-            type="text"
-            autocomplete="off"
-            aria-label=${this._et(`car_name_placeholder`)}
-            placeholder=${this._et(`car_name_placeholder`)}
-            .value=${e.name??``}
-            @click=${this._stop}
-            @pointerdown=${this._stop}
-            @keydown=${this._stop}
-            @keyup=${this._stop}
-            @keypress=${this._stop}
-            @change=${e=>this._onCarFieldChange(t,`name`,e)}
-          />
-          <select
-            class="car-select"
-            aria-label=${this._et(`car_fuel_type`)}
-            @click=${this._stop}
-            @pointerdown=${this._stop}
-            @change=${e=>this._onCarFieldChange(t,`fuel_type`,e)}
-          >
-            ${[`DIE`,`SUP`,`GAS`].map(t=>P`
-                <option value=${t} ?selected=${e.fuel_type===t}>
-                  ${Yt(t,this._ctx())}
-                </option>
-              `)}
-          </select>
-          <input
-            class="car-input car-tank-input"
-            type="number"
-            min="1"
-            max="200"
-            autocomplete="off"
-            aria-label=${this._et(`car_tank_placeholder`)}
-            aria-invalid=${a?`true`:`false`}
-            aria-describedby=${a?s:I}
-            placeholder=${this._et(`car_tank_placeholder`)}
-            .value=${e.tank_size==null?``:String(e.tank_size)}
-            @click=${this._stop}
-            @pointerdown=${this._stop}
-            @keydown=${this._stop}
-            @keyup=${this._stop}
-            @keypress=${this._stop}
-            @change=${e=>this._onCarFieldChange(t,`tank_size`,e)}
-          />
-          <input
-            class="car-input car-consumption-input"
-            type="number"
-            min="0"
-            max="30"
-            step="0.1"
-            autocomplete="off"
-            aria-label=${this._et(`car_consumption_placeholder`)}
-            aria-invalid=${o?`true`:`false`}
-            aria-describedby=${o?c:I}
-            placeholder=${this._et(`car_consumption_placeholder`)}
-            .value=${e.consumption==null?``:String(e.consumption)}
-            @click=${this._stop}
-            @pointerdown=${this._stop}
-            @keydown=${this._stop}
-            @keyup=${this._stop}
-            @keypress=${this._stop}
-            @change=${e=>this._onCarFieldChange(t,`consumption`,e)}
-          />
-          <button
-            class="car-delete-btn"
-            type="button"
-            aria-label=${this._et(`car_delete`)}
-            title=${this._et(`car_delete`)}
-            @click=${e=>this._onDeleteCar(e,t)}
-          >
-            <ha-icon icon="mdi:delete-outline" aria-hidden="true"></ha-icon>
-          </button>
-        </div>
-        ${a?P`<ha-alert
-              id=${s}
-              alert-type="error"
-            >${this._et(`tank_size_range_error`)}</ha-alert>`:I}
-        ${o?P`<ha-alert
-              id=${c}
-              alert-type="error"
-            >${this._et(`consumption_range_error`)}</ha-alert>`:I}
-        ${n?P`
-              <div id=${i} class="car-icon-picker">
-                ${We.map(e=>P`
-                    <button
-                      class=${V({"car-icon-option":!0,active:r===e})}
-                      type="button"
-                      aria-label=${e.replace(`mdi:`,``)}
-                      aria-pressed=${r===e?`true`:`false`}
-                      title=${e.replace(`mdi:`,``)}
-                      @click=${n=>this._onPickCarIcon(n,t,e)}
-                    >
-                      <ha-icon icon=${e} aria-hidden="true"></ha-icon>
-                    </button>
-                  `)}
-              </div>
-            `:I}
-      </div>
-    `}async _onCopyRecorderSnippet(e){try{await navigator.clipboard.writeText(e),this._copiedPulse=!0,this._copiedTimeout!==void 0&&clearTimeout(this._copiedTimeout),this._copiedTimeout=window.setTimeout(()=>{this._copiedPulse=!1,this._copiedTimeout=void 0},1500)}catch{}}_onTabLabelChange(e,t){t.stopPropagation();let n=t.target,r=Bn(n.value),i={...this._config.tab_labels};r?i[e]=r:delete i[e];let a={...this._config};Object.keys(i).length?a.tab_labels=i:delete a.tab_labels,this._config=a,this._fireChanged()}_togglePaymentChip(e,t){let n=[...this._config.stations?.payment_filter??[]],r=n.includes(e);if(r&&t){this._pendingRemove===e?(this._pendingRemove=null,this._setStations({payment_filter:n.filter(t=>t!==e)})):this._pendingRemove=e;return}this._pendingRemove=null;let i=r?n.filter(t=>t!==e):[...n,e];this._setStations({payment_filter:i})}_onToggleIconPicker(e,t){e.stopPropagation(),this._expandedCarIcon=this._expandedCarIcon===t?null:t}_onPickCarIcon(e,t,n){e.stopPropagation();let r=[...this._config.cars?.items??[]];r[t]&&(r[t]={...r[t],icon:n},this._expandedCarIcon=null,this._setCars(r))}_onCarFieldChange(e,t,n){n.stopPropagation();let r=n.target.value,i=[...this._config.cars?.items??[]],a=i[e];if(!a)return;let o={...a};if(t===`consumption`){let e=r.trim();if(e===``)delete o.consumption;else{let t=parseFloat(e);Number.isFinite(t)&&t>0?o.consumption=Math.round(t*10)/10:delete o.consumption}}else if(t===`tank_size`){let e=parseInt(r,10);o.tank_size=Math.min(200,Math.max(1,Number.isFinite(e)?e:1))}else t===`fuel_type`?[`DIE`,`SUP`,`GAS`].includes(r)&&(o.fuel_type=r):o.name=Bn(r);i[e]=o,this._setCars(i)}_onDeleteCar(e,t){e.stopPropagation();let n=[...this._config.cars?.items??[]];n.splice(t,1),this._expandedCarIcon===t?this._expandedCarIcon=null:this._expandedCarIcon!=null&&this._expandedCarIcon>t&&--this._expandedCarIcon,this._setCars(n)}_setStations(e){this._config={...this._config,stations:{...this._config.stations,...e}},this._fireChanged()}_setCars(e){let t={...this._config.cars,items:e};this._config={...this._config,cars:t},this._fireChanged()}static{this.styles=kn}};X([Ne({attribute:!1})],Q.prototype,`hass`,void 0),X([B()],Q.prototype,`_config`,void 0),X([B()],Q.prototype,`_expandedCarIcon`,void 0),X([B()],Q.prototype,`_pendingRemove`,void 0),X([B()],Q.prototype,`_pmDraft`,void 0),X([B()],Q.prototype,`_copiedPulse`,void 0),Q=X([Ae(`tankstellen-austria-card-editor`)],Q);var Wn=`Datenquelle: E-Control`;window.customCards=window.customCards||[],window.customCards.push({type:`tankstellen-austria-card`,name:`Tankstellen Austria`,description:`Austrian fuel prices from E-Control with sparklines and best-refuel analytics.`,preview:!0,documentationURL:`https://github.com/rolandzeiner/tankstellen-austria`,getEntitySuggestion:(e,t)=>!t.startsWith(`sensor.`)||e?.entities?.[t]?.platform!==`tankstellen_austria`?null:{config:{type:`custom:tankstellen-austria-card`,entities:[t]}}});var $=class extends z{constructor(...e){super(...e),this.preview=!1,this._activeTab=0,this._expandedStations=/* @__PURE__ */ new Set,this._history={},this._versionMismatch=null,this._lastManualRefresh=0,this._noNewData=!1,this._historyError=!1,this._apiMaintenance=!1,this._cooldownTick=0,this._initDone=!1,this._onDismissVersionBanner=()=>{this._versionMismatch=null},this._onMapLinkClick=e=>{e.stopPropagation()},this._onRefresh=()=>{if(!this.hass)return;let e=Date.now();if(e-this._lastManualRefresh<12e4)return;this._lastManualRefresh=e,this._noNewData=!1;let t=this._resolveEntities(),n=(t[this._activeTab]??t[0])?.last_updated;for(let e of t){let t=this.hass.callService(`homeassistant`,`update_entity`,{entity_id:e.entity_id});t&&typeof t.catch==`function`&&t.catch(t=>{console.warn(`[Tankstellen Austria] update_entity failed for`,e.entity_id,t)})}this._postRefreshTimeout!==void 0&&clearTimeout(this._postRefreshTimeout),this._postRefreshTimeout=window.setTimeout(()=>{this._postRefreshTimeout=void 0;try{let e=this._resolveEntities();(e[this._activeTab]??e[0])?.last_updated===n&&(this._noNewData=!0)}catch(e){console.warn(`[Tankstellen Austria] post-refresh check failed`,e)}},He),this._cooldownInterval!==void 0&&clearInterval(this._cooldownInterval),typeof window<`u`&&typeof window.matchMedia==`function`&&window.matchMedia(`(prefers-reduced-motion: reduce)`).matches?(this._cooldownTimeout!==void 0&&clearTimeout(this._cooldownTimeout),this._cooldownTimeout=window.setTimeout(()=>{this._cooldownTimeout=void 0,this._cooldownTick=(this._cooldownTick+1)%1e6},Ve)):this._cooldownInterval=window.setInterval(()=>{Date.now()-this._lastManualRefresh>=12e4&&this._cooldownInterval!==void 0&&(clearInterval(this._cooldownInterval),this._cooldownInterval=void 0),this._cooldownTick=(this._cooldownTick+1)%1e6},1e3)},this._onVersionReload=async()=>{if(this._versionMismatch)try{sessionStorage.setItem(`tsa-reload-attempted-${this._versionMismatch}`,`1`)}catch{}await jn()}}static getConfigElement(){return document.createElement(`tankstellen-austria-card-editor`)}static getStubConfig(e){let t=_t(e);return{entities:t.length?[t[0]]:[],stations:{distance:!0,payment_mode:`highlight`}}}setConfig(e){if(!e||typeof e!=`object`||Array.isArray(e))throw Error(`tankstellen-austria-card: config must be an object`);let t=e.entities;if(t!==void 0&&typeof t!=`string`&&!Array.isArray(t))throw Error(`tankstellen-austria-card: config.entities must be a string or array of entity IDs`);if(this._config=lt(ht(mt(e))),this._config.entities){let e={},t=!1;for(let n of this._config.entities){let r=rn(n);r.length>=2&&(e[n]=r,t=!0)}t&&(this._history={...this._history,...e})}}getCardSize(){let e=this._config??{},t=this.hass&&this._config?this._resolveEntities():[],n=t[this._activeTab]??t[0],r=n?vt(this.hass,n.entity_id,n.attributes):void 0,i=(e.cars??[]).filter(e=>r===void 0||e.fuel_type===r),a=ot(e,{entityCount:Math.max(1,t.length),stationCount:n?.attributes.stations?.length??5,carCount:i.length,dynamic:n?.attributes.dynamic_mode===!0});return Math.ceil(a/50)}getGridOptions(){return{columns:12,rows:`auto`,min_columns:6,min_rows:4}}shouldUpdate(e){if(!this._config)return!1;if(e.has(`_config`)||e.has(`_activeTab`)||e.has(`_expandedStations`)||e.has(`_history`)||e.has(`_historyError`)||e.has(`_apiMaintenance`)||e.has(`_versionMismatch`)||e.has(`_lastManualRefresh`)||e.has(`_noNewData`)||e.has(`_cooldownTick`)||e.has(`layout`)||e.has(`preview`))return!0;let t=e.get(`hass`);return!t||t.language!==this.hass.language||this._trackedEntityIds().some(e=>t.states[e]!==this.hass.states[e])}_trackedEntityIds(){return this._config.entities?.length?this._config.entities:_t(this.hass)}_resolveEntities(){return this.hass?this._trackedEntityIds().map(e=>{let t=this.hass.states[e];return t?{entity_id:e,state:t.state,attributes:t.attributes,last_updated:t.last_updated}:null}).filter(e=>e!==null):[]}_ctx(){return{configLanguage:this._config?.language,hassLanguage:this.hass?.language}}_t(e,t){return qt(`card.${e}`,this._ctx(),t)}connectedCallback(){super.connectedCallback(),this.hass&&this._config&&this._syncApiStatus(),this._initDone||this.requestUpdate()}disconnectedCallback(){super.disconnectedCallback(),this._stopApiStatusPoll(),this._historyInterval!==void 0&&(clearInterval(this._historyInterval),this._historyInterval=void 0),this._cooldownInterval!==void 0&&(clearInterval(this._cooldownInterval),this._cooldownInterval=void 0),this._postRefreshTimeout!==void 0&&(clearTimeout(this._postRefreshTimeout),this._postRefreshTimeout=void 0),this._cooldownTimeout!==void 0&&(clearTimeout(this._cooldownTimeout),this._cooldownTimeout=void 0),this._sparklineCleanup&&=(this._sparklineCleanup(),void 0),this._initDone=!1}willUpdate(e){e.has(`hass`)&&this._syncApiStatus()}_syncApiStatus(){this._resolveEntities().some(e=>e.state===`unavailable`)?this._apiStatusInterval===void 0&&(this._checkApiStatus(),this._apiStatusInterval=window.setInterval(()=>{this._checkApiStatus()},Dt)):(this._stopApiStatusPoll(),this._apiMaintenance=!1)}async _checkApiStatus(){this._apiMaintenance=await Ot(this.hass)}_stopApiStatusPoll(){this._apiStatusInterval!==void 0&&(clearInterval(this._apiStatusInterval),this._apiStatusInterval=void 0)}updated(e){!this._initDone&&this.isConnected&&this.hass&&this._config&&(this._initDone=!0,this._fetchAllHistory(),this._historyInterval=window.setInterval(()=>{this._fetchAllHistory()},Ue),this._checkCardVersion()),this._reattachSparklineHover()}async _fetchAllHistory(){try{let e=this._resolveEntities();await Promise.all(e.map(async e=>{let t=await nn(this.hass,e.entity_id);this._history={...this._history,[e.entity_id]:t}})),this._historyError=!1}catch(e){console.warn(`[Tankstellen Austria] history refresh failed`,e),this._historyError=!0}}async _checkCardVersion(){let e=await An(this.hass,`tankstellen_austria/card_version`,Be);e&&(this._versionMismatch=e)}_reattachSparklineHover(){this._sparklineCleanup&&=(this._sparklineCleanup(),void 0);let e=this.shadowRoot?.querySelector(`.sparkline-container[data-entity]`);if(!e)return;let t=Jt(this._ctx()),n=Kt(this._ctx()),r=e=>{let r=new Date(e);return`${t[r.getDay()]?.slice(0,2)??``} ${n===`de`?`${r.getDate()}.${r.getMonth()+1}.`:`${r.getMonth()+1}/${r.getDate()}`} ${String(r.getHours()).padStart(2,`0`)}:${String(r.getMinutes()).padStart(2,`0`)}`};this._sparklineCleanup=mn(e,{formatTime:r,formatPrice:wt})}render(){if(!this.hass||!this._config)return P`
+        ${r?P`<div class="car-body" id=${i}>
+              <ha-form
+                data-form="car"
+                .hass=${this.hass}
+                .data=${e}
+                .schema=${this._carSchema()}
+                .computeLabel=${this._labelFor(`car`)}
+                .computeHelper=${this._helperFor(`car`)}
+                @value-changed=${e=>this._onCarChanged(t,e)}
+              ></ha-form>
+              ${o?P`<ha-alert alert-type="error">${this._et(`consumption_range_error`)}</ha-alert>`:I}
+            </div>`:I}
+      </li>
+    `}_setOpen(e,t){let n=new Set(this._open);t?n.add(e):n.delete(e),this._open=n}_onGroupChanged(e,t){t.stopPropagation();let n={...this._config[e],...t.detail.value};if(e===`stations`&&Array.isArray(n.payment_filter)){let e=n.payment_filter.map(e=>Gn(String(e)));n.payment_filter=[...new Set(e.filter(Boolean))]}this._commit({...this._config,[e]:n})}_onCarChanged(e,t){t.stopPropagation();let n=[...this._config.cars?.items??[]],r=n[e];if(!r)return;let i=t.detail.value,a={...r};typeof i.name==`string`&&(a.name=Gn(i.name)),Hn.includes(i.fuel_type)&&(a.fuel_type=i.fuel_type),typeof i.tank_size==`number`&&Number.isFinite(i.tank_size)&&(a.tank_size=Math.min(200,Math.max(1,Math.round(i.tank_size)))),typeof i.consumption==`number`&&Number.isFinite(i.consumption)?a.consumption=Math.round(i.consumption*10)/10:delete a.consumption,a.icon=typeof i.icon==`string`&&i.icon.startsWith(`mdi:`)?i.icon:`mdi:car`,n[e]=a,this._setCars(n)}_moveCar(e,t){let n=[...this._config.cars?.items??[]],r=e+t,i=n[e];!i||r<0||r>=n.length||(n.splice(e,1),n.splice(r,0,i),this._openCar===e?this._openCar=r:this._openCar===r&&(this._openCar=e),this._setCars(n))}_deleteCar(e){let t=[...this._config.cars?.items??[]];t.splice(e,1),this._openCar===e?this._openCar=null:this._openCar!=null&&this._openCar>e&&--this._openCar,this._setCars(t)}_setCars(e){this._commit({...this._config,cars:{...this._config.cars,items:e}})}async _onCopyRecorderSnippet(e){try{await navigator.clipboard.writeText(e),this._copiedPulse=!0,this._copiedTimeout!==void 0&&clearTimeout(this._copiedTimeout),this._copiedTimeout=window.setTimeout(()=>{this._copiedPulse=!1,this._copiedTimeout=void 0},1500)}catch{}}static{this.styles=On}};X([Ne({attribute:!1})],Q.prototype,`hass`,void 0),X([B()],Q.prototype,`_config`,void 0),X([B()],Q.prototype,`_open`,void 0),X([B()],Q.prototype,`_openCar`,void 0),X([B()],Q.prototype,`_copiedPulse`,void 0),Q=X([Ae(`tankstellen-austria-card-editor`)],Q);var qn=`Datenquelle: E-Control`;window.customCards=window.customCards||[],window.customCards.push({type:`tankstellen-austria-card`,name:`Tankstellen Austria`,description:`Austrian fuel prices from E-Control with sparklines and best-refuel analytics.`,preview:!0,documentationURL:`https://github.com/rolandzeiner/tankstellen-austria`,getEntitySuggestion:(e,t)=>!t.startsWith(`sensor.`)||e?.entities?.[t]?.platform!==`tankstellen_austria`?null:{config:{type:`custom:tankstellen-austria-card`,entities:[t]}}});var $=class extends z{constructor(...e){super(...e),this.preview=!1,this._activeTab=0,this._expandedStations=/* @__PURE__ */ new Set,this._history={},this._versionMismatch=null,this._lastManualRefresh=0,this._noNewData=!1,this._historyError=!1,this._apiMaintenance=!1,this._cooldownTick=0,this._initDone=!1,this._onDismissVersionBanner=()=>{this._versionMismatch=null},this._onMapLinkClick=e=>{e.stopPropagation()},this._onRefresh=()=>{if(!this.hass)return;let e=Date.now();if(e-this._lastManualRefresh<12e4)return;this._lastManualRefresh=e,this._noNewData=!1;let t=this._resolveEntities(),n=(t[this._activeTab]??t[0])?.last_updated;for(let e of t){let t=this.hass.callService(`homeassistant`,`update_entity`,{entity_id:e.entity_id});t&&typeof t.catch==`function`&&t.catch(t=>{console.warn(`[Tankstellen Austria] update_entity failed for`,e.entity_id,t)})}this._postRefreshTimeout!==void 0&&clearTimeout(this._postRefreshTimeout),this._postRefreshTimeout=window.setTimeout(()=>{this._postRefreshTimeout=void 0;try{let e=this._resolveEntities();(e[this._activeTab]??e[0])?.last_updated===n&&(this._noNewData=!0)}catch(e){console.warn(`[Tankstellen Austria] post-refresh check failed`,e)}},He),this._cooldownInterval!==void 0&&clearInterval(this._cooldownInterval),typeof window<`u`&&typeof window.matchMedia==`function`&&window.matchMedia(`(prefers-reduced-motion: reduce)`).matches?(this._cooldownTimeout!==void 0&&clearTimeout(this._cooldownTimeout),this._cooldownTimeout=window.setTimeout(()=>{this._cooldownTimeout=void 0,this._cooldownTick=(this._cooldownTick+1)%1e6},Ve)):this._cooldownInterval=window.setInterval(()=>{Date.now()-this._lastManualRefresh>=12e4&&this._cooldownInterval!==void 0&&(clearInterval(this._cooldownInterval),this._cooldownInterval=void 0),this._cooldownTick=(this._cooldownTick+1)%1e6},1e3)},this._onVersionReload=async()=>{if(this._versionMismatch)try{sessionStorage.setItem(`tsa-reload-attempted-${this._versionMismatch}`,`1`)}catch{}await An()}}static getConfigElement(){return document.createElement(`tankstellen-austria-card-editor`)}static getStubConfig(e){let t=gt(e);return{entities:t.length?[t[0]]:[],stations:{distance:!0,payment_mode:`highlight`}}}setConfig(e){if(!e||typeof e!=`object`||Array.isArray(e))throw Error(`tankstellen-austria-card: config must be an object`);let t=e.entities;if(t!==void 0&&typeof t!=`string`&&!Array.isArray(t))throw Error(`tankstellen-austria-card: config.entities must be a string or array of entity IDs`);if(this._config=ct(mt(pt(e))),this._config.entities){let e={},t=!1;for(let n of this._config.entities){let r=tn(n);r.length>=2&&(e[n]=r,t=!0)}t&&(this._history={...this._history,...e})}}getCardSize(){let e=this._config??{},t=this.hass&&this._config?this._resolveEntities():[],n=t[this._activeTab]??t[0],r=n?_t(this.hass,n.entity_id,n.attributes):void 0,i=(e.cars??[]).filter(e=>r===void 0||e.fuel_type===r),a=at(e,{entityCount:Math.max(1,t.length),stationCount:n?.attributes.stations?.length??5,carCount:i.length,dynamic:n?.attributes.dynamic_mode===!0});return Math.ceil(a/50)}getGridOptions(){return{columns:12,rows:`auto`,min_columns:6,min_rows:4}}shouldUpdate(e){if(!this._config)return!1;if(e.has(`_config`)||e.has(`_activeTab`)||e.has(`_expandedStations`)||e.has(`_history`)||e.has(`_historyError`)||e.has(`_apiMaintenance`)||e.has(`_versionMismatch`)||e.has(`_lastManualRefresh`)||e.has(`_noNewData`)||e.has(`_cooldownTick`)||e.has(`layout`)||e.has(`preview`))return!0;let t=e.get(`hass`);return!t||t.language!==this.hass.language||this._trackedEntityIds().some(e=>t.states[e]!==this.hass.states[e])}_trackedEntityIds(){return this._config.entities?.length?this._config.entities:gt(this.hass)}_resolveEntities(){return this.hass?this._trackedEntityIds().map(e=>{let t=this.hass.states[e];return t?{entity_id:e,state:t.state,attributes:t.attributes,last_updated:t.last_updated}:null}).filter(e=>e!==null):[]}_ctx(){return{configLanguage:this._config?.language,hassLanguage:this.hass?.language}}_t(e,t){return Gt(`card.${e}`,this._ctx(),t)}connectedCallback(){super.connectedCallback(),this.hass&&this._config&&this._syncApiStatus(),this._initDone||this.requestUpdate()}disconnectedCallback(){super.disconnectedCallback(),this._stopApiStatusPoll(),this._historyInterval!==void 0&&(clearInterval(this._historyInterval),this._historyInterval=void 0),this._cooldownInterval!==void 0&&(clearInterval(this._cooldownInterval),this._cooldownInterval=void 0),this._postRefreshTimeout!==void 0&&(clearTimeout(this._postRefreshTimeout),this._postRefreshTimeout=void 0),this._cooldownTimeout!==void 0&&(clearTimeout(this._cooldownTimeout),this._cooldownTimeout=void 0),this._sparklineCleanup&&=(this._sparklineCleanup(),void 0),this._initDone=!1}willUpdate(e){e.has(`hass`)&&this._syncApiStatus()}_syncApiStatus(){this._resolveEntities().some(e=>e.state===`unavailable`)?this._apiStatusInterval===void 0&&(this._checkApiStatus(),this._apiStatusInterval=window.setInterval(()=>{this._checkApiStatus()},Tt)):(this._stopApiStatusPoll(),this._apiMaintenance=!1)}async _checkApiStatus(){this._apiMaintenance=await Et(this.hass)}_stopApiStatusPoll(){this._apiStatusInterval!==void 0&&(clearInterval(this._apiStatusInterval),this._apiStatusInterval=void 0)}updated(e){!this._initDone&&this.isConnected&&this.hass&&this._config&&(this._initDone=!0,this._fetchAllHistory(),this._historyInterval=window.setInterval(()=>{this._fetchAllHistory()},Ue),this._checkCardVersion()),this._reattachSparklineHover()}async _fetchAllHistory(){try{let e=this._resolveEntities();await Promise.all(e.map(async e=>{let t=await en(this.hass,e.entity_id);this._history={...this._history,[e.entity_id]:t}})),this._historyError=!1}catch(e){console.warn(`[Tankstellen Austria] history refresh failed`,e),this._historyError=!0}}async _checkCardVersion(){let e=await kn(this.hass,`tankstellen_austria/card_version`,Be);e&&(this._versionMismatch=e)}_reattachSparklineHover(){this._sparklineCleanup&&=(this._sparklineCleanup(),void 0);let e=this.shadowRoot?.querySelector(`.sparkline-container[data-entity]`);if(!e)return;let t=Kt(this._ctx()),n=Wt(this._ctx()),r=e=>{let r=new Date(e);return`${t[r.getDay()]?.slice(0,2)??``} ${n===`de`?`${r.getDate()}.${r.getMonth()+1}.`:`${r.getMonth()+1}/${r.getDate()}`} ${String(r.getHours()).padStart(2,`0`)}:${String(r.getMinutes()).padStart(2,`0`)}`};this._sparklineCleanup=fn(e,{formatTime:r,formatPrice:U})}render(){if(!this.hass||!this._config)return P`
         <ha-card>
           <div class="empty" role="status" aria-live="polite">
             ${this._t(`loading`)}
@@ -1813,11 +1566,11 @@ if(super(e),e.type!==Pe.ATTRIBUTE||e.name!==`style`||e.strings?.length>2)throw E
         </div>
         ${this._renderFooter(r)}
       </ha-card>
-    `}_renderFooter(e){if(this._config?.hide_attribution===!0)return I;let t=this._config?.logo_adapt_to_theme===!0,n=!!this.hass?.themes?.darkMode,r=t?`brand-logo adaptive ${n?`adaptive-dark`:`adaptive-light`}`:`brand-logo`,i=e&&e.includes(`E-Control`)?e:Wn;return P`
+    `}_renderFooter(e){if(this._config?.hide_attribution===!0)return I;let t=this._config?.logo_adapt_to_theme===!0,n=!!this.hass?.themes?.darkMode,r=t?`brand-logo adaptive ${n?`adaptive-dark`:`adaptive-light`}`:`brand-logo`,i=e&&e.includes(`E-Control`)?e:qn;return P`
       <div class="footer">
         <a
           class="brand-link"
-          href=${Fn(Nn)}
+          href=${Pn(Mn)}
           target="_blank"
           rel="noopener noreferrer"
           aria-label="E-Control"
@@ -1825,15 +1578,15 @@ if(super(e),e.type!==Pe.ATTRIBUTE||e.name!==`style`||e.strings?.length>2)throw E
         >
           <img
             class=${r}
-            src=${Pn}
+            src=${Nn}
             alt="E-Control"
           />
         </a>
         <span class="attribution-text">${i}</span>
       </div>
-    `}_renderVersionBanner(){if(this.preview)return I;let e=this._versionMismatch!==null&&typeof sessionStorage<`u`&&sessionStorage.getItem(`tsa-reload-attempted-${this._versionMismatch}`)===`1`;return Mn({mismatchVersion:this._versionMismatch,stuck:e,t:(e,t)=>this._t(e,t),onReload:this._onVersionReload,onDismiss:this._onDismissVersionBanner})}_renderTabs(e,t){if(e.length<=1)return I;let n=this._config.tab_labels??{};return P`
+    `}_renderVersionBanner(){if(this.preview)return I;let e=this._versionMismatch!==null&&typeof sessionStorage<`u`&&sessionStorage.getItem(`tsa-reload-attempted-${this._versionMismatch}`)===`1`;return jn({mismatchVersion:this._versionMismatch,stuck:e,t:(e,t)=>this._t(e,t),onReload:this._onVersionReload,onDismiss:this._onDismissVersionBanner})}_renderTabs(e,t){if(e.length<=1)return I;let n=this._config.tab_labels??{};return P`
       <div class="tabs" role="tablist">
-        ${e.map((r,i)=>{let a=n[r.entity_id],o;if(typeof a==`string`&&a.trim().length>0)o=a;else if(o=Yt(vt(this.hass,r.entity_id,r.attributes),this._ctx()),r.attributes.dynamic_mode===!0){let e=r.attributes.dynamic_tracker_label;e&&(o+=` · ${e}`)}let s=i===t;return P`
+        ${e.map((r,i)=>{let a=n[r.entity_id],o;if(typeof a==`string`&&a.trim().length>0)o=a;else if(o=qt(_t(this.hass,r.entity_id,r.attributes),this._ctx()),r.attributes.dynamic_mode===!0){let e=r.attributes.dynamic_tracker_label;e&&(o+=` · ${e}`)}let s=i===t;return P`
             <button
               type="button"
               role="tab"
@@ -1847,7 +1600,7 @@ if(super(e),e.type!==Pe.ATTRIBUTE||e.name!==`style`||e.strings?.length>2)throw E
             </button>
           `})}
       </div>
-    `}_renderHeader(e){if(this._config?.hide_header===!0)return I;let t=vt(this.hass,e.entity_id,e.attributes),n=e.attributes.fuel_type_name||Yt(t,this._ctx()),r=e.attributes.dynamic_mode===!0,i=null;return r&&(i=e.attributes.dynamic_tracker_label??null),P`
+    `}_renderHeader(e){if(this._config?.hide_header===!0)return I;let t=_t(this.hass,e.entity_id,e.attributes),n=e.attributes.fuel_type_name||qt(t,this._ctx()),r=e.attributes.dynamic_mode===!0,i=null;return r&&(i=e.attributes.dynamic_tracker_label??null),P`
       <header class="header">
         <div class="icon-tile" aria-hidden="true">
           <ha-icon icon="mdi:gas-station"></ha-icon>
@@ -1892,15 +1645,15 @@ if(super(e),e.type!==Pe.ATTRIBUTE||e.name!==`style`||e.strings?.length>2)throw E
       <div class="hero">
         <div class="metric">
           <div class="metric-value">
-            <span class="metric-num">${wt(r)}</span>
+            <span class="metric-num">${U(r)}</span>
             ${i==null?I:P`<span class="metric-of"
-                  >/ ${wt(i)} ${this._t(`average`)}</span
+                  >/ ${U(i)} ${this._t(`average`)}</span
                 >`}
           </div>
           <div class="metric-label">${this._t(`cheapest`)}</div>
         </div>
       </div>
-    `}_renderSparklineBlock(e){return e.attributes.dynamic_mode===!0||this._config.show_history===!1?I:this._renderSparkline(e)}_renderSparkline(e){let t=e.entity_id,n=this._history[t]??[];if(n.length<2)return I;let r=this._config.show_median_line===!0,i=this._config.show_hour_envelope===!0,a=this._config.show_noon_markers===!0,o=this._config.show_minmax!==!1,s=i?Dn(n):null,c=this._config.show_best_refuel===!1?null:En(n),l=pn({points:n,showMedianLine:r,showHourEnvelope:i,showNoonMarkers:a,showMinMax:o,hourEnvelope:s,analysis:c,translations:{min_label:this._t(`min_label`),max_label:this._t(`max_label`),last_7_days:this._t(`last_7_days`),median_delta_below:this._t(`median_delta_below`),median_delta_above:this._t(`median_delta_above`),median_delta_equal:this._t(`median_delta_equal`),sparkline_aria_summary:this._t(`sparkline_aria_summary`),sparkline_aria_simple:this._t(`sparkline_aria_simple`)}});return l.template===I?I:P`
+    `}_renderSparklineBlock(e){return e.attributes.dynamic_mode===!0||this._config.show_history===!1?I:this._renderSparkline(e)}_renderSparkline(e){let t=e.entity_id,n=this._history[t]??[];if(n.length<2)return I;let r=this._config.show_median_line===!0,i=this._config.show_hour_envelope===!0,a=this._config.show_noon_markers===!0,o=this._config.show_minmax!==!1,s=i?En(n):null,c=this._config.show_best_refuel===!1?null:Tn(n),l=dn({points:n,showMedianLine:r,showHourEnvelope:i,showNoonMarkers:a,showMinMax:o,hourEnvelope:s,analysis:c,translations:{min_label:this._t(`min_label`),max_label:this._t(`max_label`),last_7_days:this._t(`last_7_days`),median_delta_below:this._t(`median_delta_below`),median_delta_above:this._t(`median_delta_above`),median_delta_equal:this._t(`median_delta_equal`),sparkline_aria_summary:this._t(`sparkline_aria_summary`),sparkline_aria_simple:this._t(`sparkline_aria_simple`)}});return l.template===I?I:P`
       <div
         class="sparkline-container"
         data-entity=${t}
@@ -1918,7 +1671,7 @@ if(super(e),e.type!==Pe.ATTRIBUTE||e.name!==`style`||e.strings?.length>2)throw E
           <ha-icon icon="mdi:information-outline" class="refuel-icon" aria-hidden="true"></ha-icon>
           ${this._t(`not_enough_data_hint`)}
         </div>
-      `;let t=e.hour??0,n=e.hour_end??(t+1)%24,r=String(t).padStart(2,`0`),i=String(n).padStart(2,`0`),a;if(e.weekday!=null){let t=Jt(this._ctx())[e.weekday]??``;a=this._t(`best_refuel_hour_weekday`,{h1:r,h2:i,day:t})}else a=this._t(`best_refuel_hour`,{h1:r,h2:i});let o=e.confidence;if(!o)return P`
+      `;let t=e.hour??0,n=e.hour_end??(t+1)%24,r=String(t).padStart(2,`0`),i=String(n).padStart(2,`0`),a;if(e.weekday!=null){let t=Kt(this._ctx())[e.weekday]??``;a=this._t(`best_refuel_hour_weekday`,{h1:r,h2:i,day:t})}else a=this._t(`best_refuel_hour`,{h1:r,h2:i});let o=e.confidence;if(!o)return P`
         <div class="refuel-recommendation">
           <ha-icon icon="mdi:lightbulb-outline" class="refuel-icon" aria-hidden="true"></ha-icon>
           <span class="refuel-text">${a}</span>
@@ -1933,7 +1686,7 @@ if(super(e),e.type!==Pe.ATTRIBUTE||e.name!==`style`||e.strings?.length>2)throw E
           aria-label=${l}
         >${s}</span>
       </div>
-    `}_renderCars(e){let t=e.attributes.stations??[];if(!t.length)return I;let n=this._config.show_cars===!0,r=this._config.show_car_fillup!==!1,i=this._config.show_car_consumption!==!1;if(!n||!r&&!i)return I;let a=vt(this.hass,e.entity_id,e.attributes),o=this._config.payment_filter??[],s=this._config.payment_highlight_mode===!0,c=(this._config.cars??[]).filter(e=>e.fuel_type===a&&e.tank_size>0&&e.name),l=r?c:c.filter(e=>Number(e.consumption)>0);if(!l.length)return I;let u=s?t:t.filter(e=>xt(e,o)),d=s?t[0]?.price:u[0]?.price;return P`
+    `}_renderCars(e){let t=e.attributes.stations??[];if(!t.length)return I;let n=this._config.show_cars===!0,r=this._config.show_car_fillup!==!1,i=this._config.show_car_consumption!==!1;if(!n||!r&&!i)return I;let a=_t(this.hass,e.entity_id,e.attributes),o=this._config.payment_filter??[],s=this._config.payment_highlight_mode===!0,c=(this._config.cars??[]).filter(e=>e.fuel_type===a&&e.tank_size>0&&e.name),l=r?c:c.filter(e=>Number(e.consumption)>0);if(!l.length)return I;let u=s?t:t.filter(e=>bt(e,o)),d=s?t[0]?.price:u[0]?.price;return P`
       <div class="cars-fillup">
         ${l.map(e=>this._renderCarRow(e,d,r,i))}
       </div>
@@ -1961,7 +1714,7 @@ if(super(e),e.type!==Pe.ATTRIBUTE||e.name!==`style`||e.strings?.length>2)throw E
         </span>
         <span class="car-fillup-cost">${o} / 100 km</span>
       </div>
-    `}_renderStationList(e,t){let n=e.attributes.stations??[],r=parseInt(String(this._config.max_stations),10),i=Number.isFinite(r)?Math.max(0,Math.min(5,r)):5,a=this._config.payment_filter??[],o=this._config.payment_highlight_mode===!0,s=o?n:n.filter(e=>xt(e,a));if(e.state===`unavailable`)return P`<div class="empty" role="status" aria-live="polite">
+    `}_renderStationList(e,t){let n=e.attributes.stations??[],r=parseInt(String(this._config.max_stations),10),i=Number.isFinite(r)?Math.max(0,Math.min(5,r)):5,a=this._config.payment_filter??[],o=this._config.payment_highlight_mode===!0,s=o?n:n.filter(e=>bt(e,a));if(e.state===`unavailable`)return P`<div class="empty" role="status" aria-live="polite">
         <div class="empty-title">${this._t(`unreachable`)}</div>
         <div class="empty-detail">${this._t(`unreachable_detail`)}</div>
       </div>`;if(i===0)return I;if(!s.length&&a.length&&n.length)return P`
@@ -1974,13 +1727,13 @@ if(super(e),e.type!==Pe.ATTRIBUTE||e.name!==`style`||e.strings?.length>2)throw E
       </div>
     `}_renderIndexTile(e,t){let n=this._config.tile_shape===`circle`;if(this._config.show_brand!==!0)return P`<div class=${V({"index-tile":!0,circle:n})} aria-hidden="true">
         ${t+1}
-      </div>`;let r=Xe(e.name),i=r.bg?{"--tankst-tile-bg":r.bg,"--tankst-tile-fg":r.fg??``}:{};return P`<div
+      </div>`;let r=Ye(e.name),i=r.bg?{"--tankst-tile-bg":r.bg,"--tankst-tile-fg":r.fg??``}:{};return P`<div
       class=${V({"index-tile":!0,brand:!0,"brand-known":!!r.bg,circle:n})}
       style=${ze(i)}
       aria-hidden="true"
     >
       ${r.initials}
-    </div>`}_renderStation(e,t,n,r,i){let a=this._config.show_index!==!1,o=this._config.show_map_links!==!1,s=this._config.show_distance===!0,c=this._config.show_opening_hours!==!1,l=this._config.show_payment_methods!==!1,u=e.location??{},d=`${n}|${e.name??``}|${u.address??``}`,f=this._expandedStations.has(d),p=e.open===!1,m=!p&&Ct(e),h=i&&r.length>0&&xt(e,r),g=h?St(e,r,{cash:this._t(`cash`),debit_card:this._t(`debit_card`),credit_card:this._t(`credit_card`)}):[],_=c&&!!e.opening_hours?.length,v=l&&yt(e.payment_methods),y=_||v,b=[e.name||`–`,u.city??``,wt(e.price)].filter(Boolean).join(`, `),x=y?`tsa-station-detail-${n}-${t}`:void 0,S=!!e.name,C=u.city??``,w=u.address??``,T=[u.postalCode,C].filter(e=>e!=null&&e!==``).join(` `),E=T?P`<span lang="de">${T}</span>`:I,D=w?P`<span lang="de">${w}</span>`:I,O=E!==I&&D!==I?`, `:``;return P`
+    </div>`}_renderStation(e,t,n,r,i){let a=this._config.show_index!==!1,o=this._config.show_map_links!==!1,s=this._config.show_distance===!0,c=this._config.show_opening_hours!==!1,l=this._config.show_payment_methods!==!1,u=e.location??{},d=`${n}|${e.name??``}|${u.address??``}`,f=this._expandedStations.has(d),p=e.open===!1,m=!p&&St(e),h=i&&r.length>0&&bt(e,r),g=h?xt(e,r,{cash:this._t(`cash`),debit_card:this._t(`debit_card`),credit_card:this._t(`credit_card`)}):[],_=c&&!!e.opening_hours?.length,v=l&&vt(e.payment_methods),y=_||v,b=[e.name||`–`,u.city??``,U(e.price)].filter(Boolean).join(`, `),x=y?`tsa-station-detail-${n}-${t}`:void 0,S=!!e.name,C=u.city??``,w=u.address??``,T=[u.postalCode,C].filter(e=>e!=null&&e!==``).join(` `),E=T?P`<span lang="de">${T}</span>`:I,D=w?P`<span lang="de">${w}</span>`:I,O=E!==I&&D!==I?`, `:``;return P`
       <div class=${V({station:!0,"pm-highlight":h})}>
         <div
           class="station-main"
@@ -2005,8 +1758,8 @@ if(super(e),e.type!==Pe.ATTRIBUTE||e.name!==`style`||e.strings?.length>2)throw E
               ${E}${O}${D}
             </div>
           </div>
-          <div class="price">${wt(e.price)}</div>
-          ${(()=>{let t=I;if(o){let n=Rn(this._config.map_provider??`auto`,Ln(navigator.userAgent,navigator.maxTouchPoints)),r=In(Et(u,e.name??``,n));r&&(t=P`
+          <div class="price">${U(e.price)}</div>
+          ${(()=>{let t=I;if(o){let n=Ln(this._config.map_provider??`auto`,In(navigator.userAgent,navigator.maxTouchPoints)),r=Fn(wt(u,e.name??``,n));r&&(t=P`
                   <a
                     class="icon-action map"
                     href=${r}
@@ -2022,7 +1775,7 @@ if(super(e),e.type!==Pe.ATTRIBUTE||e.name!==`style`||e.strings?.length>2)throw E
                     ></ha-icon>
                   </a>
                 `)}let n=s&&e.distance_m!=null?P`<span class="distance" lang="de"
-                    >${Tt(e.distance_m)}</span
+                    >${Ct(e.distance_m)}</span
                   >`:I;return t===I&&n===I?I:P`<div
               class=${V({"map-action":!0,"has-distance":n!==I})}
             >
@@ -2073,4 +1826,4 @@ if(super(e),e.type!==Pe.ATTRIBUTE||e.name!==`style`||e.strings?.length>2)throw E
         <div class="pm-label">${this._t(`payment`)}</div>
         <div class="pm-badges">${t}</div>
       </div>
-    `:I}_onTabClick(e){this._activeTab!==e&&(this._activeTab=e,this._expandedStations=/* @__PURE__ */ new Set)}_onTabKeydown(e,t,n){let r=t;switch(e.key){case`ArrowRight`:r=(t+1)%n;break;case`ArrowLeft`:r=(t-1+n)%n;break;case`Home`:r=0;break;case`End`:r=n-1;break;default:return}e.preventDefault(),this._onTabClick(r),this.updateComplete.then(()=>{(this.shadowRoot?.querySelectorAll(`.tabs [role="tab"]`))?.[r]?.focus()})}_onStationClick(e){let t=new Set(this._expandedStations);t.has(e)?t.delete(e):t.add(e),this._expandedStations=t}_onStationKeydown(e,t,n){n&&(e.key===`Enter`||e.key===` `)&&(e.preventDefault(),this._onStationClick(t))}_onSparklineClick(e){this.dispatchEvent(new CustomEvent(`hass-more-info`,{detail:{entityId:e},bubbles:!0,composed:!0}))}static{this.styles=On}};X([Ne({attribute:!1})],$.prototype,`hass`,void 0),X([Ne({reflect:!0})],$.prototype,`layout`,void 0),X([Ne({type:Boolean})],$.prototype,`preview`,void 0),X([B()],$.prototype,`_config`,void 0),X([B()],$.prototype,`_activeTab`,void 0),X([B()],$.prototype,`_expandedStations`,void 0),X([B()],$.prototype,`_history`,void 0),X([B()],$.prototype,`_versionMismatch`,void 0),X([B()],$.prototype,`_lastManualRefresh`,void 0),X([B()],$.prototype,`_noNewData`,void 0),X([B()],$.prototype,`_historyError`,void 0),X([B()],$.prototype,`_apiMaintenance`,void 0),X([B()],$.prototype,`_cooldownTick`,void 0),$=X([Ae(`tankstellen-austria-card`)],$);export{$ as TankstellenAustriaCard};
+    `:I}_onTabClick(e){this._activeTab!==e&&(this._activeTab=e,this._expandedStations=/* @__PURE__ */ new Set)}_onTabKeydown(e,t,n){let r=t;switch(e.key){case`ArrowRight`:r=(t+1)%n;break;case`ArrowLeft`:r=(t-1+n)%n;break;case`Home`:r=0;break;case`End`:r=n-1;break;default:return}e.preventDefault(),this._onTabClick(r),this.updateComplete.then(()=>{(this.shadowRoot?.querySelectorAll(`.tabs [role="tab"]`))?.[r]?.focus()})}_onStationClick(e){let t=new Set(this._expandedStations);t.has(e)?t.delete(e):t.add(e),this._expandedStations=t}_onStationKeydown(e,t,n){n&&(e.key===`Enter`||e.key===` `)&&(e.preventDefault(),this._onStationClick(t))}_onSparklineClick(e){this.dispatchEvent(new CustomEvent(`hass-more-info`,{detail:{entityId:e},bubbles:!0,composed:!0}))}static{this.styles=Dn}};X([Ne({attribute:!1})],$.prototype,`hass`,void 0),X([Ne({reflect:!0})],$.prototype,`layout`,void 0),X([Ne({type:Boolean})],$.prototype,`preview`,void 0),X([B()],$.prototype,`_config`,void 0),X([B()],$.prototype,`_activeTab`,void 0),X([B()],$.prototype,`_expandedStations`,void 0),X([B()],$.prototype,`_history`,void 0),X([B()],$.prototype,`_versionMismatch`,void 0),X([B()],$.prototype,`_lastManualRefresh`,void 0),X([B()],$.prototype,`_noNewData`,void 0),X([B()],$.prototype,`_historyError`,void 0),X([B()],$.prototype,`_apiMaintenance`,void 0),X([B()],$.prototype,`_cooldownTick`,void 0),$=X([Ae(`tankstellen-austria-card`)],$);export{$ as TankstellenAustriaCard};

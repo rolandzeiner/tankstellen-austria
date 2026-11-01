@@ -22,12 +22,11 @@ describe("editor element choice", () => {
     expect(stylesSource).not.toMatch(/ha-textfield/);
   });
 
-  it("routes the custom payment-method field through a selector", () => {
-    // Naming a concrete tag just resets the clock until the next rename.
-    // ha-selector delegates to whatever HA's current text control is and
-    // lazy-loads it itself, so the card survives the swap.
-    expect(editorSource).toMatch(/<ha-selector/);
-    expect(editorSource).toMatch(/PM_CUSTOM_SELECTOR/);
+  it("draws every field with HA's own selectors, never a native input", () => {
+    // Naming a concrete tag just resets the clock until the next rename,
+    // and a native <input> or <select> ignores the theme and dark mode.
+    // ha-form delegates to whatever HA's current controls are.
+    expect(editorSource).not.toMatch(/<(input|select|textarea)\b/);
     expect(editorSource).toMatch(/text:\s*\{\}/);
   });
 });

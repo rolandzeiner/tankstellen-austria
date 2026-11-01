@@ -1104,14 +1104,6 @@ export const editorStyles = css`
     flex-direction: column;
     gap: 12px;
   }
-  .editor-section {
-    background: var(--secondary-background-color, rgba(0, 0, 0, 0.04));
-    border-radius: 12px;
-    padding: 14px 16px;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
   .section-header {
     font-size: 0.75rem;
     font-weight: 600;
@@ -1128,7 +1120,7 @@ export const editorStyles = css`
 
   /* Recorder hint + copy button */
   .recorder-hint {
-    margin: 4px 0 2px 16px;
+    margin: 0;
     padding: 8px 10px;
     border-radius: 6px;
     background: var(--secondary-background-color, rgba(255, 255, 255, 0.04));
@@ -1159,23 +1151,6 @@ export const editorStyles = css`
     flex-wrap: wrap;
     gap: 8px;
   }
-  .recorder-copy-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 3px 8px;
-    border-radius: 4px;
-    background: transparent;
-    border: 1px solid var(--divider-color);
-    color: var(--primary-text-color);
-    font-size: 0.75rem;
-    cursor: pointer;
-    font-family: inherit;
-  }
-  .recorder-copy-btn:hover {
-    background: var(--primary-background-color);
-  }
-  .recorder-copy-btn ha-icon,
   .recorder-docs-link ha-icon {
     --mdc-icon-size: 14px;
   }
@@ -1191,217 +1166,89 @@ export const editorStyles = css`
     text-decoration: underline;
   }
 
-  /* Tab labels */
-  .tab-label-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-  .tab-label-default {
-    flex: 0 0 40%;
-    font-size: 0.875rem;
-    color: var(--secondary-text-color);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .tab-label-input {
-    flex: 1;
-    min-width: 0;
-    padding: 6px 10px;
-    border-radius: 6px;
-    border: 1px solid var(--divider-color);
-    background: var(--card-background-color, #fff);
-    color: var(--primary-text-color);
-    font-size: 0.875rem;
-    font-family: inherit;
-  }
-  .tab-label-input:focus {
-    outline: none;
-    border-color: var(--primary-color);
-  }
-
-  /* Payment filter chips */
-  .pm-filter-chips {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-  }
-  .pm-filter-chip {
-    padding: 6px 12px;
-    min-height: 32px;
-    border-radius: 14px;
-    font-size: 0.8125rem;
-    cursor: pointer;
-    border: 1px solid var(--divider-color);
-    background: var(--card-background-color, #fff);
-    color: var(--primary-text-color);
-    transition: all var(--ha-animation-duration-fast, 150ms) ease;
-    font-family: inherit;
-  }
-  .pm-filter-chip.active {
-    background: var(--primary-color);
-    color: var(--text-primary-color, #fff);
-    border-color: var(--primary-color);
-  }
-  .pm-filter-chip:hover {
-    opacity: 0.85;
-  }
-  .pm-filter-chip.confirm {
-    background: var(--tankst-error);
-    color: #fff;
-    border-color: var(--tankst-error);
-  }
-  .pm-custom-row {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-  .pm-custom-row ha-selector {
-    flex: 1;
-    /* Flex items default to min-width:auto; the selector's input has an
-       intrinsic minimum that would otherwise push the + button off-row. */
-    min-width: 0;
-  }
-  .pm-custom-row ha-icon-button {
-    color: var(--primary-color);
-    flex-shrink: 0;
-  }
-
-  /* Cars editor */
-  .car-editor-group {
+  /* Tab labels, under the sensor picker */
+  .tab-labels {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 4px;
   }
-  .car-editor-row {
+
+  /* Section panels: the body pads the form the way HA's own editors do. */
+  ha-expansion-panel {
+    --expansion-panel-content-padding: 0 16px 16px;
+  }
+  ha-expansion-panel ha-icon[slot="leading-icon"] {
+    color: var(--secondary-text-color);
+  }
+  .panel-body {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  /* Cars: one outlined list, a row per car, one open at a time */
+  .car-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    border: 1px solid var(--divider-color);
+    border-radius: var(--ha-card-border-radius, 12px);
+    overflow: hidden;
+  }
+  .car-item + .car-item {
+    border-top: 1px solid var(--divider-color);
+  }
+  .car-head {
     display: flex;
     align-items: center;
-    gap: 4px;
-    flex-wrap: wrap;
+    gap: 2px;
+    padding-inline-end: 4px;
   }
-  .car-input {
-    background: var(--input-fill-color, rgba(0, 0, 0, 0.06));
-    border: 1px solid var(--divider-color);
-    border-radius: 8px;
-    padding: 6px 8px;
-    font-size: 0.875rem;
-    color: var(--primary-text-color);
-    outline: none;
-    font-family: inherit;
+  .car-toggle {
+    flex: 1;
+    min-width: 0;
+    min-height: 56px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 12px;
+    background: none;
+    border: 0;
+    color: inherit;
+    font: inherit;
+    text-align: start;
+    cursor: pointer;
+  }
+  .car-toggle:focus-visible {
+    outline: 2px solid var(--tankst-accent, var(--primary-color));
+    outline-offset: -2px;
+  }
+  .car-toggle ha-icon {
+    color: var(--secondary-text-color);
+    flex-shrink: 0;
+  }
+  .car-text {
+    display: flex;
+    flex-direction: column;
     min-width: 0;
   }
-  .car-input:focus {
-    border-color: var(--primary-color);
+  .car-name,
+  .car-details {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
-  .car-name-input {
-    flex: 1 1 50px;
-    min-width: 50px;
-  }
-  .car-tank-input {
-    width: 54px;
-    flex-shrink: 0;
-  }
-  .car-consumption-input {
-    width: 60px;
-    flex-shrink: 0;
-  }
-  .car-select {
-    background: var(--input-fill-color, rgba(0, 0, 0, 0.06));
-    border: 1px solid var(--divider-color);
-    border-radius: 8px;
-    padding: 6px 2px;
-    font-size: 0.875rem;
-    color: var(--primary-text-color);
-    cursor: pointer;
-    font-family: inherit;
-    flex-shrink: 0;
-    max-width: 90px;
-  }
-  .car-delete-btn {
-    background: none;
-    border: none;
-    color: var(--tankst-error);
-    cursor: pointer;
-    padding: 4px;
-    border-radius: 6px;
-    display: flex;
-    align-items: center;
-    flex-shrink: 0;
-    margin-left: auto;
-  }
-  .car-delete-btn:hover {
-    background: rgba(219, 68, 55, 0.1);
-  }
-  .car-add-btn {
-    align-self: flex-start;
-    background: none;
-    border: 1px dashed var(--divider-color);
-    border-radius: 8px;
-    color: var(--primary-color);
-    cursor: pointer;
-    font-size: 0.875rem;
-    padding: 8px 14px;
-    width: 100%;
-    font-family: inherit;
-    transition: background var(--ha-animation-duration-fast, 150ms) ease;
-  }
-  .car-add-btn:hover {
-    background: rgba(0, 0, 0, 0.04);
-  }
-  .car-icon-btn {
-    background: var(--secondary-background-color, rgba(0, 0, 0, 0.06));
-    border: 1px solid var(--divider-color);
-    border-radius: 8px;
-    color: var(--primary-color);
-    cursor: pointer;
-    padding: 6px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    transition: background var(--ha-animation-duration-fast, 150ms) ease, border-color var(--ha-animation-duration-fast, 150ms) ease;
-    --mdc-icon-size: 20px;
-  }
-  .car-icon-btn.active {
-    border-color: var(--primary-color);
-    background: rgba(var(--rgb-primary-color, 33, 150, 243), 0.1);
-  }
-  .car-icon-btn:hover {
-    border-color: var(--primary-color);
-  }
-  .car-icon-picker {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    padding: 6px 8px;
-    background: var(--secondary-background-color, rgba(0, 0, 0, 0.04));
-    border-radius: 8px;
-    border: 1px solid var(--divider-color);
-  }
-  .car-icon-option {
-    background: none;
-    border: 1px solid transparent;
-    border-radius: 6px;
+  .car-details {
+    font-size: 0.8125rem;
     color: var(--secondary-text-color);
-    cursor: pointer;
-    padding: 6px;
-    min-width: 32px;
-    min-height: 32px;
+  }
+  .car-body {
+    padding: 4px 12px 12px;
     display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all var(--ha-animation-duration-fast, 150ms) ease;
-    --mdc-icon-size: 20px;
+    flex-direction: column;
+    gap: 8px;
   }
-  .car-icon-option:hover {
-    background: var(--card-background-color, #fff);
-    color: var(--primary-color);
-    border-color: var(--divider-color);
-  }
-  .car-icon-option.active {
-    background: var(--primary-color);
-    color: var(--text-primary-color, #fff);
-    border-color: var(--primary-color);
+  .car-add {
+    align-self: flex-start;
   }
 `;
