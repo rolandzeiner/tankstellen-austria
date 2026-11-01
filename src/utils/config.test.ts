@@ -248,3 +248,11 @@ describe("fromGrouped", () => {
     expect(fromGrouped({ ...base, cars: [] as never })).toEqual(base);
   });
 });
+
+describe("stations.tile_shape", () => {
+  it("maps onto the flat key the card reads and back", () => {
+    const grouped = { type: "x", stations: { tile_shape: "circle" as const } };
+    expect(fromGrouped(grouped)).toMatchObject({ tile_shape: "circle" });
+    expect(toGrouped(fromGrouped(grouped) as Record<string, unknown>)).toEqual(grouped);
+  });
+});

@@ -1038,15 +1038,18 @@ export class TankstellenAustriaCard extends LitElement {
   // The rank, or with stations.brand the brand's initials on its colour.
   // Decorative either way: the row's aria-label names the station.
   private _renderIndexTile(s: Station, idx: number): TemplateResult {
+    const circle = this._config.tile_shape === "circle";
     if (this._config.show_brand !== true) {
-      return html`<div class="index-tile" aria-hidden="true">${idx + 1}</div>`;
+      return html`<div class=${classMap({ "index-tile": true, circle })} aria-hidden="true">
+        ${idx + 1}
+      </div>`;
     }
     const tile = brandTile(s.name);
     const colours = tile.bg
       ? { "--tankst-tile-bg": tile.bg, "--tankst-tile-fg": tile.fg ?? "" }
       : {};
     return html`<div
-      class=${classMap({ "index-tile": true, brand: true, "brand-known": !!tile.bg })}
+      class=${classMap({ "index-tile": true, brand: true, "brand-known": !!tile.bg, circle })}
       style=${styleMap(colours)}
       aria-hidden="true"
     >

@@ -317,6 +317,26 @@ describe("tankstellen-austria-card", () => {
     ]);
   });
 
+  it("draws round rank tiles with stations.tile_shape: circle", async () => {
+    const circles = async (stations: Record<string, unknown>) => {
+      const el = await mount<Card>("tankstellen-austria-card", (e) => {
+        e.setConfig({ type: "x", stations });
+        e.hass = hass();
+      });
+      const found = [...el.shadowRoot!.querySelectorAll(".index-tile")].map((t) =>
+        t.classList.contains("circle"),
+      );
+      el.remove();
+      return found;
+    };
+    expect((await circles({})).every((c) => !c)).toBe(true);
+    for (const stations of [{ tile_shape: "circle" }, { tile_shape: "circle", brand: true }]) {
+      const found = await circles(stations);
+      expect(found.length).toBeGreaterThan(0);
+      expect(found.every(Boolean)).toBe(true);
+    }
+  });
+
   it("renders an unset config like one with every default spelled out", async () => {
     // OPTION_DEFAULTS is what the editor draws on unset toggles; the card's
     // render code holds its own defaults. A wrong entry in the table would

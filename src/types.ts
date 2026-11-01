@@ -104,6 +104,8 @@ export interface TankstellenAustriaCardConfig extends LovelaceCardConfig {
   show_index?: boolean;
   // The rank tile shows the brand's initials and colour instead (v2).
   show_brand?: boolean;
+  // The rank tile's shape: HA's small-radius square (default) or a circle.
+  tile_shape?: "square" | "circle";
   show_map_links?: boolean;
   // Where the navigation link opens. "auto" (also the absent-key default)
   // routes per device: Apple Maps on iOS, geo: chooser on Android, Google
@@ -171,6 +173,8 @@ export interface StationsOptions {
   index?: boolean;
   // Brand initials and colour in the rank tile instead of the rank.
   brand?: boolean;
+  // Rank tile shape, for the rank and the brand alike.
+  tile_shape?: "square" | "circle";
   distance?: boolean;
   opening_hours?: boolean;
   payment_methods?: boolean;

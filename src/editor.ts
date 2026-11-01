@@ -85,7 +85,7 @@ function sanitizeShort(raw: string): string {
 
 // Fields that can't draw a default themselves (see the header comment).
 const FILLED: Readonly<Record<string, readonly string[]>> = {
-  stations: ["count", "sort", "map_provider", "payment_mode"],
+  stations: ["count", "sort", "tile_shape", "map_provider", "payment_mode"],
 };
 
 const toggle = (group: keyof typeof OPTION_DEFAULTS, name: string): HaFormSchema => ({
@@ -183,7 +183,9 @@ export class TankstellenAustriaCardEditor extends LitElement implements Lovelace
     const stationFields: HaFormSchema[] = [
       { name: "count", selector: { number: { min: 0, max: 5, step: 1, mode: "slider" } } },
       toggle("stations", "index"),
-      ...(stations.index === false ? [] : [toggle("stations", "brand")]),
+      ...(stations.index === false
+        ? []
+        : [toggle("stations", "brand"), select("tile_shape", ["square", "circle"])]),
       toggle("stations", "map_links"),
       select("map_provider", ["auto", "google", "apple"]),
       toggle("stations", "distance"),

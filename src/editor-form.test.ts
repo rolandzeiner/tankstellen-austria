@@ -139,6 +139,7 @@ describe("editor output", () => {
     expect(form.data.stations).toEqual({
       count: 5,
       sort: "price",
+      tile_shape: "square",
       map_provider: "auto",
       payment_mode: "filter",
     });

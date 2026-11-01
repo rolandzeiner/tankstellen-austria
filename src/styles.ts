@@ -748,6 +748,11 @@ export const cardStyles = css`
     font-weight: var(--ha-font-weight-bold, 700);
     font-variant-numeric: tabular-nums;
   }
+  /* stations.tile_shape: circle. Three 10 px letters still fit inside
+     a 28 px circle. */
+  .index-tile.circle {
+    border-radius: 50%;
+  }
   /* Brand initials run to three letters ("OMV", "JET"). */
   .index-tile.brand {
     font-size: 0.625rem;
