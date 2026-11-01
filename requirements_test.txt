@@ -9,6 +9,6 @@ pytest-homeassistant-custom-component>=0.13.375,<0.14
 # pytest.ini's `timeout` setting and `--cov` still work: both plugins
 # arrive transitively via PHACC.
 mypy==2.4.0
-ruff==0.17.2
+ruff==0.17.3
 # PHACC requires Python >=3.14, so validate.yml's tests job tracks 3.14 in
 # lockstep; keep the two together when raising the PHACC floor.
