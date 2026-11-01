@@ -64,7 +64,7 @@ node -c custom_components/tankstellen_austria/www/tankstellen-austria-card.js
 
 Commit the rebuilt `custom_components/tankstellen_austria/www/tankstellen-austria-card.js` together with the `src/` change that produced it. Users install through the Marketplace and never run `npm`, and CI fails if the committed bundle differs from a fresh build.
 
-The frontend tests live next to the code as `src/**/*.test.ts` (Vitest inside Vite+, imports from `vite-plus/test`). They run in Node by default; `src/card-smoke.test.ts` opts into happy-dom with a `@vitest-environment happy-dom` header to mount the card and editor. `src/analytics/best-refuel.test.ts` anchors its fixture to a Monday-aligned `now`, so it passes whatever day the suite runs.
+The frontend tests live next to the code as `src/**/*.test.ts` (Vitest inside Vite+, imports from `vite-plus/test`). They run in Node by default; `src/card-smoke.test.ts` and `src/card-refresh.test.ts` opt into happy-dom with a `@vitest-environment happy-dom` header to mount the card and editor. `src/card-refresh.test.ts` runs on fake timers to cover the manual-refresh cooldown and the history polling. `src/grid-cell.test.ts` checks the CSS text of the grid-cell rules, and `src/utils/card-size.test.ts` holds `getCardSize()` to heights measured on the rendered card. `src/analytics/best-refuel.test.ts` anchors its fixture to a Monday-aligned `now`, so it passes whatever day the suite runs.
 
 The card side has no coverage gate, so the v8 coverage provider is not a dependency. To see which branches a change left unexercised, install it for one run at the Vitest version Vite+ bundles (`--no-save` leaves `package.json` and the lockfile alone):
 
