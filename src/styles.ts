@@ -942,10 +942,23 @@ export const cardStyles = css`
     .price {
       font-size: 1rem;
     }
-    /* Two lines per station: index, name and address on top, price and
-       actions underneath. In one row the price, map pin and chevron leave
-       the name a few characters at half a section (~240 px). Areas with no
-       element (no index, no map link) stay empty. */
+    .station-main {
+      gap: 8px;
+    }
+    .footer {
+      padding: 8px 14px;
+    }
+    .brand-logo {
+      height: 18px;
+    }
+  }
+  /* Two lines per station, only at half a section (~240 px): index, name
+     and address on top, price and actions underneath. There one row left
+     the name a few characters next to the price, map pin and chevron.
+     Wider than this one row reads better: the price stays beside its
+     station and the card stays a third shorter. Areas with no element (no
+     index, no map link) stay empty. */
+  @container tscard (inline-size < 280px) {
     .station-main {
       display: grid;
       grid-template-columns: auto 1fr auto auto;
@@ -953,7 +966,7 @@ export const cardStyles = css`
         "idx info info info"
         ".   price map  chev";
       align-items: center;
-      gap: 4px 8px;
+      gap: 2px 8px;
     }
     .index-tile {
       grid-area: idx;
@@ -970,15 +983,15 @@ export const cardStyles = css`
     .expander-chevron {
       grid-area: chev;
     }
+    /* 32 px keeps the second line short; still above the 24 px target
+       minimum (WCAG 2.5.8). */
+    .station-main .icon-action {
+      width: 32px;
+      height: 32px;
+    }
     .name {
       white-space: normal;
       flex-wrap: wrap;
-    }
-    .footer {
-      padding: 8px 14px;
-    }
-    .brand-logo {
-      height: 18px;
     }
   }
   /* Wide: sidebar / panel mode / 2-column section view. */
