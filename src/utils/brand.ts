@@ -1,8 +1,8 @@
 // Brand tiles for the station list: initials on the brand's colour, picked
 // from the station name E-Control sends. Colours and initials only, never
-// a logo. The list is the fifteen largest networks in the FVEK station
+// a logo. The list is the seventeen largest networks in the FVEK station
 // count for the end of 2025 (wko.at, "Tankstellenstatistik 2025"), about
-// 81 % of Austria's 2,694 stations; the "landwirtschaftliche
+// 83 % of Austria's 2,694 stations; the "landwirtschaftliche
 // Genossenschaften" row is Lagerhaus under another name. The colours were
 // read from each chain's own logo files and Austrian website
 // (2026-11-01). The text takes the brand's second colour
@@ -64,6 +64,11 @@ export const BRANDS: readonly Brand[] = [
   { match: /\brumpold\b/i, initials: "RU", bg: "#232323", fg: "#ffe800" },
   // The blue band with yellow text from the logo; its red is AVIA's.
   { match: /\bf\.?\s*leitner\b/i, initials: "FL", bg: "#153d8a", fg: "#ffcc00" },
+  // IQ's yellow on its orange is 2.6:1, and the yellow alone is Avanti's,
+  // so the tile is the orange with dark text.
+  { match: /\biq\b/i, initials: "IQ", bg: "#ec6708", fg: DARK },
+  // "LMEnergy Express".
+  { match: /\blm[\s-]?energy\b/i, initials: "LM", bg: "#005a77", fg: "#d3d800" },
 ];
 
 // Words that say nothing about who runs the station.

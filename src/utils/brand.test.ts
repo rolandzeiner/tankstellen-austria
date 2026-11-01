@@ -38,6 +38,9 @@ describe("brandTile", () => {
     ["disk tank Heindl", "DSK"],
     ["Rumpold", "RU"],
     ["F. LEITNER", "FL"],
+    ["IQ", "IQ"],
+    ["IQ Tankautomat Trofaiach", "IQ"],
+    ["LMEnergy Express", "LM"],
   ])("knows %s", (name, initials) => {
     const tile = brandTile(name);
     expect(tile.initials).toBe(initials);
@@ -60,6 +63,7 @@ describe("brandTile", () => {
     expect(brandTile("Jetzinger").bg).toBeUndefined();
     expect(brandTile("Diskonttankstelle Glauninger").bg).toBeUndefined();
     expect(brandTile("Bleitner").bg).toBeUndefined();
+    expect(brandTile("Liquid Shop").bg).toBeUndefined();
   });
 
   it("keeps every brand's text readable", () => {

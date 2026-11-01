@@ -189,7 +189,7 @@ cars:
 |---|---|---|
 | `count` | `5` | Stations to list, 0 to 5. `0` hides the list. |
 | `index` | `true` | Rank number per station. In the editor, switching it on turns `brand` off |
-| `brand` | `false` | The station's brand initials and colour in the tile, in place of the rank; works with `index` off, and the editor turns `index` off when you switch it on for the fifteen largest networks, about 80 % of Austria's stations: Enilive, Turmöl, BP, Lagerhaus/Genol, OMV, Shell, JET, Avanti, AVIA, SOCAR, Diskont at Hofer, DISK, Rumpold and F. Leitner; other stations get their initials on a grey tile. Colours only, no logos. |
+| `brand` | `false` | The station's brand initials and colour in the tile, in place of the rank; works with `index` off, and the editor turns `index` off when you switch it on for the seventeen largest networks, about 83 % of Austria's stations: Enilive, Turmöl, BP, Lagerhaus/Genol, OMV, Shell, JET, Avanti, AVIA, SOCAR, Diskont at Hofer, DISK, Rumpold, F. Leitner, IQ and LM Energy; other stations get their initials on a grey tile. Colours only, no logos. |
 | `tile_shape` | `square` | The rank tile's shape: `square` (rounded corners) or `circle`; applies to the rank and the brand alike |
 | `map_links` | `true` | Navigation link per station |
 | `map_provider` | `auto` | `auto` (Apple Maps on iOS, the app chooser on Android, Google Maps elsewhere), `google` or `apple` |
