@@ -135,9 +135,11 @@ describe("Lit reactive properties survive decorator lowering", () => {
 describe("tankstellen-austria-card", () => {
   it("rejects a config that is not an object, or entities of the wrong shape", () => {
     const el = document.createElement("tankstellen-austria-card") as Card;
-    expect(() => el.setConfig(null)).toThrow();
-    expect(() => el.setConfig([])).toThrow();
-    expect(() => el.setConfig({ type: "x", entities: 42 })).toThrow();
+    expect(() => el.setConfig(null)).toThrow("config must be an object");
+    expect(() => el.setConfig([])).toThrow("config must be an object");
+    expect(() => el.setConfig({ type: "x", entities: 42 })).toThrow(
+      "config.entities must be a string or array of entity IDs",
+    );
   });
 
   it("fills its grid cell", () => {

@@ -16,7 +16,9 @@ afterEach(() => {
 
 describe("normaliseConfig", () => {
   it("throws on a missing config", () => {
-    expect(() => normaliseConfig(undefined as unknown as TankstellenAustriaCardConfig)).toThrow();
+    expect(() => normaliseConfig(undefined as unknown as TankstellenAustriaCardConfig)).toThrow(
+      "config missing",
+    );
   });
 
   it("does not mutate its input", () => {
