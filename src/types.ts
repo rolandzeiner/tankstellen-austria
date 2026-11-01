@@ -154,6 +154,68 @@ export interface TankstellenAustriaCardConfig extends LovelaceCardConfig {
   hide_attribution?: boolean;
 }
 
+// --- The YAML a dashboard stores (since v2.0.0). ---
+//
+// Options sit in groups, by the part of the card they change. The card
+// still runs on the flat `TankstellenAustriaCardConfig` above:
+// `utils/config.ts` moves the flat keys of a v1 config into these groups
+// (`toGrouped`) and reads the groups back into flat keys (`fromGrouped`).
+// Absent keys stay absent both ways, so every default lives in one place,
+// the card's render code.
+
+export interface StationsOptions {
+  count?: number; // 0..5
+  sort?: "price" | "distance";
+  index?: boolean;
+  distance?: boolean;
+  opening_hours?: boolean;
+  payment_methods?: boolean;
+  map_links?: boolean;
+  map_provider?: "auto" | "google" | "apple";
+  payment_filter?: string[];
+  // What the payment filter does to the stations without a match.
+  payment_mode?: "filter" | "highlight";
+}
+
+export interface HeaderOptions {
+  show?: boolean;
+  price?: boolean;
+}
+
+export interface ChartOptions {
+  show?: boolean;
+  best_refuel?: boolean;
+  median_line?: boolean;
+  hour_envelope?: boolean;
+  noon_markers?: boolean;
+  min_max?: boolean;
+}
+
+export interface CarsOptions {
+  show?: boolean;
+  fill_up?: boolean;
+  consumption?: boolean;
+  items?: CarConfig[];
+}
+
+export interface FooterOptions {
+  show?: boolean;
+  adaptive_logo?: boolean;
+}
+
+export interface TankstellenCardYaml extends LovelaceCardConfig {
+  type: string;
+  name?: string;
+  entities?: string[];
+  language?: "de" | "en";
+  tab_labels?: Record<string, string>;
+  stations?: StationsOptions;
+  header?: HeaderOptions;
+  chart?: ChartOptions;
+  cars?: CarsOptions;
+  footer?: FooterOptions;
+}
+
 // --- Upstream API shapes, as surfaced on the HA sensor's `.attributes`. ---
 
 export interface OpeningHours {
@@ -215,12 +277,9 @@ export interface TankstellenEntity {
 // ---------------------------------------------------------------------------
 //
 // These mirror the HA core editor types so the form editor stays
-// strictly typed. `expandable` + `flatten: true` is non-negotiable —
-// without `flatten`, ha-form scopes inner-schema values under
-// `data[name]` and the card's flat-key reads silently default. The
-// HaFormExpandableSchema interface declares `flatten?: boolean`
-// explicitly so a future maintainer can't add an expandable that
-// quietly nests its values.
+// strictly typed. The editor's expandables are not flattened: ha-form
+// then keeps each one's values under `data[name]`, which is exactly the
+// grouped YAML shape (`stations`, `chart`, ...).
 
 export interface DeviceSelectorFilter {
   integration?: string;
@@ -278,6 +337,8 @@ export type HASelector =
 export interface HaFormBaseSchema {
   name: string;
   required?: boolean;
+  // Shown while the key is unset; for a toggle, the state it draws.
+  default?: unknown;
 }
 
 export interface HaFormSelectorSchema extends HaFormBaseSchema {
@@ -288,16 +349,18 @@ export interface HaFormExpandableSchema {
   type: "expandable";
   name: string;
   title?: string;
-  /** When true, ha-form keeps the inner schema's values flat in
-   *  `data` (i.e. `data.show_history` rather than
-   *  `data.display.show_history`). Required for cards whose render()
-   *  reads flat config keys — forgetting it silently leaves every
-   *  flag at its default. */
+  /** When true, ha-form keeps the inner schema's values flat in `data`
+   *  instead of under `data[name]`. The editor leaves it off. */
   flatten?: boolean;
   schema: ReadonlyArray<HaFormSchema>;
 }
 
 export type HaFormSchema = HaFormSelectorSchema | HaFormExpandableSchema;
+
+/** The names of the expandables a field sits in, outermost first. */
+export interface HaFormPath {
+  path?: string[];
+}
 
 // `<ha-form>` element shape — mirror the props the editor sets so
 // `vp check` validates the template at compile time.
@@ -305,8 +368,8 @@ interface HaFormElement extends HTMLElement {
   hass?: HomeAssistant;
   data?: Record<string, unknown>;
   schema?: ReadonlyArray<HaFormSchema>;
-  computeLabel?: (field: { name: string }) => string;
-  computeHelper?: (field: { name: string }) => string | undefined;
+  computeLabel?: (field: { name: string }, data?: unknown, options?: HaFormPath) => string;
+  computeHelper?: (field: { name: string }, options?: HaFormPath) => string | undefined;
 }
 
 declare global {

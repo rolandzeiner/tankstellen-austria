@@ -2,8 +2,8 @@
 //
 // Design notes
 // ------------
-// * The static sections (entity picker, display toggles, history sub-
-//   options, cars sub-options, payment highlight, branding) use
+// * The static sections (entity picker, then one expandable per option
+//   group: stations, header, chart, cars, footer) use
 //   ``<ha-form>`` exclusively — schema-driven so ha-form picks up the
 //   active theme, supports the standard label/helper localisation
 //   chain, and keeps a11y / forced-colors / focus-visible behaviour in
@@ -15,12 +15,23 @@
 //   firing the event; otherwise the next render reads stale state and
 //   the form reverts to the pre-change value.
 //
-// * **`expandable` + `flatten: true`** — without ``flatten``, ha-form
-//   scopes inner-schema values under ``data[name]`` and the card's
-//   flat-key reads silently default. Every expandable in this file
-//   ships ``flatten: true``; the ``HaFormExpandableSchema`` interface
-//   in ``types.ts`` declares the field explicitly so a future
-//   maintainer can't add a nested expandable by accident.
+// * **Grouped YAML** — the editor reads and writes the v2 shape
+//   (`stations`, `header`, `chart`, `cars`, `footer`). `setConfig` runs
+//   a v1 config through `toGrouped`, so an old dashboard is rewritten
+//   into groups on its first save. Each expandable is named after its
+//   group and *not* flattened, so ha-form keeps its values under
+//   `data[group]`, which is the YAML shape as it is.
+//
+// * **Labels by path** — `show` sits in four groups, so labels are
+//   looked up as `editor.<group>_<field>`; ha-form-expandable hands
+//   the group names to `computeLabel` / `computeHelper` as `path`.
+//
+// * **Defaults are drawn, not written** — a toggle whose key is unset
+//   gets its effective default as `default` (ha-selector-boolean draws
+//   `value ?? placeholder`), so the editor shows what the card does
+//   without putting the default into the YAML. Selects and the station
+//   count can't draw a placeholder, so `render()` puts their defaults
+//   into the form data, and `_onFormChanged` takes them out again.
 //
 // * **Bespoke below ha-form** — three sections stay hand-rolled because
 //   their row lists are data-driven (the schema would have to be
@@ -48,16 +59,20 @@ import { classMap } from "lit/directives/class-map.js";
 import {
   fireEvent,
   type CarConfig,
+  type CarsOptions,
   type FuelType,
+  type HaFormPath,
   type HaFormSchema,
   type HomeAssistant,
   type LovelaceCardEditor,
-  type TankstellenAustriaCardConfig,
+  type StationsOptions,
+  type TankstellenCardYaml,
 } from "./types";
 import { CAR_ICONS } from "./const";
 import { fuelTypeOf } from "./utils/entities";
 import { getFuelName, translate, type TranslateContext } from "./localize/localize";
 import { editorStyles } from "./styles";
+import { OPTION_DEFAULTS, toGrouped } from "./utils/config";
 
 // Strip HTML-injection chars, cap length, trim. Applied to every free-form
 // user-typed value before it lands in config.
@@ -67,6 +82,17 @@ function sanitizeShort(raw: string): string {
     .slice(0, 50)
     .trim();
 }
+
+// Fields that can't draw a default themselves (see the header comment).
+const FILLED: Readonly<Record<string, readonly string[]>> = {
+  stations: ["count", "sort", "map_provider", "payment_mode"],
+};
+
+const toggle = (group: keyof typeof OPTION_DEFAULTS, name: string): HaFormSchema => ({
+  name,
+  default: (OPTION_DEFAULTS[group] as Record<string, unknown>)[name],
+  selector: { boolean: {} },
+});
 
 // Hoisted so the object identity is stable across renders — ha-selector
 // memoises its element resolution on the selector reference, and a fresh
@@ -81,7 +107,7 @@ export class TankstellenAustriaCardEditor extends LitElement implements Lovelace
   // renders even before setConfig fires. A bare `_config?: Config` can leave
   // the editor stuck on "Loading…" forever if HA's Lovelace panel is still
   // finishing init.
-  @state() private _config: TankstellenAustriaCardConfig = {
+  @state() private _config: TankstellenCardYaml = {
     type: "tankstellen-austria-card",
   };
 
@@ -102,8 +128,8 @@ export class TankstellenAustriaCardEditor extends LitElement implements Lovelace
   @state() private _copiedPulse = false;
   private _copiedTimeout: number | undefined;
 
-  public setConfig(config: TankstellenAustriaCardConfig): void {
-    this._config = { ...config };
+  public setConfig(config: TankstellenCardYaml): void {
+    this._config = toGrouped(config);
   }
 
   public override disconnectedCallback(): void {
@@ -140,14 +166,43 @@ export class TankstellenAustriaCardEditor extends LitElement implements Lovelace
 
   /** Build the ha-form schema. Called per render so option labels pick
    *  up the current `hass.language` and conditionally-shown sub-options
-   *  appear/disappear based on the parent toggle. */
+   *  appear/disappear based on the parent toggle. Inside each group the
+   *  fields keep their v1 order: the ones most users change come first. */
   private _schema(): ReadonlyArray<HaFormSchema> {
-    const showHistory = this._config.show_history !== false;
-    const showCars = this._config.show_cars === true;
-    const showPayment = this._config.show_payment_methods !== false;
-    const paymentFilter = this._config.payment_filter ?? [];
+    const { stations = {}, header = {}, chart = {}, cars = {} } = this._config;
+    const select = (name: string, values: readonly string[]): HaFormSchema => ({
+      name,
+      selector: {
+        select: {
+          mode: "dropdown",
+          options: values.map((value) => ({ value, label: this._et(`${name}_${value}`) })),
+        },
+      },
+    });
 
-    const schema: HaFormSchema[] = [
+    const stationFields: HaFormSchema[] = [
+      { name: "count", selector: { number: { min: 0, max: 5, step: 1, mode: "slider" } } },
+      toggle("stations", "index"),
+      toggle("stations", "map_links"),
+      select("map_provider", ["auto", "google", "apple"]),
+      toggle("stations", "distance"),
+      select("sort", ["price", "distance"]),
+      toggle("stations", "opening_hours"),
+      toggle("stations", "payment_methods"),
+    ];
+    // What the filter does only matters once a chip is on.
+    if (stations.payment_methods !== false && (stations.payment_filter ?? []).length > 0) {
+      stationFields.push(select("payment_mode", ["filter", "highlight"]));
+    }
+
+    const group = (name: string, schema: HaFormSchema[]): HaFormSchema => ({
+      type: "expandable",
+      name,
+      title: this._et(`section_${name}`),
+      schema,
+    });
+
+    return [
       {
         // Filter to tankstellen-austria sensors only — picking an
         // unrelated `sensor.*` would render an empty card.
@@ -162,107 +217,25 @@ export class TankstellenAustriaCardEditor extends LitElement implements Lovelace
           },
         },
       },
-      {
-        // `flatten: true` is non-negotiable. Without it every toggle
-        // below would write to `data.display.<name>` and the card's
-        // flat config-key reads would silently default. The
-        // HaFormExpandableSchema interface in types.ts declares
-        // `flatten?: boolean` explicitly so this can't be forgotten.
-        type: "expandable",
-        name: "display",
-        title: this._et("section_display"),
-        flatten: true,
-        schema: [
-          {
-            name: "max_stations",
-            selector: {
-              number: { min: 0, max: 5, step: 1, mode: "slider" },
-            },
-          },
-          { name: "hide_header", selector: { boolean: {} } },
-          { name: "hide_header_price", selector: { boolean: {} } },
-          { name: "show_index", selector: { boolean: {} } },
-          { name: "show_map_links", selector: { boolean: {} } },
-          {
-            name: "map_provider",
-            selector: {
-              select: {
-                mode: "dropdown",
-                options: [
-                  { value: "auto", label: this._et("map_provider_auto") },
-                  { value: "google", label: this._et("map_provider_google") },
-                  { value: "apple", label: this._et("map_provider_apple") },
-                ],
-              },
-            },
-          },
-          { name: "show_distance", selector: { boolean: {} } },
-          { name: "sort_by_distance", selector: { boolean: {} } },
-          { name: "show_opening_hours", selector: { boolean: {} } },
-          { name: "show_payment_methods", selector: { boolean: {} } },
-          { name: "show_history", selector: { boolean: {} } },
-        ],
-      },
+      group("stations", stationFields),
+      group("header", [
+        toggle("header", "show"),
+        ...(header.show === false ? [] : [toggle("header", "price")]),
+      ]),
+      group("chart", [
+        toggle("chart", "show"),
+        ...(chart.show === false
+          ? []
+          : (
+              ["median_line", "hour_envelope", "noon_markers", "min_max", "best_refuel"] as const
+            ).map((name) => toggle("chart", name))),
+      ]),
+      group("cars", [
+        toggle("cars", "show"),
+        ...(cars.show === true ? [toggle("cars", "fill_up"), toggle("cars", "consumption")] : []),
+      ]),
+      group("footer", [toggle("footer", "adaptive_logo"), toggle("footer", "show")]),
     ];
-
-    if (showHistory) {
-      schema.push({
-        type: "expandable",
-        name: "history_options",
-        title: this._et("section_history"),
-        flatten: true,
-        schema: [
-          { name: "show_median_line", selector: { boolean: {} } },
-          { name: "show_hour_envelope", selector: { boolean: {} } },
-          { name: "show_noon_markers", selector: { boolean: {} } },
-          { name: "show_minmax", selector: { boolean: {} } },
-          { name: "show_best_refuel", selector: { boolean: {} } },
-        ],
-      });
-    }
-
-    {
-      const carsSubSchema: HaFormSchema[] = [{ name: "show_cars", selector: { boolean: {} } }];
-      if (showCars) {
-        carsSubSchema.push(
-          { name: "show_car_fillup", selector: { boolean: {} } },
-          { name: "show_car_consumption", selector: { boolean: {} } },
-        );
-      }
-      schema.push({
-        type: "expandable",
-        name: "cars_options",
-        title: this._et("section_cars"),
-        flatten: true,
-        schema: carsSubSchema,
-      });
-    }
-
-    if (showPayment && paymentFilter.length > 0) {
-      // Highlight-mode is only meaningful when at least one filter chip
-      // is active — gating the expandable entirely is clearer than
-      // showing a disabled toggle.
-      schema.push({
-        type: "expandable",
-        name: "payment_options",
-        title: this._et("section_payment_filter"),
-        flatten: true,
-        schema: [{ name: "payment_highlight_mode", selector: { boolean: {} } }],
-      });
-    }
-
-    schema.push({
-      type: "expandable",
-      name: "branding",
-      title: this._et("section_branding"),
-      flatten: true,
-      schema: [
-        { name: "logo_adapt_to_theme", selector: { boolean: {} } },
-        { name: "hide_attribution", selector: { boolean: {} } },
-      ],
-    });
-
-    return schema;
   }
 
   /** Field-label resolver. Three-step chain:
@@ -271,20 +244,31 @@ export class TankstellenAustriaCardEditor extends LitElement implements Lovelace
    *     lookup key, so a falsy check is the correct miss signal.
    *  2. The card's editor-namespaced bundle (`editor.<field>`).
    *  3. Last resort: raw field name (still functional, dev sees the gap). */
-  private _computeLabel = (field: { name: string }): string => {
-    const haKey = `ui.panel.lovelace.editor.card.generic.${field.name}`;
-    const ha = this.hass?.localize?.(haKey);
-    if (ha) return ha;
-    const localised = this._et(field.name);
-    if (localised !== `editor.${field.name}`) return localised;
+  private _computeLabel = (
+    field: { name: string },
+    _data?: unknown,
+    options?: HaFormPath,
+  ): string => {
+    const key = this._fieldKey(field.name, options);
+    if (key === field.name) {
+      const ha = this.hass?.localize?.(`ui.panel.lovelace.editor.card.generic.${field.name}`);
+      if (ha) return ha;
+    }
+    const localised = this._et(key);
+    if (localised !== `editor.${key}`) return localised;
     return field.name;
   };
+
+  /** `count` in `stations` → `stations_count`; a top-level field keeps its name. */
+  private _fieldKey(name: string, options?: HaFormPath): string {
+    return [...(options?.path ?? []), name].join("_");
+  }
 
   /** Helper-text resolver. Only surfaces a helper when an
    *  `editor.<field>_helper` key actually exists in the bundle —
    *  otherwise ha-form's empty helper line eats vertical space. */
-  private _computeHelper = (field: { name: string }): string | undefined => {
-    const key = `${field.name}_helper`;
+  private _computeHelper = (field: { name: string }, options?: HaFormPath): string | undefined => {
+    const key = `${this._fieldKey(field.name, options)}_helper`;
     const localised = this._et(key);
     return localised === `editor.${key}` ? undefined : localised;
   };
@@ -295,18 +279,28 @@ export class TankstellenAustriaCardEditor extends LitElement implements Lovelace
    *  leaves _config stale and the next render reverts the form to
    *  pre-change state. */
   private _onFormChanged = (ev: CustomEvent<{ value: Record<string, unknown> }>): void => {
-    const value = ev.detail.value;
-    // Spread on top of existing config so bespoke-section keys
-    // (tab_labels, payment_filter, cars) survive form-only changes.
-    const next: TankstellenAustriaCardConfig = {
-      ...this._config,
-      ...(value as Partial<TankstellenAustriaCardConfig>),
-    };
-    // "auto" is the absent-key default (render() injects it so the
-    // dropdown isn't empty) — don't let it leak into saved YAML.
-    if (next.map_provider === "auto") delete next.map_provider;
-    this._config = next;
-    fireEvent(this, "config-changed", { config: next });
+    const value = ev.detail.value as Partial<TankstellenCardYaml>;
+    // Spread on top of existing config so keys the form doesn't show
+    // (tab_labels, or a group's payment_filter / items) survive.
+    const next: Record<string, unknown> = { ...this._config, ...value };
+    for (const [name, fields] of Object.entries(FILLED)) {
+      const group = next[name];
+      if (!group || typeof group !== "object") continue;
+      const cleaned: Record<string, unknown> = { ...group };
+      const defaults = OPTION_DEFAULTS[name as keyof typeof OPTION_DEFAULTS] as Record<
+        string,
+        unknown
+      >;
+      // render() filled these in for display; a value equal to the default
+      // stays out of the saved YAML.
+      for (const field of fields) {
+        if (cleaned[field] === defaults[field]) delete cleaned[field];
+      }
+      if (Object.keys(cleaned).length > 0) next[name] = cleaned;
+      else delete next[name];
+    }
+    this._config = next as TankstellenCardYaml;
+    fireEvent(this, "config-changed", { config: this._config });
   };
 
   // ------------------------------------------------------------------
@@ -320,9 +314,14 @@ export class TankstellenAustriaCardEditor extends LitElement implements Lovelace
     // be stuck on the empty placeholder. ha-form re-renders when hass
     // becomes truthy, and the bespoke sections below already gate on hass
     // internally before dereferencing states.
-    const showHistory = this._config.show_history !== false;
-    const showBestRefuel = this._config.show_best_refuel !== false;
-    const showRecorderHint = showHistory && showBestRefuel;
+    const chart = this._config.chart ?? {};
+    const showRecorderHint = chart.show !== false && chart.best_refuel !== false;
+    const filledStations = Object.fromEntries(
+      (FILLED.stations ?? []).map((f) => [
+        f,
+        OPTION_DEFAULTS.stations[f as keyof typeof OPTION_DEFAULTS.stations],
+      ]),
+    );
 
     // Saved entity_ids that no longer resolve in hass.states (integration
     // removed, sensor disabled, typo in saved YAML). ha-form's entity
@@ -340,11 +339,8 @@ export class TankstellenAustriaCardEditor extends LitElement implements Lovelace
         <ha-form
           .hass=${this.hass}
           .data=${{
-            // Surface the effective default in the map-provider dropdown —
-            // an absent key means "auto", and an empty select would hide
-            // that from the user.
-            map_provider: "auto",
-            ...(this._config as Record<string, unknown>),
+            ...this._config,
+            stations: { ...filledStations, ...this._config.stations },
           }}
           .schema=${this._schema()}
           .computeLabel=${this._computeLabel}
@@ -466,11 +462,10 @@ export class TankstellenAustriaCardEditor extends LitElement implements Lovelace
   }
 
   private _renderPaymentChipsSection(): TemplateResult | typeof nothing {
-    const showPayment = this._config.show_payment_methods !== false;
-    if (!showPayment) return nothing;
+    if (this._config.stations?.payment_methods === false) return nothing;
 
     const apiPmKeys = this._collectApiPaymentKeys();
-    const paymentFilter = this._config.payment_filter ?? [];
+    const paymentFilter = this._config.stations?.payment_filter ?? [];
     // User-typed filter values that aren't in live data still need chips.
     const allPmKeys = new Set<string>(apiPmKeys);
     for (const f of paymentFilter) allPmKeys.add(f);
@@ -541,12 +536,12 @@ export class TankstellenAustriaCardEditor extends LitElement implements Lovelace
   // -- Cars roster (bespoke: data-driven row list with icon picker) ---
 
   private _renderCarsRosterSection(): TemplateResult | typeof nothing {
-    const showCars = this._config.show_cars === true;
-    if (!showCars) return nothing;
+    const opts = this._config.cars ?? {};
+    if (opts.show !== true) return nothing;
 
-    const showCarFillup = this._config.show_car_fillup !== false;
-    const showCarConsumption = this._config.show_car_consumption !== false;
-    const cars = this._config.cars ?? [];
+    const showCarFillup = opts.fill_up !== false;
+    const showCarConsumption = opts.consumption !== false;
+    const cars = opts.items ?? [];
 
     return html`
       <div class="editor-section">
@@ -737,7 +732,7 @@ export class TankstellenAustriaCardEditor extends LitElement implements Lovelace
     const labels: Record<string, string> = { ...this._config.tab_labels };
     if (val) labels[eid] = val;
     else delete labels[eid];
-    const next: TankstellenAustriaCardConfig = { ...this._config };
+    const next: TankstellenCardYaml = { ...this._config };
     if (Object.keys(labels).length) next.tab_labels = labels;
     else delete next.tab_labels;
     this._config = next;
@@ -745,18 +740,14 @@ export class TankstellenAustriaCardEditor extends LitElement implements Lovelace
   }
 
   private _togglePaymentChip(key: string, isCustom: boolean): void {
-    const current = [...(this._config.payment_filter ?? [])];
+    const current = [...(this._config.stations?.payment_filter ?? [])];
     const isActive = current.includes(key);
 
     if (isActive && isCustom) {
       if (this._pendingRemove === key) {
         // Second click: confirmed, remove.
         this._pendingRemove = null;
-        this._config = {
-          ...this._config,
-          payment_filter: current.filter((k) => k !== key),
-        };
-        this._fireChanged();
+        this._setStations({ payment_filter: current.filter((k) => k !== key) });
       } else {
         // First click: enter confirm state.
         this._pendingRemove = key;
@@ -767,8 +758,7 @@ export class TankstellenAustriaCardEditor extends LitElement implements Lovelace
     // Built-in chip or adding — toggle directly, cancel any pending.
     this._pendingRemove = null;
     const next = isActive ? current.filter((k) => k !== key) : [...current, key];
-    this._config = { ...this._config, payment_filter: next };
-    this._fireChanged();
+    this._setStations({ payment_filter: next });
   }
 
   private _onCustomPmChanged = (e: CustomEvent<{ value?: string }>): void => {
@@ -790,11 +780,10 @@ export class TankstellenAustriaCardEditor extends LitElement implements Lovelace
     if (!val) return;
 
     this._pendingRemove = null;
-    const current = [...(this._config.payment_filter ?? [])];
+    const current = [...(this._config.stations?.payment_filter ?? [])];
     if (!current.includes(val)) {
       current.push(val);
-      this._config = { ...this._config, payment_filter: current };
-      this._fireChanged();
+      this._setStations({ payment_filter: current });
     }
     this._pmDraft = "";
   };
@@ -806,12 +795,11 @@ export class TankstellenAustriaCardEditor extends LitElement implements Lovelace
 
   private _onPickCarIcon(e: Event, idx: number, icon: string): void {
     e.stopPropagation();
-    const cars = [...(this._config.cars ?? [])];
+    const cars = [...(this._config.cars?.items ?? [])];
     if (!cars[idx]) return;
     cars[idx] = { ...cars[idx], icon };
-    this._config = { ...this._config, cars };
     this._expandedCarIcon = null;
-    this._fireChanged();
+    this._setCars(cars);
   }
 
   private _onCarFieldChange(
@@ -822,7 +810,7 @@ export class TankstellenAustriaCardEditor extends LitElement implements Lovelace
     e.stopPropagation();
     const target = e.target as HTMLInputElement | HTMLSelectElement;
     const raw = target.value;
-    const cars = [...(this._config.cars ?? [])];
+    const cars = [...(this._config.cars?.items ?? [])];
     const existing = cars[idx];
     if (!existing) return;
     const next: CarConfig = { ...existing };
@@ -861,31 +849,39 @@ export class TankstellenAustriaCardEditor extends LitElement implements Lovelace
     }
 
     cars[idx] = next;
-    this._config = { ...this._config, cars };
-    this._fireChanged();
+    this._setCars(cars);
   }
 
   private _onDeleteCar(e: Event, idx: number): void {
     e.stopPropagation();
-    const cars = [...(this._config.cars ?? [])];
+    const cars = [...(this._config.cars?.items ?? [])];
     cars.splice(idx, 1);
-    this._config = { ...this._config, cars };
     // Keep _expandedCarIcon in sync — reset if the deleted row was expanded.
     if (this._expandedCarIcon === idx) {
       this._expandedCarIcon = null;
     } else if (this._expandedCarIcon != null && this._expandedCarIcon > idx) {
       this._expandedCarIcon = this._expandedCarIcon - 1;
     }
-    this._fireChanged();
+    this._setCars(cars);
   }
 
   private _onAddCar = (e: Event): void => {
     e.stopPropagation();
-    const cars = [...(this._config.cars ?? [])];
+    const cars = [...(this._config.cars?.items ?? [])];
     cars.push({ name: "", fuel_type: "DIE", tank_size: 50, icon: "mdi:car" });
+    this._setCars(cars);
+  };
+
+  private _setStations(patch: Partial<StationsOptions>): void {
+    this._config = { ...this._config, stations: { ...this._config.stations, ...patch } };
+    this._fireChanged();
+  }
+
+  private _setCars(items: CarConfig[]): void {
+    const cars: CarsOptions = { ...this._config.cars, items };
     this._config = { ...this._config, cars };
     this._fireChanged();
-  };
+  }
 
   static override styles: CSSResultGroup = editorStyles;
 }

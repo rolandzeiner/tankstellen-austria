@@ -27,6 +27,7 @@ import type { LitElement } from "lit";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vite-plus/test";
 
 import type { HomeAssistant, Station, TankstellenAustriaCardConfig } from "./types";
+import { OPTION_DEFAULTS } from "./utils/config";
 
 type Card = LitElement & {
   hass: HomeAssistant;
@@ -286,6 +287,46 @@ describe("tankstellen-austria-card", () => {
       expect.objectContaining({ type: "history/history_during_period" }),
     );
     expect(el.shadowRoot?.querySelector("svg.sparkline path")).not.toBeNull();
+  });
+
+  it("renders an unset config like one with every default spelled out", async () => {
+    // OPTION_DEFAULTS is what the editor draws on unset toggles; the card's
+    // render code holds its own defaults. A wrong entry in the table would
+    // show the user a toggle in the opposite state of the card.
+    // Only Date is frozen, so both renders share one 7-day window while
+    // setTimeout still runs.
+    vi.useFakeTimers({ toFake: ["Date"], now: new Date("2026-11-01T12:00:00Z") });
+    const now = Date.now() / 1000;
+    const points = Array.from({ length: 24 * 9 }, (_, i) => ({
+      lu: now - (24 * 9 - i) * 3600,
+      s: (1.5 + 0.05 * Math.sin(i / 4)).toFixed(3),
+    }));
+    const callWS = vi.fn(async (msg: { type: string; entity_ids?: string[] }) =>
+      msg.type === "history/history_during_period" ? { [msg.entity_ids?.[0] ?? ""]: points } : {},
+    );
+    const render = async (config: Record<string, unknown>): Promise<string> => {
+      const el = await mount<Card>("tankstellen-austria-card", (e) => {
+        e.setConfig({ type: "x", entities: ["sensor.tankstellen_defaults"], ...config });
+        const h = hass({ callWS } as unknown as Partial<HomeAssistant>);
+        h.states["sensor.tankstellen_defaults"] = {
+          ...h.states["sensor.tankstellen_diesel"]!,
+          entity_id: "sensor.tankstellen_defaults",
+        };
+        e.hass = h;
+      });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await el.updateComplete;
+      // Lit's markers and the sparkline's random gradient id differ per mount.
+      const html = el
+        .shadowRoot!.innerHTML.replaceAll(/<!--[^>]*-->/g, "")
+        .replaceAll(/spark-grad-\w+/g, "spark-grad");
+      el.remove();
+      return html;
+    };
+    const bare = await render({});
+    expect(bare).toContain("sparkline");
+    expect(await render(structuredClone(OPTION_DEFAULTS))).toBe(bare);
+    vi.useRealTimers();
   });
 
   it("survives a station payload missing optional fields", async () => {

@@ -24,6 +24,7 @@ import type {
   PaymentMethods,
   Station,
   TankstellenAustriaCardConfig,
+  TankstellenCardYaml,
   TankstellenEntity,
 } from "./types";
 import {
@@ -33,7 +34,7 @@ import {
   HISTORY_REFRESH_MS,
 } from "./const";
 import { estimateCardHeight } from "./utils/card-size";
-import { normaliseConfig } from "./utils/config";
+import { fromGrouped, normaliseConfig, toGrouped } from "./utils/config";
 import { findTankstellenEntities, fuelTypeOf } from "./utils/entities";
 import { hasPaymentMethods, matchesPaymentFilter, matchingPaymentMethods } from "./utils/payment";
 import { isClosingSoon } from "./utils/station";
@@ -121,21 +122,11 @@ export class TankstellenAustriaCard extends LitElement {
 
   public static getStubConfig(hass: HomeAssistant | undefined): Record<string, unknown> {
     const entities = findTankstellenEntities(hass);
+    // Only what differs from the defaults: a new card shows the distance
+    // and highlights payment-filter matches instead of hiding the rest.
     return {
       entities: entities.length ? [entities[0]] : [],
-      max_stations: 5,
-      show_index: true,
-      show_map_links: true,
-      show_distance: true,
-      show_opening_hours: true,
-      show_payment_methods: true,
-      show_history: true,
-      show_minmax: true,
-      show_best_refuel: true,
-      payment_filter: [],
-      payment_highlight_mode: true,
-      show_cars: false,
-      cars: [],
+      stations: { distance: true, payment_mode: "highlight" },
     };
   }
 
@@ -182,7 +173,7 @@ export class TankstellenAustriaCard extends LitElement {
   private _sparklineCleanup: (() => void) | undefined;
   private _apiStatusInterval: number | undefined;
 
-  public setConfig(config: TankstellenAustriaCardConfig): void {
+  public setConfig(config: TankstellenCardYaml): void {
     if (!config || typeof config !== "object" || Array.isArray(config)) {
       throw new Error("tankstellen-austria-card: config must be an object");
     }
@@ -195,7 +186,8 @@ export class TankstellenAustriaCard extends LitElement {
         "tankstellen-austria-card: config.entities must be a string or array of entity IDs",
       );
     }
-    this._config = normaliseConfig(config);
+    // v1's flat keys go through the groups too, so both shapes render alike.
+    this._config = normaliseConfig(fromGrouped(toGrouped(config)));
     // Editor-preview rebuilds the card instance on every config change.
     // Without this seed, each rebuild starts with empty `_history` and
     // the sparkline returns `nothing` until the async `_fetchAllHistory`

@@ -156,36 +156,72 @@ The minimal card finds every Tankstellen Austria sensor on its own:
 type: custom:tankstellen-austria-card
 ```
 
-The visual editor covers every option. The defaults below apply when you leave a key out; the card picker starts you with `show_distance` and `payment_highlight_mode` on.
+The visual editor covers every option. Options sit in groups, by the part of the card they change; the defaults below apply when you leave a key out. The card picker starts you with `stations.distance` on and `stations.payment_mode: highlight`.
+
+```yaml
+type: custom:tankstellen-austria-card
+entities:
+  - sensor.home_diesel
+  - sensor.home_super_95
+stations:
+  count: 3
+  sort: distance
+chart:
+  median_line: true
+cars:
+  show: true
+  items:
+    - name: Golf
+      fuel_type: DIE
+      tank_size: 50
+      consumption: 5.8
+```
 
 | Option | Default | Description |
 |---|---|---|
 | `entities` | all sensors | List of this integration's price sensors, one tab each |
-| `max_stations` | `5` | Stations to list, 0 to 5. `0` hides the list. |
 | `language` | Home Assistant's | `de` or `en` |
-| `show_index` | `true` | Rank number per station |
-| `show_map_links` | `true` | Navigation link per station |
-| `map_provider` | `auto` | `auto` (Apple Maps on iOS, the app chooser on Android, Google Maps elsewhere), `google` or `apple` |
-| `show_distance` | `false` | Distance under each station's map pin |
-| `sort_by_distance` | `false` | List nearest first instead of cheapest first |
-| `show_opening_hours` | `true` | Opening hours in the station details |
-| `show_payment_methods` | `true` | Payment methods in the station details |
-| `show_history` | `true` | Seven-day price chart |
-| `show_minmax` | `true` | Minimum and maximum on the chart |
-| `show_median_line` | `false` | Seven-day median line on the chart |
-| `show_hour_envelope` | `false` | Typical price range per hour of day, over four weeks |
-| `show_noon_markers` | `false` | Markers at the daily 12:00 price reset |
-| `show_best_refuel` | `true` | Refuel tip and its band on the chart |
-| `payment_filter` | `[]` | `cash`, `debit_card`, `credit_card`, or any string E-Control sends, such as `Routex`, `UTA`, `DKV` |
-| `payment_highlight_mode` | `false` | Highlight matching stations instead of hiding the others |
 | `tab_labels` | `{}` | Your own tab label per entity |
-| `show_cars` | `false` | Fill-up cost per car |
-| `show_car_fillup` / `show_car_consumption` | `true` / `true` | Fill-up cost and cost per 100 km rows |
-| `cars` | `[]` | Each car: `name`, `fuel_type` (`DIE`, `SUP` or `GAS`), `tank_size` (1 to 200 l), optional `consumption` (l/100 km) and `icon` |
-| `hide_header` | `false` | Hide the header |
-| `hide_header_price` | `false` | Hide the cheapest and average price in the header |
-| `logo_adapt_to_theme` | `false` | Show the E-Control logo as a silhouette in your theme's colour |
-| `hide_attribution` | `false` | Hide the E-Control footer |
+
+**`stations`**
+
+| Option | Default | Description |
+|---|---|---|
+| `count` | `5` | Stations to list, 0 to 5. `0` hides the list. |
+| `index` | `true` | Rank number per station |
+| `map_links` | `true` | Navigation link per station |
+| `map_provider` | `auto` | `auto` (Apple Maps on iOS, the app chooser on Android, Google Maps elsewhere), `google` or `apple` |
+| `distance` | `false` | Distance under each station's map pin |
+| `sort` | `price` | `price` lists the cheapest first, `distance` the nearest |
+| `opening_hours` | `true` | Opening hours in the station details |
+| `payment_methods` | `true` | Payment methods in the station details |
+| `payment_filter` | `[]` | `cash`, `debit_card`, `credit_card`, or any string E-Control sends, such as `Routex`, `UTA`, `DKV` |
+| `payment_mode` | `filter` | `filter` hides the stations without a match, `highlight` shows them and highlights the matches |
+
+**`header`**, **`chart`**, **`cars`** and **`footer`**
+
+| Option | Default | Description |
+|---|---|---|
+| `header.show` | `true` | The header |
+| `header.price` | `true` | The cheapest and average price in the header |
+| `chart.show` | `true` | Seven-day price chart |
+| `chart.min_max` | `true` | Minimum and maximum on the chart |
+| `chart.median_line` | `false` | Seven-day median line |
+| `chart.hour_envelope` | `false` | Typical price range per hour of day, over four weeks |
+| `chart.noon_markers` | `false` | Markers at the daily 12:00 price reset |
+| `chart.best_refuel` | `true` | Refuel tip and its band on the chart |
+| `cars.show` | `false` | Fill-up cost per car |
+| `cars.fill_up` / `cars.consumption` | `true` / `true` | Fill-up cost and cost per 100 km rows |
+| `cars.items` | `[]` | Each car: `name`, `fuel_type` (`DIE`, `SUP` or `GAS`), `tank_size` (1 to 200 l), optional `consumption` (l/100 km) and `icon` |
+| `footer.show` | `true` | The E-Control footer |
+| `footer.adaptive_logo` | `false` | Show the E-Control logo as a silhouette in your theme's colour |
+
+<details>
+<summary>Cards set up before v2.0.0</summary>
+
+Older cards keep working: the card reads the flat options of v1 (`max_stations`, `show_index`, `hide_header`, `cars` as a list, …) as their grouped counterparts, and the visual editor saves them in the new shape the next time you change something. `hide_header`, `hide_header_price` and `hide_attribution` turn into `header.show`, `header.price` and `footer.show` with the opposite value; `sort_by_distance` and `payment_highlight_mode` into `stations.sort` and `stations.payment_mode`. Where a card has both, the grouped option wins.
+
+</details>
 
 ### Best refuel time
 
