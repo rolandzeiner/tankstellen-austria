@@ -879,6 +879,14 @@ if(super(e),e.type!==je.ATTRIBUTE||e.name!==`class`||e.strings?.length>2)throw E
     align-items: center;
     gap: 6px;
   }
+  /* The name gives way, not the Closed / Closing-soon flag after it: as a
+     flex item the span would otherwise keep its full width and push the
+     flag out past .name's overflow, unseen. */
+  .name > span[lang] {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
   .address {
     font-size: 0.8125rem;
     color: var(--secondary-text-color);
@@ -1050,8 +1058,37 @@ if(super(e),e.type!==je.ATTRIBUTE||e.name!==`class`||e.strings?.length>2)throw E
     .price {
       font-size: 1rem;
     }
+    /* Two lines per station: index, name and address on top, price and
+       actions underneath. In one row the price, map pin and chevron leave
+       the name a few characters at half a section (~240 px). Areas with no
+       element (no index, no map link) stay empty. */
     .station-main {
-      gap: 8px;
+      display: grid;
+      grid-template-columns: auto 1fr auto auto;
+      grid-template-areas:
+        "idx info info info"
+        ".   price map  chev";
+      align-items: center;
+      gap: 4px 8px;
+    }
+    .index-tile {
+      grid-area: idx;
+    }
+    .info {
+      grid-area: info;
+    }
+    .station-main .price {
+      grid-area: price;
+    }
+    .map-action {
+      grid-area: map;
+    }
+    .expander-chevron {
+      grid-area: chev;
+    }
+    .name {
+      white-space: normal;
+      flex-wrap: wrap;
     }
     .footer {
       padding: 8px 14px;
