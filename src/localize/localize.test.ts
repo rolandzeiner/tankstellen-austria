@@ -27,6 +27,9 @@ describe("resolveLang", () => {
 describe("translate and getFuelName", () => {
   it("fills placeholders and falls back to the key", () => {
     expect(translate("card.cash", { hassLanguage: "en" })).toBe("Cash");
+    expect(translate("card.version_update", { hassLanguage: "en" }, { v: "1.2" })).toContain(
+      "v1.2",
+    );
     expect(translate("no.such.key", { hassLanguage: "en" })).toBe("no.such.key");
     expect(getFuelName("DIE", { hassLanguage: "en" })).toBe("Diesel");
   });

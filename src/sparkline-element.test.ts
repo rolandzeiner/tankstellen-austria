@@ -1,9 +1,9 @@
 /**
  * @vitest-environment happy-dom
  *
- * The chart element's hover tooltip: the time it shows follows the UI
- * language, the profile's 12/24-hour setting and the zone, and an unknown
- * zone falls back to the browser's instead of throwing in render.
+ * The chart element's hover tooltip: the time it shows follows the zone and
+ * the profile's 12/24-hour setting, and an unknown zone falls back to the
+ * browser's locale and zone instead of throwing in render.
  */
 
 import type { LitElement } from "lit";
@@ -51,12 +51,18 @@ async function hovered(setup: (el: Sparkline) => void): Promise<string> {
 
 describe("hover time", () => {
   it("formats the hovered change in the zone, 24-hour by default", async () => {
-    const text = await hovered((el) => {
+    const vienna = await hovered((el) => {
       el.language = "en";
       el.timeZone = "Europe/Vienna";
     });
-    expect(text).toMatch(/\d{2}:\d{2}/);
-    expect(text).not.toMatch(/AM|PM/);
+    expect(vienna).toMatch(/\d{2}:\d{2}/);
+    expect(vienna).not.toMatch(/AM|PM/);
+    // Fourteen hours east of UTC: the same instant reads as another hour.
+    const kiritimati = await hovered((el) => {
+      el.language = "en";
+      el.timeZone = "Pacific/Kiritimati";
+    });
+    expect(kiritimati).not.toBe(vienna);
   });
 
   it("switches to 12-hour with the profile", async () => {

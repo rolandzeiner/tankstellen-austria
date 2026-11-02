@@ -17,6 +17,9 @@
  * 2. **Render-path coverage.** The card entrypoint carries most of the
  *    render logic and no other test imports it.
  *
+ * 3. **Behaviour only the mounted card exposes**: the tab strip's keyboard
+ *    pattern and a live state change appended to the chart.
+ *
  * `ha-card`, `ha-icon` and friends are HA-provided elements that do not
  * exist here. happy-dom renders them as inert containers, which is fine:
  * this suite asserts that rendering completes and produces the expected
