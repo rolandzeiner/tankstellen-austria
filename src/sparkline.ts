@@ -1,16 +1,19 @@
-import { html, svg, nothing } from "lit";
-import type { TemplateResult } from "lit";
+// The 7-day price chart's geometry, with no DOM in it. `computeSparkline`
+// turns history points and overlays into SVG path strings and positions in
+// a fixed viewBox; `<tankstellen-austria-sparkline>` (sparkline-element.ts)
+// renders them. Everything here is a pure function of its input and `now`,
+// which is what lets the element compute it once per data change rather
+// than once per render.
+//
+// Prices are a step function: a price holds until the next change, so the
+// line is drawn as steps (`H` then `V`), not as a curve that would show a
+// drift that never happened. The x axis is proportional to time, so a flat
+// weekend takes two days of width whatever the number of samples in it.
 
-import type { BestRefuelResult } from "./analytics/best-refuel";
+import type { BestRefuelResult, HourlyEnvelope } from "./analytics/best-refuel";
 import type { HistoryPoint } from "./history";
-import { monotoneCubicPath, monotoneRibbonPath, type Point } from "./utils/math";
-import { formatPriceShort } from "./utils/price";
-
-export interface HourlyEnvelope {
-  // Per hour-of-day (0-23). null when that hour has no samples.
-  minByHour: Array<number | null>;
-  maxByHour: Array<number | null>;
-}
+import { monotoneRibbonPath, type Point } from "./utils/math";
+import { DAY_MS, HOUR_MS, zonedClock, type ZonedClock } from "./utils/tz";
 
 export interface MedianDelta {
   key: "median_delta_below" | "median_delta_above" | "median_delta_equal";
@@ -18,547 +21,259 @@ export interface MedianDelta {
   cls: "median-delta-good" | "median-delta-bad" | "median-delta-neutral";
 }
 
-export interface SparklineOpts {
-  points: HistoryPoint[]; // all history for the entity (we slice to 7d ourselves)
+export interface SparklineInput {
+  points: HistoryPoint[]; // all history for the entity; the last 7 days are drawn
   showMedianLine: boolean;
   showHourEnvelope: boolean;
   showNoonMarkers: boolean;
-  showMinMax: boolean;
   hourEnvelope?: HourlyEnvelope | null;
-  // Best-refuel analysis output. When provided and confident, the
-  // sparkline draws the green dashed marker at the nearest point in the
-  // *visible* 7-day slice — not the full 4-week history (index
-  // semantics would be meaningless across the two arrays).
+  // Best-refuel analysis output. When confident, the most recent past
+  // occurrence of its window is drawn as a band.
   analysis?: BestRefuelResult | null;
-  translations: {
-    min_label: string;
-    max_label: string;
-    last_7_days: string;
-    // Delta-vs-median label templates with `{c}` placeholder.
-    median_delta_below: string;
-    median_delta_above: string;
-    median_delta_equal: string;
-    // Full aria-label template for the SVG, with `{min}`, `{max}`,
-    // `{median}` placeholders. The `_simple` variant is used when the
-    // median-line overlay is disabled.
-    sparkline_aria_summary: string;
-    sparkline_aria_simple: string;
-  };
+  // IANA zone the noon markers, the band and the envelope's hours use.
+  timeZone: string;
+  now?: number; // epoch ms; tests pin it
 }
 
-export interface SparklineResult {
-  // Ready-to-render template. Empty when there isn't enough history.
-  template: TemplateResult | typeof nothing;
-  // Visible points (within the 7-day window), annotated with SVG (x, y) +
-  // original time + value. Used by the hover handler to resolve nearest-by-x.
-  hoverPoints: Array<{ t: number; v: number; x: number; y: number }>;
-  // Median delta annotation for the sparkline labels row.
+/** A price change the hover can land on. `time` is when the price took
+ *  effect; `x` is where that is on the axis, clamped to the left edge for
+ *  the change that was already in force when the window starts. */
+export interface HoverPoint {
+  time: number;
+  value: number;
+  x: number;
+  y: number;
+}
+
+export interface SparklineModel {
+  width: number;
+  height: number;
+  linePath: string;
+  areaPath: string;
+  envelopePath: string | null;
+  noonXs: number[];
+  medianY: number | null;
+  bands: Array<{ x1: number; x2: number }>;
+  hoverPoints: HoverPoint[];
+  // The drawn 7-day line's own figures; the labels describe these even when
+  // the envelope band widened the y axis.
+  min: number;
+  max: number;
+  median: number;
   medianDelta: MedianDelta | null;
-  // SVG viewBox width — hover math needs this to translate pixel x → data x.
-  viewBoxWidth: number;
-  // Same for height so tooltips can clamp.
-  viewBoxHeight: number;
 }
 
-const WIDTH = 280;
-const HEIGHT = 48;
+export const WIDTH = 280;
+export const HEIGHT = 48;
 const PAD_Y = 4;
-const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+const SEVEN_DAYS_MS = 7 * DAY_MS;
 
-interface RecommendationWindow {
-  startMs: number;
-  endMs: number;
+const f = (n: number): string => n.toFixed(2);
+
+// Anchor the left edge with the most recent pre-window sample, keeping its
+// real time (the hover says when the price took effect) but drawing it at
+// the cutoff, so a price that last changed before the window still shows
+// as in force from the first pixel. Both the window and the axis span
+// exactly the 7 days before `now`.
+export function sliceLast7Days(all: HistoryPoint[], now: number): HistoryPoint[] {
+  const cutoff = now - SEVEN_DAYS_MS;
+  const inside = all.filter((d) => d.time >= cutoff && d.time <= now);
+  let lastKnown: HistoryPoint | null = null;
+  for (const d of all) {
+    if (d.time < cutoff) lastKnown = d;
+    else break;
+  }
+  return lastKnown ? [lastKnown, ...inside] : inside;
 }
 
-// Resolves the most recent past occurrence of the recommended cheap window
-// against the *visible* 7-day data array, so the SVG can render a band
-// between the start and end timestamps.
-function resolveRecommendationWindow(
-  analysis: BestRefuelResult | null | undefined,
-): RecommendationWindow | null {
-  if (!analysis?.hasEnoughData || analysis.hour == null) return null;
+/** Whether `points` give a chart at all. The card uses it to decide whether
+ *  to render the chart block, before the element computes the geometry. */
+export function hasSparklineData(points: HistoryPoint[], now = Date.now()): boolean {
+  if (!points || points.length < 2) return false;
+  return sliceLast7Days(points, now).length >= 2;
+}
 
-  const now = new Date();
-  const target = new Date(now);
-  if (analysis.weekday != null) {
-    let daysBack = (now.getDay() - analysis.weekday + 7) % 7;
-    if (daysBack === 0 && now.getHours() < analysis.hour) daysBack = 7;
-    target.setDate(target.getDate() - daysBack);
-  } else if (now.getHours() < analysis.hour) {
-    target.setDate(target.getDate() - 1);
+function median(values: number[]): number {
+  const sorted = [...values];
+  sorted.sort((a, b) => a - b);
+  const mid = (sorted.length - 1) / 2;
+  return (sorted[Math.floor(mid)]! + sorted[Math.ceil(mid)]!) / 2;
+}
+
+function medianDelta(current: number, med: number): MedianDelta {
+  const deltaCents = (current - med) * 100;
+  const cents = Math.abs(deltaCents).toFixed(1);
+  if (deltaCents <= -0.05) return { key: "median_delta_below", cents, cls: "median-delta-good" };
+  if (deltaCents >= 0.05) return { key: "median_delta_above", cents, cls: "median-delta-bad" };
+  return { key: "median_delta_equal", cents, cls: "median-delta-neutral" };
+}
+
+// `M x0 y0 H x1 V y1 …`: each price holds until the next change.
+function stepPath(pts: readonly Point[]): string {
+  const first = pts[0];
+  if (!first) return "";
+  let d = `M ${f(first.x)} ${f(first.y)}`;
+  for (let i = 1; i < pts.length; i++) {
+    const p = pts[i]!;
+    d += ` H ${f(p.x)}`;
+    if (p.y !== pts[i - 1]!.y) d += ` V ${f(p.y)}`;
   }
-  target.setHours(analysis.hour, 0, 0, 0);
-  const startMs = target.getTime();
+  return d;
+}
 
+// The most recent past occurrence of a window starting at `hour`, in the
+// chart's zone. Today's window counts once it has started; before that,
+// yesterday's. The weekday is a statement about whole days and does not
+// move the band.
+function lastOccurrence(
+  hour: number,
+  hourEnd: number | null | undefined,
+  now: number,
+  clock: ZonedClock,
+): { startMs: number; endMs: number } {
+  const at = clock.parts(now);
+  const day = at.hour < hour ? clock.shiftDays(now, 1) : now;
+  const startMs = clock.atHour(day, hour);
   // hour_end is the exclusive end of the window (0-23). Defaults to a
   // single-hour window when older results without hour_end show up.
-  const hourEnd = analysis.hour_end ?? (analysis.hour + 1) % 24;
-  const spanHours = (hourEnd - analysis.hour + 24) % 24 || 1;
-  const endMs = startMs + spanHours * 3_600_000;
-  return { startMs, endMs };
+  const end = hourEnd ?? (hour + 1) % 24;
+  const spanHours = (end - hour + 24) % 24 || 1;
+  return { startMs, endMs: startMs + spanHours * HOUR_MS };
 }
 
-function sliceLast7Days(all: HistoryPoint[]): HistoryPoint[] {
-  const cutoff = Date.now() - SEVEN_DAYS_MS;
-  const inside = all.filter((d) => d.time >= cutoff);
-  const prior = all.filter((d) => d.time < cutoff);
-  const lastKnown = prior.length ? prior[prior.length - 1] : null;
-  // Anchor the left edge with the most recent pre-window sample so a
-  // stable-price entity (e.g. Diesel whose last change was the prior
-  // Friday) doesn't render a line that visibly "starts on Monday".
-  // Clamp the anchor's timestamp to the cutoff (preserving its value)
-  // so the time-proportional X-axis spans exactly the 7-day window —
-  // without the clamp a stable-price entity would silently widen the
-  // visible range and the "Last 7 days" label would lie.
-  if (lastKnown) return [{ time: cutoff, value: lastKnown.value }, ...inside];
-  return inside;
-}
-
-function computeMedianDelta(values: number[]): MedianDelta | null {
-  if (values.length < 2) return null;
-  const sorted = [...values];
-  sorted.sort((a, b) => a - b);
-  const mid = (sorted.length - 1) / 2;
-  const median = (sorted[Math.floor(mid)]! + sorted[Math.ceil(mid)]!) / 2;
-  const current = values[values.length - 1]!;
-  const deltaCents = (current - median) * 100;
-  const absCents = Math.abs(deltaCents).toFixed(1);
-  if (deltaCents <= -0.05) {
-    return { key: "median_delta_below", cents: absCents, cls: "median-delta-good" };
+// The recommended window and, when the analysis names one, the second run
+// of hours that is about as cheap.
+function recommendationWindows(
+  analysis: BestRefuelResult | null | undefined,
+  now: number,
+  timeZone: string,
+): Array<{ startMs: number; endMs: number }> {
+  if (!analysis?.hasEnoughData || analysis.hour == null) return [];
+  const clock = zonedClock(timeZone);
+  const out = [lastOccurrence(analysis.hour, analysis.hour_end, now, clock)];
+  if (analysis.alt_hour != null) {
+    out.push(lastOccurrence(analysis.alt_hour, analysis.alt_hour_end, now, clock));
   }
-  if (deltaCents >= 0.05) {
-    return { key: "median_delta_above", cents: absCents, cls: "median-delta-bad" };
+  return out;
+}
+
+export function computeSparkline(input: SparklineInput): SparklineModel | null {
+  const now = input.now ?? Date.now();
+  const data = sliceLast7Days(input.points ?? [], now);
+  if (data.length < 2) return null;
+
+  const tStart = now - SEVEN_DAYS_MS;
+  const tEnd = now;
+  const xForTime = (t: number): number => ((t - tStart) / SEVEN_DAYS_MS) * WIDTH;
+  const clampX = (x: number): number => Math.max(0, Math.min(WIDTH, x));
+
+  const values = data.map((d) => d.value);
+  const dataMin = Math.min(...values);
+  const dataMax = Math.max(...values);
+  const med = median(values);
+
+  // The y axis covers the line and, when drawn, the envelope band.
+  let min = dataMin;
+  let max = dataMax;
+  const envelope = input.showHourEnvelope ? (input.hourEnvelope ?? null) : null;
+  if (envelope) {
+    for (let h = 0; h < 24; h++) {
+      const lo = envelope.minByHour[h];
+      const hi = envelope.maxByHour[h];
+      if (lo != null && hi != null) {
+        min = Math.min(min, lo);
+        max = Math.max(max, hi);
+      }
+    }
   }
-  return { key: "median_delta_equal", cents: absCents, cls: "median-delta-neutral" };
-}
+  const range = max - min || 0.01;
+  const priceToY = (p: number): number =>
+    HEIGHT - PAD_Y - ((p - min) / range) * (HEIGHT - 2 * PAD_Y);
 
-function medianY(values: number[], priceToY: (p: number) => number): number {
-  const sorted = [...values];
-  sorted.sort((a, b) => a - b);
-  const mid = (sorted.length - 1) / 2;
-  const median = (sorted[Math.floor(mid)]! + sorted[Math.ceil(mid)]!) / 2;
-  return priceToY(median);
-}
+  const hoverPoints: HoverPoint[] = data.map((d) => ({
+    time: d.time,
+    value: d.value,
+    x: +clampX(xForTime(d.time)).toFixed(1),
+    y: +priceToY(d.value).toFixed(1),
+  }));
 
-export function buildSparkline(opts: SparklineOpts): SparklineResult {
-  const empty: SparklineResult = {
-    template: nothing,
-    hoverPoints: [],
-    medianDelta: null,
-    viewBoxWidth: WIDTH,
-    viewBoxHeight: HEIGHT,
+  // The last price is in force until now, so the step runs to the right
+  // edge; that end is drawn, not a change the hover could land on.
+  const linePts: Point[] = hoverPoints.map((p) => ({ x: p.x, y: p.y }));
+  const last = linePts[linePts.length - 1]!;
+  if (last.x < WIDTH) linePts.push({ x: WIDTH, y: last.y });
+  const linePath = stepPath(linePts);
+  const areaPath = `${linePath} V ${f(HEIGHT)} H 0 Z`;
+
+  // Hourly envelope band: the typical range at each hour of the day,
+  // sampled at every hour boundary in the window so the band's shape does
+  // not depend on how many price changes a day had.
+  let envelopePath: string | null = null;
+  if (envelope) {
+    const clock = zonedClock(input.timeZone);
+    const upper: Point[] = [];
+    const lower: Point[] = [];
+    const sample = (t: number): void => {
+      const h = clock.parts(t).hour;
+      const hi = envelope.maxByHour[h];
+      const lo = envelope.minByHour[h];
+      if (hi == null || lo == null) return;
+      const x = xForTime(t);
+      upper.push({ x, y: priceToY(hi) });
+      lower.push({ x, y: priceToY(lo) });
+    };
+    sample(tStart);
+    for (let t = Math.ceil(tStart / HOUR_MS) * HOUR_MS; t < tEnd; t += HOUR_MS) sample(t);
+    sample(tEnd);
+    if (upper.length >= 2) envelopePath = monotoneRibbonPath(upper, lower) || null;
+  }
+
+  // Noon markers: one per local 12:00 inside the window. Each is derived
+  // from the day's midnight in the chart's zone, so DST days (23 or 25
+  // hours long) keep their marker at 12:00 instead of drifting an hour.
+  const noonXs: number[] = [];
+  if (input.showNoonMarkers) {
+    const clock = zonedClock(input.timeZone);
+    for (let day = clock.startOfDay(tStart); day <= tEnd; day = clock.shiftDays(day, -1)) {
+      const noon = clock.atHour(day, 12);
+      if (noon > tStart && noon < tEnd) noonXs.push(+xForTime(noon).toFixed(1));
+    }
+  }
+
+  const bands: SparklineModel["bands"] = [];
+  for (const window of recommendationWindows(input.analysis, now, input.timeZone)) {
+    const x1 = clampX(xForTime(window.startMs));
+    const x2 = clampX(xForTime(window.endMs));
+    if (x2 > x1) bands.push({ x1: +x1.toFixed(1), x2: +x2.toFixed(1) });
+  }
+
+  return {
+    width: WIDTH,
+    height: HEIGHT,
+    linePath,
+    areaPath,
+    envelopePath,
+    noonXs,
+    medianY: input.showMedianLine ? +priceToY(med).toFixed(1) : null,
+    bands,
+    hoverPoints,
+    min: dataMin,
+    max: dataMax,
+    median: med,
+    medianDelta: input.showMedianLine ? medianDelta(values[values.length - 1]!, med) : null,
   };
-  try {
-    const all = opts.points;
-    if (!all || all.length < 2) return empty;
-
-    let data = sliceLast7Days(all);
-    if (data.length < 2) return empty;
-
-    // Extend a flat "tail" to now when the last recorded sample is
-    // stale. Austrian fuel prices freeze for 1–2 days on weekends/
-    // holidays (no significant change → no recorder sample → no
-    // history row), so without this the hover tooltip stops at the
-    // last weekday and the noon markers never reach Sat/Sun. The
-    // synthetic point carries the last-known value, which is the
-    // entity's current state too — accurate, not invented.
-    const STALE_MS = 30 * 60 * 1000;
-    const last = data[data.length - 1]!;
-    if (last.time < Date.now() - STALE_MS) {
-      data = [...data, { time: Date.now(), value: last.value }];
-    }
-
-    const values = data.map((d) => d.value);
-    // Labels under the sparkline always describe the 7-day line — the data
-    // the user actually sees traced. `min`/`max` below may expand to include
-    // the 4-week envelope band so its ribbon fits in the Y axis, but that's
-    // a layout concern, not a data one.
-    const dataMin = Math.min(...values);
-    const dataMax = Math.max(...values);
-
-    let min = dataMin;
-    let max = dataMax;
-
-    const envelope = opts.showHourEnvelope ? (opts.hourEnvelope ?? null) : null;
-    if (envelope) {
-      for (let h = 0; h < 24; h++) {
-        const lo = envelope.minByHour[h];
-        const hi = envelope.maxByHour[h];
-        if (lo != null && hi != null) {
-          min = Math.min(min, lo);
-          max = Math.max(max, hi);
-        }
-      }
-    }
-
-    const range = max - min || 0.01;
-    const priceToY = (p: number): number =>
-      HEIGHT - PAD_Y - ((p - min) / range) * (HEIGHT - 2 * PAD_Y);
-
-    const svgPoints: Point[] = data.map((d, i) => ({
-      x: (i / (data.length - 1)) * WIDTH,
-      y: priceToY(d.value),
-    }));
-
-    const linePath = monotoneCubicPath(svgPoints);
-    const areaPath = linePath
-      ? `${linePath} L ${WIDTH.toFixed(2)} ${HEIGHT.toFixed(2)} L 0 ${HEIGHT.toFixed(2)} Z`
-      : "";
-
-    // Overlay 1: hourly envelope band (4-week p10/p90 per hour-of-day).
-    let envelopeTmpl: TemplateResult | typeof nothing = nothing;
-    if (envelope) {
-      const upper: Point[] = [];
-      const lower: Point[] = [];
-      for (let i = 0; i < data.length; i++) {
-        const h = new Date(data[i]!.time).getHours();
-        const hi = envelope.maxByHour[h];
-        const lo = envelope.minByHour[h];
-        if (hi == null || lo == null) continue;
-        upper.push({ x: svgPoints[i]!.x, y: priceToY(hi) });
-        lower.push({ x: svgPoints[i]!.x, y: priceToY(lo) });
-      }
-      if (upper.length >= 2) {
-        const ribbon = monotoneRibbonPath(upper, lower);
-        if (ribbon) {
-          envelopeTmpl = svg`<path d=${ribbon} fill="var(--primary-color)" fill-opacity="0.08" stroke="none"/>`;
-        }
-      }
-    }
-
-    const tStart = data[0]!.time;
-    const tEnd = data[data.length - 1]!.time;
-    // Map an arbitrary timestamp to its x in the sparkline by interpolating
-    // between the two surrounding data points. Returns null when t is
-    // outside the visible window so callers can decide whether to clamp
-    // or skip.
-    const xForTime = (t: number): number | null => {
-      if (t <= tStart || t >= tEnd) return null;
-      let lo = 0;
-      let hi = data.length - 1;
-      while (lo < hi - 1) {
-        const mid = (lo + hi) >> 1;
-        if (data[mid]!.time <= t) lo = mid;
-        else hi = mid;
-      }
-      const dt = data[lo + 1]!.time - data[lo]!.time;
-      const frac = dt > 0 ? (t - data[lo]!.time) / dt : 0;
-      return svgPoints[lo]!.x + frac * (svgPoints[lo + 1]!.x - svgPoints[lo]!.x);
-    };
-
-    // Overlay 2: noon markers — one dashed vertical at each 12:00 local time
-    // inside the 7-day window.
-    const noonLines: TemplateResult[] = [];
-    if (opts.showNoonMarkers && data.length >= 2) {
-      const cursor = new Date(tStart);
-      cursor.setHours(12, 0, 0, 0);
-      if (cursor.getTime() < tStart) cursor.setDate(cursor.getDate() + 1);
-
-      // Re-derive each anchor from the Date rather than adding a fixed 24h of
-      // milliseconds: across a DST transition a day is 23 or 25 hours, so a
-      // fixed step drifts markers to 11:00/13:00. setDate + setHours pins
-      // every marker back to local 12:00.
-      for (
-        ;
-        cursor.getTime() <= tEnd;
-        cursor.setDate(cursor.getDate() + 1), cursor.setHours(12, 0, 0, 0)
-      ) {
-        const x = xForTime(cursor.getTime());
-        if (x == null) continue;
-        noonLines.push(svg`
-          <line x1=${x.toFixed(1)} y1="0" x2=${x.toFixed(1)} y2=${HEIGHT}
-                stroke="var(--secondary-text-color)" stroke-width="0.5"
-                stroke-dasharray="2,3" opacity="0.55"/>
-        `);
-      }
-    }
-
-    // Overlay 3: 7-day median line.
-    const medianDelta = opts.showMedianLine ? computeMedianDelta(values) : null;
-    const medianLine: TemplateResult | typeof nothing = opts.showMedianLine
-      ? svg`<line x1="0" y1=${medianY(values, priceToY).toFixed(1)}
-                  x2=${WIDTH} y2=${medianY(values, priceToY).toFixed(1)}
-                  stroke="var(--secondary-text-color)" stroke-width="0.5"
-                  stroke-dasharray="4,3" opacity="0.55"/>`
-      : nothing;
-
-    // Best-refuel marker — translucent band over the recommended cheap
-    // window. The band is the entire visualisation; an earlier dotted
-    // centre line was removed because for clamped or wide windows it
-    // landed somewhere meaningless and added no information beyond what
-    // the band already shows.
-    const recommendation = resolveRecommendationWindow(opts.analysis);
-
-    let bandX1: number | null = null;
-    let bandX2: number | null = null;
-    if (recommendation) {
-      // xForTime returns null at/outside the edges; clamp instead of skip
-      // so the band still renders when the window touches now or the left
-      // edge of the visible window.
-      const x1 = xForTime(recommendation.startMs);
-      const x2 = xForTime(recommendation.endMs);
-      bandX1 = x1 ?? (recommendation.startMs <= tStart ? 0 : null);
-      bandX2 = x2 ?? (recommendation.endMs >= tEnd ? WIDTH : null);
-    }
-
-    const hasBand = bandX1 != null && bandX2 != null && bandX2 > bandX1;
-    const marker: TemplateResult | typeof nothing = hasBand
-      ? svg`<rect x=${bandX1!.toFixed(1)} y="0"
-                  width=${(bandX2! - bandX1!).toFixed(1)} height=${HEIGHT}
-                  fill="var(--success-color,#4CAF50)" fill-opacity="0.10"
-                  stroke="none"/>`
-      : nothing;
-
-    const hoverPoints = data.map((d, i) => ({
-      t: d.time,
-      v: d.value,
-      x: +svgPoints[i]!.x.toFixed(1),
-      y: +svgPoints[i]!.y.toFixed(1),
-    }));
-
-    const gradId = `spark-grad-${Math.random().toString(36).slice(2, 8)}`;
-
-    // Median-delta chip lives in the sparkline's label row (appended after
-    // the "Last 7 days" text). Rendered as a Lit template so the chip's
-    // localised strings — passed in by the caller — compose safely without
-    // any innerHTML / string-concat surface.
-    const deltaTmpl: TemplateResult | typeof nothing = opts.showMedianLine
-      ? (() => {
-          const d = computeMedianDelta(values);
-          if (!d) return nothing;
-          const keyMap = {
-            median_delta_below: opts.translations.median_delta_below,
-            median_delta_above: opts.translations.median_delta_above,
-            median_delta_equal: opts.translations.median_delta_equal,
-          } as const;
-          const text = keyMap[d.key].replace("{c}", d.cents);
-          return html`
-            <span class="median-delta ${d.cls}">${text}</span>
-          `;
-        })()
-      : nothing;
-
-    const sortedValues = [...values];
-    sortedValues.sort((a, b) => a - b);
-    const midIdx = (sortedValues.length - 1) / 2;
-    const medianValue =
-      sortedValues.length > 0
-        ? (sortedValues[Math.floor(midIdx)]! + sortedValues[Math.ceil(midIdx)]!) / 2
-        : 0;
-    const ariaLabel = (
-      opts.showMedianLine
-        ? opts.translations.sparkline_aria_summary
-        : opts.translations.sparkline_aria_simple
-    )
-      .replace("{min}", formatPriceShort(dataMin))
-      .replace("{max}", formatPriceShort(dataMax))
-      .replace("{median}", formatPriceShort(medianValue));
-
-    const template = html`
-      <div class="sparkline-svg-wrap">
-      <svg
-        class="sparkline"
-        viewBox="0 0 ${WIDTH} ${HEIGHT}"
-        preserveAspectRatio="none"
-        role="img"
-        aria-label=${ariaLabel}
-        data-points=${JSON.stringify(hoverPoints)}
-        data-width=${WIDTH}
-        data-height=${HEIGHT}
-      >
-        <title>${ariaLabel}</title>
-        <defs>
-          <linearGradient id=${gradId} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="var(--primary-color)" stop-opacity="0.3" />
-            <stop offset="100%" stop-color="var(--primary-color)" stop-opacity="0.02" />
-          </linearGradient>
-        </defs>
-        ${noonLines}
-        ${envelopeTmpl}
-        <path d=${areaPath} fill="url(#${gradId})" />
-        ${marker}
-        ${medianLine}
-        <path
-          d=${linePath}
-          fill="none"
-          stroke="var(--primary-color)"
-          stroke-width="1.5"
-          stroke-linejoin="round"
-          stroke-linecap="round"
-        />
-        <line
-          class="sparkline-hover-line"
-          x1="0" y1="0" x2="0" y2=${HEIGHT}
-          stroke="var(--primary-text-color)" stroke-width="0.6"
-          stroke-dasharray="2,2" opacity="0" pointer-events="none"
-        />
-      </svg>
-      <div class="sparkline-hover-dot" style="opacity:0" aria-hidden="true"></div>
-      </div>
-      <div class="sparkline-tooltip" hidden>
-        <span class="sparkline-tooltip-time"></span>
-        <span class="sparkline-tooltip-price"></span>
-      </div>
-      <div class="sparkline-labels">
-        ${
-          opts.showMinMax
-            ? html`<span>
-              <span class="sparkline-minmax-label">${opts.translations.min_label}</span>
-              ${formatPriceShort(dataMin)}
-            </span>`
-            : nothing
-        }
-        <span class="sparkline-period">
-          ${opts.translations.last_7_days}${deltaTmpl === nothing ? nothing : html` · ${deltaTmpl}`}
-        </span>
-        ${
-          opts.showMinMax
-            ? html`<span>
-              <span class="sparkline-minmax-label">${opts.translations.max_label}</span>
-              ${formatPriceShort(dataMax)}
-            </span>`
-            : nothing
-        }
-      </div>
-    `;
-
-    return {
-      template,
-      hoverPoints,
-      medianDelta,
-      viewBoxWidth: WIDTH,
-      viewBoxHeight: HEIGHT,
-    };
-  } catch (err) {
-    console.warn("[Tankstellen Austria] sparkline render failed:", err);
-    return empty;
-  }
 }
 
-// Attach hover/touch handlers to a rendered sparkline container. Call from
-// `updated()` in the main card after the container has been rendered. The
-// container must have a `.sparkline` svg and a `.sparkline-tooltip` div as
-// direct (shadow) children — exactly what `buildSparkline.template` emits.
-export interface HoverSetupOpts {
-  formatTime: (ts: number) => string;
-  formatPrice: (price: number) => string;
-}
-
-export function attachSparklineHover(container: HTMLElement, opts: HoverSetupOpts): () => void {
-  const noop = (): void => undefined;
-  try {
-    type Pt = { t: number; v: number; x: number; y: number };
-    type Ctx = {
-      svgEl: SVGSVGElement;
-      line: SVGLineElement;
-      dot: HTMLElement;
-      tooltip: HTMLElement;
-      timeEl: HTMLElement;
-      priceEl: HTMLElement;
-      pts: Pt[];
-      vbWidth: number;
-      vbHeight: number;
-    };
-
-    // Re-resolve every DOM ref + the points array on every event call.
-    // Closure-captured refs can go stale: Lit may swap inner nodes on
-    // re-render, history fetch updates dataset.points, and a transient
-    // empty-history blip used to leave the listeners pointing at dead
-    // refs. Re-resolving here makes the hover survive any such churn.
-    const lookup = (): Ctx | null => {
-      const svgEl = container.querySelector<SVGSVGElement>("svg.sparkline");
-      const tooltip = container.querySelector<HTMLElement>(".sparkline-tooltip");
-      if (!svgEl || !tooltip) return null;
-      const line = svgEl.querySelector<SVGLineElement>(".sparkline-hover-line");
-      // Hover dot lives OUTSIDE the SVG as an HTML overlay (sibling of
-      // svg.sparkline inside .sparkline-svg-wrap). Same reason as the
-      // cheapest-refill marker — preserveAspectRatio="none" on the SVG
-      // squashes any inner <circle> into an oval on wide cards.
-      const dot = container.querySelector<HTMLElement>(".sparkline-hover-dot");
-      const timeEl = tooltip.querySelector<HTMLElement>(".sparkline-tooltip-time");
-      const priceEl = tooltip.querySelector<HTMLElement>(".sparkline-tooltip-price");
-      if (!line || !dot || !timeEl || !priceEl) return null;
-      let pts: Pt[];
-      try {
-        pts = JSON.parse(svgEl.dataset.points || "[]") as Pt[];
-      } catch {
-        pts = [];
-      }
-      if (!pts.length) return null;
-      const vbWidth = Number(svgEl.dataset.width) || WIDTH;
-      const vbHeight = Number(svgEl.dataset.height) || HEIGHT;
-      return { svgEl, line, dot, tooltip, timeEl, priceEl, pts, vbWidth, vbHeight };
-    };
-
-    const show = (clientX: number): void => {
-      const ctx = lookup();
-      if (!ctx) return;
-      const { svgEl, line, dot, tooltip, timeEl, priceEl, pts, vbWidth, vbHeight } = ctx;
-      const rect = svgEl.getBoundingClientRect();
-      if (rect.width === 0) return;
-      const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-      const targetX = ratio * vbWidth;
-      let best = pts[0]!;
-      let bestDist = Math.abs(best.x - targetX);
-      for (const p of pts) {
-        const d = Math.abs(p.x - targetX);
-        if (d < bestDist) {
-          best = p;
-          bestDist = d;
-        }
-      }
-      line.setAttribute("x1", String(best.x));
-      line.setAttribute("x2", String(best.x));
-      line.setAttribute("opacity", "0.5");
-      // HTML overlay — position via percentage so the dot tracks the
-      // data point regardless of the SVG's actual rendered width.
-      dot.style.left = `${(best.x / vbWidth) * 100}%`;
-      dot.style.top = `${(best.y / vbHeight) * 100}%`;
-      dot.style.opacity = "1";
-
-      timeEl.textContent = opts.formatTime(best.t);
-      priceEl.textContent = opts.formatPrice(best.v);
-      tooltip.hidden = false;
-
-      const containerRect = container.getBoundingClientRect();
-      const svgX = (best.x / vbWidth) * rect.width + (rect.left - containerRect.left);
-      tooltip.style.left = "0px";
-      const tipWidth = tooltip.offsetWidth;
-      const desired = svgX - tipWidth / 2;
-      const clamped = Math.max(0, Math.min(containerRect.width - tipWidth, desired));
-      tooltip.style.left = `${clamped}px`;
-    };
-
-    const hide = (): void => {
-      const ctx = lookup();
-      if (!ctx) return;
-      ctx.line.setAttribute("opacity", "0");
-      ctx.dot.style.opacity = "0";
-      ctx.tooltip.hidden = true;
-    };
-
-    // Listen on the container, not the inner svgEl. The container is
-    // the .sparkline-container element rendered by the card's template
-    // — it survives Lit re-renders that swap the inner SVG, so the
-    // listeners can't be left dangling on a detached node. Pointer
-    // events handle mouse + pen + touch uniformly.
-    //
-    // AbortController-based cleanup so the parent card's
-    // _reattachSparklineHover() can call cleanup-then-attach
-    // idempotently — the second attach gets its own controller and
-    // listener pair, no double-binding.
-    const ac = new AbortController();
-    const { signal } = ac;
-    const onPointerMove = (e: PointerEvent): void => show(e.clientX);
-    container.addEventListener("pointermove", onPointerMove, { signal });
-    container.addEventListener("pointerleave", hide, { signal });
-    container.addEventListener("pointercancel", hide, { signal });
-
-    return (): void => {
-      ac.abort();
-    };
-  } catch (err) {
-    console.warn("[Tankstellen Austria] sparkline hover setup failed:", err);
-    return noop;
+/** The price in force at axis position x: the last change at or before it. */
+export function hoverPointAt(model: SparklineModel, x: number): HoverPoint | null {
+  const pts = model.hoverPoints;
+  if (!pts.length) return null;
+  let lo = 0;
+  let hi = pts.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if (pts[mid]!.x <= x) lo = mid;
+    else hi = mid - 1;
   }
+  return pts[lo]!;
 }

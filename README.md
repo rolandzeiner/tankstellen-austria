@@ -1,7 +1,7 @@
 # <sub><sub><img src="https://raw.githubusercontent.com/rolandzeiner/tankstellen-austria/main/custom_components/tankstellen_austria/brand/icon.png" width="40" height="40" alt=""></sub></sub> Tankstellen Austria
 
 [![Marketplace](https://img.shields.io/badge/Marketplace-Catalog-41BDF5.svg)](https://www.home-assistant.io/integrations/marketplace/)
-[![HA min version](https://img.shields.io/badge/Home%20Assistant-%3E%3D2025.1-blue.svg)](https://www.home-assistant.io/)
+[![HA min version](https://img.shields.io/badge/Home%20Assistant-%3E%3D2026.3-blue.svg)](https://www.home-assistant.io/)
 [![Version](https://img.shields.io/github/v/release/rolandzeiner/tankstellen-austria?include_prereleases&label=version&color=blue)](https://github.com/rolandzeiner/tankstellen-austria/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![vibe-coded](https://img.shields.io/badge/vibe-coded-ff69b4?logo=musicbrainz&logoColor=white)](https://en.wikipedia.org/wiki/Vibe_coding)
@@ -27,8 +27,8 @@ Austrian fuel prices in Home Assistant, from E-Control's [Spritpreisrechner](htt
 ## Features
 
 - One price sensor per fuel type, carrying the five cheapest nearby stations with opening hours, payment methods and distance.
-- A card with a tab per fuel type, station details, navigation links, a seven-day price chart and a visual editor, in German and English.
-- A best-time-to-refuel tip worked out from up to four weeks of your price history, marked on the chart.
+- A card with a tab per fuel type, brand-coloured station details, navigation links, a seven-day chart and a visual editor, in German and English.
+- A best-time-to-refuel tip worked out from up to four weeks of your price history, marked on the chart and available as sensors for automations.
 - Prices that follow your phone or car as you drive, with fixed and moving locations side by side.
 - Show only the stations that take your card, or highlight them, and see which stations are closed or closing soon.
 - Fill-up cost per car at the cheapest station, with the cost per 100 km.
@@ -37,7 +37,7 @@ Austrian fuel prices in Home Assistant, from E-Control's [Spritpreisrechner](htt
 
 ## Requirements
 
-- Home Assistant **2025.1.0** or newer.
+- Home Assistant **2026.3.0** or newer.
 - No account and no API key.
 
 ## Installation
@@ -116,9 +116,32 @@ One sensor per fuel type you selected. The entry name is the device name, so an 
 
 `payment_methods` holds `cash`, `debit_card` and `credit_card` as booleans, and `others` as a list of the strings E-Control sends, such as `Austrocard` or `UTA`.
 
+### Cheap window
+
+Two more entities per fuel type carry the card's refuel tip, so an automation can use it. They compute the same window from the same 28 days of history, so the card and the entities agree.
+
+| Entity | State |
+|---|---|
+| `binary_sensor.<entry name>_<fuel type>_cheap_window` | `on` during the cheapest hours of the day |
+| `sensor.<entry name>_<fuel type>_next_cheap_window` | When the window opens next (timestamp) |
+
+Both are `unknown` until there are 7 days of history, and also when no time of day is cheaper than the rest, as with CNG prices that never move; the binary sensor's fact attributes stay filled then. They are `unavailable` when the recorder isn't running. Neither exists in dynamic mode, where the card hides its tip too. The binary sensor's attributes:
+
+| Attribute | Description |
+|---|---|
+| `start_hour`, `end_hour` | The window in local hours. `end_hour` is exclusive and can be smaller than `start_hour` when the window crosses midnight. |
+| `alt_start_hour`, `alt_end_hour` | A second run of hours about as cheap as the window, otherwise `null`. The binary sensor is `on` in both. |
+| `weekday` | The cheapest weekday (`monday` … `sunday`) when its lead is statistically significant, otherwise `null` |
+| `confidence` | `high`, `medium` or `low`, as on the card's badge |
+| `confidence_score`, `span_days`, `gap_cents`, `consistency_pct` | What the confidence is made of (see *How the window is computed*). Not stored in the recorder history. |
+| `daily_range_cents` | How much the price moves over a typical day: the median of the daily high minus low over four weeks |
+| `noon_days`, `noon_rise_days`, `noon_rise_cents` | On how many observed days the price rose at noon, and by how much on average. Not stored in the recorder history. |
+
+The facts are there with 7 days of history even when there is no window and the state is `unknown`.
+
 ### Long-term statistics
 
-Off by default. Without it, the sensors keep only state history, which the recorder purges after `purge_keep_days` (10 by default). With it on, Home Assistant also records hourly minimum, maximum and average prices, and those survive the purge.
+Off by default. Without it, the sensors keep only state history, which the recorder purges after `purge_keep_days` (10 by default). With it on, Home Assistant also records hourly minimum, maximum and average prices, and those survive the purge. The refuel tip on the card and the *Cheap window* entities use those hourly averages for the days the recorder has purged, so they see four weeks without a longer `purge_keep_days`, and the weekday test reads twelve.
 
 Home Assistant pairs the `monetary` device class only with `state_class: total`, which makes no sense for a unit price. With statistics on, the sensors therefore drop `device_class: monetary` and use `state_class: measurement`. Entity IDs, unique IDs, attributes and the card stay the same.
 
@@ -138,42 +161,82 @@ The minimal card finds every Tankstellen Austria sensor on its own:
 type: custom:tankstellen-austria-card
 ```
 
-The visual editor covers every option. The defaults below apply when you leave a key out; the card picker starts you with `show_distance` and `payment_highlight_mode` on.
+The visual editor covers every option. Options sit in groups, by the part of the card they change; the defaults below apply when you leave a key out. The card picker starts you with `stations.distance` on and `stations.payment_mode: highlight`.
+
+```yaml
+type: custom:tankstellen-austria-card
+entities:
+  - sensor.home_diesel
+  - sensor.home_super_95
+stations:
+  count: 3
+  sort: distance
+chart:
+  median_line: true
+cars:
+  show: true
+  items:
+    - name: Golf
+      fuel_type: DIE
+      tank_size: 50
+      consumption: 5.8
+```
 
 | Option | Default | Description |
 |---|---|---|
 | `entities` | all sensors | List of this integration's price sensors, one tab each |
-| `max_stations` | `5` | Stations to list, 0 to 5. `0` hides the list. |
 | `language` | Home Assistant's | `de` or `en` |
-| `show_index` | `true` | Rank number per station |
-| `show_map_links` | `true` | Navigation link per station |
-| `map_provider` | `auto` | `auto` (Apple Maps on iOS, the app chooser on Android, Google Maps elsewhere), `google` or `apple` |
-| `show_distance` | `false` | Distance under each station's map pin |
-| `sort_by_distance` | `false` | List nearest first instead of cheapest first |
-| `show_opening_hours` | `true` | Opening hours in the station details |
-| `show_payment_methods` | `true` | Payment methods in the station details |
-| `show_history` | `true` | Seven-day price chart |
-| `show_minmax` | `true` | Minimum and maximum on the chart |
-| `show_median_line` | `false` | Seven-day median line on the chart |
-| `show_hour_envelope` | `false` | Typical price range per hour of day, over four weeks |
-| `show_noon_markers` | `false` | Markers at the daily 12:00 price reset |
-| `show_best_refuel` | `true` | Refuel tip and its band on the chart |
-| `payment_filter` | `[]` | `cash`, `debit_card`, `credit_card`, or any string E-Control sends, such as `Routex`, `UTA`, `DKV` |
-| `payment_highlight_mode` | `false` | Highlight matching stations instead of hiding the others |
 | `tab_labels` | `{}` | Your own tab label per entity |
-| `show_cars` | `false` | Fill-up cost per car |
-| `show_car_fillup` / `show_car_consumption` | `true` / `true` | Fill-up cost and cost per 100 km rows |
-| `cars` | `[]` | Each car: `name`, `fuel_type` (`DIE`, `SUP` or `GAS`), `tank_size` (1 to 200 l), optional `consumption` (l/100 km) and `icon` |
-| `hide_header` | `false` | Hide the header |
-| `hide_header_price` | `false` | Hide the cheapest and average price in the header |
-| `logo_adapt_to_theme` | `false` | Show the E-Control logo as a silhouette in your theme's colour |
-| `hide_attribution` | `false` | Hide the E-Control footer |
+
+**`stations`**
+
+| Option | Default | Description |
+|---|---|---|
+| `count` | `5` | Stations to list, 0 to 5. `0` hides the list. |
+| `index` | `true` | Rank number per station. In the editor, switching it on turns `brand` off |
+| `brand` | `false` | The station's brand initials and colour in the tile, in place of the rank; works with `index` off, and the editor turns `index` off when you switch it on for the seventeen largest networks, about 83 % of Austria's stations: Enilive, Turmöl, BP, Lagerhaus/Genol, OMV, Shell, JET, Avanti, AVIA, SOCAR, Diskont at Hofer, DISK, Rumpold, F. Leitner, IQ and LM Energy; other stations get their initials on a grey tile. Colours only, no logos. |
+| `tile_shape` | `square` | The rank tile's shape: `square` (rounded corners) or `circle`; applies to the rank and the brand alike |
+| `map_links` | `true` | Navigation link per station |
+| `map_provider` | `auto` | `auto` (Apple Maps on iOS, the app chooser on Android, Google Maps elsewhere), `google` or `apple` |
+| `distance` | `false` | Distance under each station's price |
+| `sort` | `price` | `price` lists the cheapest first, `distance` the nearest |
+| `opening_hours` | `true` | Opening hours in the station details |
+| `payment_methods` | `true` | Payment methods in the station details |
+| `payment_filter` | `[]` | `cash`, `debit_card`, `credit_card`, or any string E-Control sends, such as `Routex`, `UTA`, `DKV` |
+| `payment_mode` | `filter` | `filter` hides the stations without a match, `highlight` shows them and highlights the matches |
+
+**`header`**, **`chart`**, **`cars`** and **`footer`**
+
+| Option | Default | Description |
+|---|---|---|
+| `header.show` | `true` | The header |
+| `header.price` | `true` | The cheapest and average price in the header |
+| `chart.show` | `true` | Seven-day price chart |
+| `chart.min_max` | `true` | Minimum and maximum on the chart |
+| `chart.median_line` | `false` | Seven-day median line |
+| `chart.hour_envelope` | `false` | Typical price range per hour of day, over four weeks |
+| `chart.noon_markers` | `false` | Markers at the daily 12:00 price reset |
+| `chart.best_refuel` | `true` | Refuel tip and its band on the chart |
+| `cars.show` | `false` | Fill-up cost per car |
+| `cars.fill_up` / `cars.consumption` | `true` / `true` | Fill-up cost and cost per 100 km rows |
+| `cars.items` | `[]` | Each car: `name`, `fuel_type` (`DIE`, `SUP` or `GAS`), `tank_size` (1 to 200 l), optional `consumption` (l/100 km) and `icon` |
+| `footer.show` | `true` | The E-Control footer |
+| `footer.adaptive_logo` | `false` | Show the E-Control logo as a silhouette in your theme's colour |
+
+<details>
+<summary>Cards set up before v2.0.0</summary>
+
+Older cards keep working: the card reads the flat options of v1 (`max_stations`, `show_index`, `hide_header`, `cars` as a list, …) as their grouped counterparts, and the visual editor saves them in the new shape the next time you change something. `hide_header`, `hide_header_price` and `hide_attribution` turn into `header.show`, `header.price` and `footer.show` with the opposite value; `sort_by_distance` and `payment_highlight_mode` into `stations.sort` and `stations.payment_mode`. Where a card has both, the grouped option wins.
+
+</details>
 
 ### Best refuel time
 
-The card reads up to four weeks of the sensor's history (again every 30 minutes) and looks for the run of hours that is cheapest compared with the rest of each week. The window is as long as the data says: one hour when one hour stands out, most of the day when prices only jump at noon. It is drawn as a green band on the chart, a weekday is added when that signal is strong too, and a High, Medium or Low confidence badge explains itself on hover.
+The card, and the integration for the *Cheap window* entities, read up to four weeks of the sensor's history (again every 30 minutes) and look for the run of hours that is cheapest compared with the rest of each week. The window is as long as the data says: one hour when one hour stands out, most of the day when prices only jump at noon. When a price never moves, the card says so with the number that shows it, instead of naming a window. The window is drawn as a green band on the chart, a second band and "also …" appear when another time of day is about as cheap, a cheapest weekday is added only when it passes a significance test, and a High, Medium or Low confidence badge explains itself on hover.
 
-Home Assistant keeps 10 days of history by default, so confidence stays low until you keep more:
+Under the tip stand two counted facts, whatever the confidence: on how many of the observed days the price rose at noon and by how much on average ("Fill up before 12:00" when it was half of them or more), and whether today's price is lower or higher than most of the last four weeks. Both describe the history and forecast nothing.
+
+Home Assistant keeps 10 days of history by default, which caps the confidence at Medium. Keep more, or turn on *Long-term statistics* (the hourly averages fill the purged days):
 
 ```yaml
 # configuration.yaml
@@ -193,9 +256,11 @@ Austrian law lets stations raise prices once a day at 12:00 and lower them at an
 3. **Weekly normalisation.** Each chunk becomes its price minus that week's mean, so the weekly low wins whatever the price level.
 4. **Separate buckets.** The differences go into 24 hour-of-day and 7 weekday buckets, kept apart.
 5. **Weighted median per bucket.** Weights are duration times recency, with a half-life of 14 days.
-6. **Window growth.** Starting from the bucket with the lowest median, the window takes in every neighbouring hour within about 0.5 cent per litre of it, with no length cap.
+6. **Window growth.** Starting from the bucket with the lowest median, the window takes in every neighbouring hour within about 0.5 cent per litre of it, with no length cap. If that reaches all 24 hours there is no window. A second run of hours within the same tolerance becomes the second window.
 
-Confidence averages three parts: how much of the 28 days is covered, whether each hour has at least three chunks, and how far the cheapest bucket sits below the others, against a 1.5 cent reference. The High, Medium and Low thresholds were tuned on real Austrian price histories.
+Confidence is the average of two parts, scaled by a third. The parts are how much of the 28 days the history spans, and the window's lead: the median of the hours outside the window minus the median inside, against a 1.5 cent reference. The scale is how reliably the window beat its own day, the share of window time at or below that day's median price. Noise with no daily pattern sits near 50 % there and scores Low whatever its lead looks like; a pattern that holds every day sits near 100 %. High needs a score of 0.75, Medium 0.5. A second window caps the badge at Medium, since a day of history can swap which run is named first.
+
+The weekday is named when the cheapest weekday's lead over the typical weekday is at least 0.5 cent and a permutation test, which shuffles the weekday labels of the days 200 times, finds a lead that large in at most 5 % of shuffles. With four weeks every weekday rests on about four days, so only a clear effect gets through. With *Long-term statistics* on, the weekday test reads twelve weeks; the window, the badge and the facts stay on the last four.
 
 </details>
 
@@ -273,7 +338,7 @@ The same works without YAML: go to **Settings → Devices & services → Helpers
 
 - Stations in Austria only.
 - At most five stations per fuel type, and only stations that report a price.
-- The refuel tip needs at least 7 days of history and gets better up to 28. It works in whole hours and doesn't treat public holidays separately.
+- The refuel tip needs at least 7 days of history and gets better up to 28. It works in whole hours and doesn't treat public holidays separately. With four weeks of history a weekday effect under about 3 cents is usually not detected; twelve weeks of long-term statistics catch smaller ones.
 - Long-term statistics record whatever the entry watches. In dynamic mode that area moves with you, so the series mixes places.
 
 ## Troubleshooting

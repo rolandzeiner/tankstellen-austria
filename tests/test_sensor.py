@@ -39,7 +39,7 @@ async def _setup_entry(hass: HomeAssistant, data: dict | None = None):
 
 
 async def test_sensor_created_per_fuel_type(hass: HomeAssistant) -> None:
-    """One sensor entity is created for each configured fuel type."""
+    """One price sensor is created for each configured fuel type."""
     entry = make_entry(data={CONF_FUEL_TYPES: ["DIE", "SUP"]})
     entry.add_to_hass(hass)
 
@@ -53,7 +53,10 @@ async def test_sensor_created_per_fuel_type(hass: HomeAssistant) -> None:
 
     registry = er.async_get(hass)
     entities = er.async_entries_for_config_entry(registry, entry.entry_id)
-    assert len(entities) == 2
+    price_ids = {f"{entry.entry_id}_DIE", f"{entry.entry_id}_SUP"}
+    assert {e.unique_id for e in entities} >= price_ids
+    # Plus a cheap-window binary sensor and a next-window sensor per fuel type.
+    assert len(entities) == 6
 
 
 # ---------------------------------------------------------------------------
@@ -431,4 +434,8 @@ async def test_unique_id_unchanged_by_statistics_option(hass: HomeAssistant) -> 
     entry = await _setup_entry(hass, data={CONF_LONG_TERM_STATISTICS: True})
     registry = er.async_get(hass)
     entities = er.async_entries_for_config_entry(registry, entry.entry_id)
-    assert [e.unique_id for e in entities] == [f"{entry.entry_id}_DIE"]
+    assert sorted(e.unique_id for e in entities) == [
+        f"{entry.entry_id}_DIE",
+        f"{entry.entry_id}_DIE_cheap_window",
+        f"{entry.entry_id}_DIE_next_cheap_window",
+    ]

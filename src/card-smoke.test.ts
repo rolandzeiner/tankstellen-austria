@@ -27,6 +27,7 @@ import type { LitElement } from "lit";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vite-plus/test";
 
 import type { HomeAssistant, Station, TankstellenAustriaCardConfig } from "./types";
+import { OPTION_DEFAULTS } from "./utils/config";
 
 type Card = LitElement & {
   hass: HomeAssistant;
@@ -154,7 +155,7 @@ describe("tankstellen-austria-card", () => {
       e.setConfig({ type: "x" });
       e.hass = hass();
     });
-    // 173 + 99 + 19 + 2 × 65 = 421 px.
+    // 137 + 80 + 83 (the three fact rows) + 2 × 62 = 424 px.
     expect(el.getCardSize()).toBe(9);
   });
 
@@ -285,7 +286,107 @@ describe("tankstellen-austria-card", () => {
     expect(callWS).toHaveBeenCalledWith(
       expect.objectContaining({ type: "history/history_during_period" }),
     );
-    expect(el.shadowRoot?.querySelector("svg.sparkline path")).not.toBeNull();
+    const chart = el.shadowRoot?.querySelector<LitElement>("tankstellen-austria-sparkline");
+    await chart?.updateComplete;
+    expect(chart?.shadowRoot?.querySelector("svg.sparkline path")).not.toBeNull();
+  });
+
+  it("shows brand initials in the rank tile with stations.brand", async () => {
+    const tiles = async (config: Record<string, unknown>) => {
+      const h = hass();
+      h.states["sensor.tankstellen_diesel"]!.attributes.stations = [
+        { name: "JET TANKSTELLE", price: 1.5, open: true },
+        { name: "Landforst Obdach", price: 1.6, open: true },
+      ];
+      const el = await mount<Card>("tankstellen-austria-card", (e) => {
+        e.setConfig({ type: "x", ...config });
+        e.hass = h;
+      });
+      const found = [...el.shadowRoot!.querySelectorAll<HTMLElement>(".st-tile")];
+      el.remove();
+      return found.map((t) => [
+        t.textContent?.trim(),
+        t.style.getPropertyValue("--tankst-tile-bg"),
+      ]);
+    };
+    expect(await tiles({})).toEqual([
+      ["1", ""],
+      ["2", ""],
+    ]);
+    expect(await tiles({ stations: { brand: true } })).toEqual([
+      ["JET", "#ffb700"],
+      ["LO", ""],
+    ]);
+    // The brand tile doesn't need the rank switched on; with both off
+    // there is no tile.
+    expect(await tiles({ stations: { index: false, brand: true } })).toEqual([
+      ["JET", "#ffb700"],
+      ["LO", ""],
+    ]);
+    expect(await tiles({ stations: { index: false } })).toEqual([]);
+  });
+
+  it("draws round rank tiles with stations.tile_shape: circle", async () => {
+    const circles = async (stations: Record<string, unknown>) => {
+      const el = await mount<Card>("tankstellen-austria-card", (e) => {
+        e.setConfig({ type: "x", stations });
+        e.hass = hass();
+      });
+      const found = [...el.shadowRoot!.querySelectorAll(".st-tile")].map((t) =>
+        t.classList.contains("circle"),
+      );
+      el.remove();
+      return found;
+    };
+    expect((await circles({})).every((c) => !c)).toBe(true);
+    for (const stations of [{ tile_shape: "circle" }, { tile_shape: "circle", brand: true }]) {
+      const found = await circles(stations);
+      expect(found.length).toBeGreaterThan(0);
+      expect(found.every(Boolean)).toBe(true);
+    }
+  });
+
+  it("renders an unset config like one with every default spelled out", async () => {
+    // OPTION_DEFAULTS is what the editor draws on unset toggles; the card's
+    // render code holds its own defaults. A wrong entry in the table would
+    // show the user a toggle in the opposite state of the card.
+    // Only Date is frozen, so both renders share one 7-day window while
+    // setTimeout still runs.
+    vi.useFakeTimers({ toFake: ["Date"], now: new Date("2026-11-01T12:00:00Z") });
+    const now = Date.now() / 1000;
+    const points = Array.from({ length: 24 * 9 }, (_, i) => ({
+      lu: now - (24 * 9 - i) * 3600,
+      s: (1.5 + 0.05 * Math.sin(i / 4)).toFixed(3),
+    }));
+    const callWS = vi.fn(async (msg: { type: string; entity_ids?: string[] }) =>
+      msg.type === "history/history_during_period" ? { [msg.entity_ids?.[0] ?? ""]: points } : {},
+    );
+    const render = async (config: Record<string, unknown>): Promise<string> => {
+      const el = await mount<Card>("tankstellen-austria-card", (e) => {
+        e.setConfig({ type: "x", entities: ["sensor.tankstellen_defaults"], ...config });
+        const h = hass({ callWS } as unknown as Partial<HomeAssistant>);
+        h.states["sensor.tankstellen_defaults"] = {
+          ...h.states["sensor.tankstellen_diesel"]!,
+          entity_id: "sensor.tankstellen_defaults",
+        };
+        e.hass = h;
+      });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await el.updateComplete;
+      // The chart renders in its own shadow root; its gradient id and
+      // Lit's markers differ per mount.
+      const chart = el.shadowRoot!.querySelector<LitElement>("tankstellen-austria-sparkline");
+      await chart?.updateComplete;
+      const html = `${el.shadowRoot!.innerHTML}${chart?.shadowRoot?.innerHTML ?? ""}`
+        .replaceAll(/<!--[^>]*-->/g, "")
+        .replaceAll(/spark-grad-\w+/g, "spark-grad");
+      el.remove();
+      return html;
+    };
+    const bare = await render({});
+    expect(bare).toContain("sparkline");
+    expect(await render(structuredClone(OPTION_DEFAULTS))).toBe(bare);
+    vi.useRealTimers();
   });
 
   it("survives a station payload missing optional fields", async () => {

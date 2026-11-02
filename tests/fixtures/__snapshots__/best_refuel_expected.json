@@ -1,0 +1,207 @@
+{
+  "noon hike at 12:14": {
+    "hasEnoughData": true,
+    "hour": 23,
+    "hour_end": 12,
+    "alt_hour": null,
+    "alt_hour_end": null,
+    "weekday": null,
+    "confidence": {
+      "level": "high",
+      "score": 1,
+      "span_days": 28,
+      "gap_cents": 10,
+      "consistency_pct": 100
+    },
+    "facts": {
+      "daily_range_cents": 10,
+      "noon_days": 28,
+      "noon_rise_days": 28,
+      "noon_rise_cents": 10,
+      "cheaper_than_pct": 45,
+      "dearer_than_pct": 0
+    }
+  },
+  "cheap 11-14": {
+    "hasEnoughData": true,
+    "hour": 11,
+    "hour_end": 14,
+    "alt_hour": null,
+    "alt_hour_end": null,
+    "weekday": null,
+    "confidence": {
+      "level": "high",
+      "score": 1,
+      "span_days": 28,
+      "gap_cents": 10,
+      "consistency_pct": 100
+    },
+    "facts": {
+      "daily_range_cents": 10,
+      "noon_days": 28,
+      "noon_rise_days": 0,
+      "noon_rise_cents": 0,
+      "cheaper_than_pct": 0,
+      "dearer_than_pct": 13
+    }
+  },
+  "two cheap clusters": {
+    "hasEnoughData": true,
+    "hour": 3,
+    "hour_end": 6,
+    "alt_hour": 21,
+    "alt_hour_end": 23,
+    "weekday": null,
+    "confidence": {
+      "level": "medium",
+      "score": 1,
+      "span_days": 28,
+      "gap_cents": 10,
+      "consistency_pct": 100
+    },
+    "facts": {
+      "daily_range_cents": 10,
+      "noon_days": 28,
+      "noon_rise_days": 0,
+      "noon_rise_cents": 0,
+      "cheaper_than_pct": 0,
+      "dearer_than_pct": 21
+    }
+  },
+  "wraps midnight": {
+    "hasEnoughData": true,
+    "hour": 22,
+    "hour_end": 4,
+    "alt_hour": null,
+    "alt_hour_end": null,
+    "weekday": null,
+    "confidence": {
+      "level": "high",
+      "score": 1,
+      "span_days": 28,
+      "gap_cents": 10,
+      "consistency_pct": 100
+    },
+    "facts": {
+      "daily_range_cents": 10,
+      "noon_days": 28,
+      "noon_rise_days": 0,
+      "noon_rise_cents": 0,
+      "cheaper_than_pct": 75,
+      "dearer_than_pct": 0
+    }
+  },
+  "three days only": {
+    "hasEnoughData": false
+  },
+  "one point": null,
+  "flat price": {
+    "hasEnoughData": true,
+    "hour": null,
+    "hour_end": null,
+    "alt_hour": null,
+    "alt_hour_end": null,
+    "weekday": null,
+    "confidence": null,
+    "facts": {
+      "daily_range_cents": 0,
+      "noon_days": 14,
+      "noon_rise_days": 0,
+      "noon_rise_cents": 0,
+      "cheaper_than_pct": 0,
+      "dearer_than_pct": 0
+    }
+  },
+  "noisy, cheap tuesdays": {
+    "hasEnoughData": true,
+    "hour": 21,
+    "hour_end": 7,
+    "alt_hour": null,
+    "alt_hour_end": null,
+    "weekday": 2,
+    "confidence": {
+      "level": "high",
+      "score": 1,
+      "span_days": 28,
+      "gap_cents": 3,
+      "consistency_pct": 98
+    },
+    "facts": {
+      "daily_range_cents": 5.2,
+      "noon_days": 27,
+      "noon_rise_days": 27,
+      "noon_rise_cents": 3.5,
+      "cheaper_than_pct": 95,
+      "dearer_than_pct": 1
+    }
+  },
+  "noisy across autumn DST": {
+    "hasEnoughData": true,
+    "hour": 21,
+    "hour_end": 7,
+    "alt_hour": null,
+    "alt_hour_end": null,
+    "weekday": null,
+    "confidence": {
+      "level": "high",
+      "score": 1,
+      "span_days": 28,
+      "gap_cents": 3.1,
+      "consistency_pct": 97
+    },
+    "facts": {
+      "daily_range_cents": 5.5,
+      "noon_days": 27,
+      "noon_rise_days": 27,
+      "noon_rise_cents": 3.5,
+      "cheaper_than_pct": 83,
+      "dearer_than_pct": 15
+    }
+  },
+  "noisy across spring DST": {
+    "hasEnoughData": true,
+    "hour": 21,
+    "hour_end": 7,
+    "alt_hour": null,
+    "alt_hour_end": null,
+    "weekday": 0,
+    "confidence": {
+      "level": "high",
+      "score": 1,
+      "span_days": 28,
+      "gap_cents": 3,
+      "consistency_pct": 98
+    },
+    "facts": {
+      "daily_range_cents": 5.2,
+      "noon_days": 27,
+      "noon_rise_days": 27,
+      "noon_rise_cents": 3.5,
+      "cheaper_than_pct": 80,
+      "dearer_than_pct": 16
+    }
+  },
+  "noisy, ten days": {
+    "hasEnoughData": true,
+    "hour": 22,
+    "hour_end": 7,
+    "alt_hour": null,
+    "alt_hour_end": null,
+    "weekday": null,
+    "confidence": {
+      "level": "medium",
+      "score": 0.6830297205687831,
+      "span_days": 10,
+      "gap_cents": 3.1,
+      "consistency_pct": 100
+    },
+    "facts": {
+      "daily_range_cents": 5.2,
+      "noon_days": 10,
+      "noon_rise_days": 10,
+      "noon_rise_cents": 3.5,
+      "cheaper_than_pct": 82,
+      "dearer_than_pct": 14
+    }
+  }
+}

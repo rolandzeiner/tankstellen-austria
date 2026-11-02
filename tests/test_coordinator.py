@@ -301,10 +301,11 @@ async def test_coordinator_fetch_sends_canonical_user_agent(
 
     # Canonical format: two space-separated product tokens, each with a slash,
     # plus an RFC-9110 product-comment carrying the repo URL as a contact point.
-    assert USER_AGENT == (
+    expected = (
         f"HomeAssistant/{HA_VERSION} {TS_DOMAIN}/{INTEGRATION_VERSION} "
         f"(+https://github.com/rolandzeiner/tankstellen-austria)"
     )
+    assert expected == USER_AGENT
 
     entry = _make_entry()
     entry.add_to_hass(hass)

@@ -10,18 +10,19 @@ export interface CardSizeFacts {
   dynamic: boolean;
 }
 
-// Heights in px, measured on the rendered card at a full section width
-// (525 px, 2026-11-01). A narrow card wraps station names and runs taller,
-// so these are the low end.
-const BASE = 173; // padding, header, cheapest price and footer
-const TABS = 45;
-const HEADER_PRICE = 68;
-const FOOTER = 41;
-const SPARKLINE = 99;
-const REFUEL_TIP = 19;
-const CARS = 12; // the block's gap, once
-const CAR = 46;
-const STATION = 65;
+// Heights in px at a full section width (525 px, so the wide tier: 20 px
+// padding, 44 px tile), measured 2026-11-02 on the v2 layout rendered with
+// Roboto. A narrow card wraps station names and runs taller, so these are
+// the low end.
+const BASE = 137; // head (tile, name, price) and footer
+const TABS = 49;
+const HEADER_PRICE = 40; // the price line inside the head
+const FOOTER = 34;
+const SPARKLINE = 80; // the full-bleed chart and its margin
+const REFUEL_TIP = 83; // the three fact rows under it
+const CARS = 15; // the block's padding and border, once
+const CAR = 24;
+const STATION = 62;
 
 // The card's natural height in px for this config. getCardSize() divides it
 // by 50: HA turns that into the starting rows when "Fit height to content"

@@ -399,6 +399,48 @@ async def test_reconfigure_updates_entry_data_and_keeps_unique_id(
     await hass.async_block_till_done()
 
 
+async def test_reconfigure_after_options_save_wins(
+    hass: HomeAssistant, mock_fetch
+) -> None:
+    """Options and reconfigure write the same record to different stores.
+
+    Readers merge options over data, so an options save used to outrank
+    every later reconfigure silently. Reconfigure now clears options.
+    """
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    await hass.config_entries.flow.async_configure(result["flow_id"], VALID_USER_INPUT)
+    entry = hass.config_entries.async_entries(DOMAIN)[0]
+
+    settings = {key: value for key, value in VALID_USER_INPUT.items() if key != "name"}
+    options = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await hass.config_entries.options.async_configure(
+        options["flow_id"], {**settings, CONF_SCAN_INTERVAL: 90}
+    )
+    assert result["type"] == FlowResultType.CREATE_ENTRY
+    await hass.async_block_till_done()
+    assert entry.options[CONF_SCAN_INTERVAL] == 90
+
+    flow = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={
+            "source": config_entries.SOURCE_RECONFIGURE,
+            "entry_id": entry.entry_id,
+        },
+    )
+    result = await hass.config_entries.flow.async_configure(
+        flow["flow_id"], {**settings, CONF_SCAN_INTERVAL: 120}
+    )
+    assert result["reason"] == "reconfigure_successful"
+    await hass.async_block_till_done()
+
+    refreshed = hass.config_entries.async_get_entry(entry.entry_id)
+    assert refreshed is not None
+    assert refreshed.options == {}
+    assert {**refreshed.data, **refreshed.options}[CONF_SCAN_INTERVAL] == 120
+
+
 async def test_reconfigure_cannot_connect(hass: HomeAssistant, mock_fetch) -> None:
     """API failure during reconfigure shows cannot_connect and does not mutate the entry."""
     result = await hass.config_entries.flow.async_init(
