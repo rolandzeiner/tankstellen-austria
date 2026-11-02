@@ -56,6 +56,15 @@ const HOUR_MS = 3_600_000;
 const DAY_MS = 86_400_000;
 const HALF_LIFE_MS = 14 * DAY_MS;
 
+// The hour window, the day facts and today's rank read the last four weeks.
+// Older history, when the caller has it (long-term statistics), only feeds
+// the weekday test, where four observations per weekday are too few.
+export const WINDOW_DAYS = 28;
+const WINDOW_MS = WINDOW_DAYS * DAY_MS;
+
+// A price change at noon smaller than this is float noise, not a rise.
+const NOON_RISE_MIN_EUR = 0.001;
+
 // Skip per-week aggregation when fewer than this many ms of observed time
 // fell in the week. The first and last ISO weeks of a 28-day window are
 // usually partial; below ~3 days of chunks the per-week winsorise (p05/p95)
@@ -92,6 +101,20 @@ export interface HourlyEnvelope {
 
 export type Confidence = "high" | "medium" | "low";
 
+// Counted facts about the last four weeks, shown next to the tip. Each is
+// a plain measurement with its sample size, not a model output: how much
+// the price moves over a typical day, on how many days it rose at noon and
+// by how much, and where today's price sits in the four weeks of prices
+// (the share of time that was dearer, and cheaper).
+export interface DayFacts {
+  daily_range_cents: number;
+  noon_days: number;
+  noon_rise_days: number;
+  noon_rise_cents: number;
+  cheaper_than_pct: number;
+  dearer_than_pct: number;
+}
+
 export interface BestRefuelResult {
   hasEnoughData: boolean;
   // Start of the recommended window (0-23). null with enough data but no
@@ -109,6 +132,7 @@ export interface BestRefuelResult {
     gap_cents: number;
     consistency_pct: number;
   } | null;
+  facts?: DayFacts | null;
 }
 
 interface Chunk {
@@ -273,6 +297,57 @@ function consistency(chunks: Chunk[], inside: boolean[]): number | null {
   return total > 0 ? below / total : null;
 }
 
+// Measure the four-week facts; see DayFacts.
+function dayFacts(chunks: Chunk[], current: number): DayFacts {
+  const ranges: number[] = [];
+  let noonDays = 0;
+  let riseDays = 0;
+  let riseSum = 0;
+  for (const dayChunks of groupBy(chunks, (c) => c.dayKey).values()) {
+    let observed = 0;
+    for (const c of dayChunks) observed += c.durationMs;
+    if (observed < MIN_DAY_MS) continue;
+    let lo = Infinity;
+    let hi = -Infinity;
+    for (const c of dayChunks) {
+      lo = Math.min(lo, c.price);
+      hi = Math.max(hi, c.price);
+    }
+    ranges.push(hi - lo);
+    // The price in force just before 12:00 against the one at 13:00, when
+    // a legal noon rise has landed whatever its minute.
+    let before: Chunk | undefined;
+    let after: Chunk | undefined;
+    for (const c of dayChunks) {
+      if (c.hour === 11 && (!before || c.t > before.t)) before = c;
+      if (c.hour === 13 && (!after || c.t < after.t)) after = c;
+    }
+    if (!before || !after) continue;
+    noonDays++;
+    const diff = after.price - before.price;
+    if (diff > NOON_RISE_MIN_EUR) {
+      riseDays++;
+      riseSum += diff;
+    }
+  }
+  let dearerMs = 0;
+  let cheaperMs = 0;
+  let totalMs = 0;
+  for (const c of chunks) {
+    totalMs += c.durationMs;
+    if (c.price > current) dearerMs += c.durationMs;
+    else if (c.price < current) cheaperMs += c.durationMs;
+  }
+  return {
+    daily_range_cents: ranges.length ? Math.round(lowerMedian(ranges) * 1000) / 10 : 0,
+    noon_days: noonDays,
+    noon_rise_days: riseDays,
+    noon_rise_cents: riseDays ? Math.round((riseSum / riseDays) * 1000) / 10 : 0,
+    cheaper_than_pct: totalMs ? Math.round((dearerMs / totalMs) * 100) : 0,
+    dearer_than_pct: totalMs ? Math.round((cheaperMs / totalMs) * 100) : 0,
+  };
+}
+
 // mulberry32: a small PRNG the Python port reproduces bit for bit, so both
 // sides shuffle the same way and the parity fixture holds.
 function mulberry32(seed: number): () => number {
@@ -433,11 +508,14 @@ export function analyzeBestRefuel(
   if (!data || data.length < 2) return null;
 
   const now = Date.now();
-  const span = now - data[0]!.time;
+  // Points older than WINDOW_DAYS only strengthen the weekday test.
+  const span = Math.min(now - data[0]!.time, WINDOW_MS);
   if (span < 7 * DAY_MS) return { hasEnoughData: false };
 
   const chunks = walkChunks(data, now, zonedClock(timeZone));
-  if (chunks.length === 0) return { hasEnoughData: false };
+  const recent = chunks.filter((c) => c.t >= now - WINDOW_MS);
+  if (recent.length === 0) return { hasEnoughData: false };
+  const facts = dayFacts(recent, data[data.length - 1]!.value);
 
   // Per-week duration-weighted winsorise (p05/p95) → normalise as
   // (clipped_price − week_mean) → bucket entry weighted by
@@ -457,7 +535,7 @@ export function analyzeBestRefuel(
       const recency = Math.pow(0.5, (now - c.t) / HALF_LIFE_MS);
       const value = clipped - weekMean;
       const weight = c.durationMs * recency;
-      hourBuckets[c.hour]!.push({ value, weight });
+      if (c.t >= now - WINDOW_MS) hourBuckets[c.hour]!.push({ value, weight });
       weekdayEntries.push({ value, weight, weekday: c.weekday, dayKey: c.dayKey });
     }
   }
@@ -475,6 +553,7 @@ export function analyzeBestRefuel(
       alt_hour_end: null,
       weekday: null,
       confidence: null,
+      facts,
     };
   }
   const inside = insideWindow(window.start, window.end);
@@ -489,7 +568,7 @@ export function analyzeBestRefuel(
   const spanScore = Math.min(1, spanDays / 28);
   const gap = windowGapCents(hourPick.medians, inside) || 0;
   const gapScore = clamp(gap / GAP_REF_CENTS, 0, 1);
-  const cons = consistency(chunks, covered);
+  const cons = consistency(recent, covered);
   const consistencyScore =
     cons === null
       ? 0
@@ -515,6 +594,7 @@ export function analyzeBestRefuel(
       gap_cents: Math.round(gap * 10) / 10,
       consistency_pct: Math.round((cons || 0) * 100),
     },
+    facts,
   };
 }
 
@@ -531,7 +611,9 @@ export function buildHourlyEnvelope(
   const now = Date.now();
   if (now - allData[0]!.time < 7 * DAY_MS) return null;
 
-  const chunks = walkChunks(allData, now, zonedClock(timeZone));
+  const chunks = walkChunks(allData, now, zonedClock(timeZone)).filter(
+    (c) => c.t >= now - WINDOW_MS,
+  );
   if (chunks.length === 0) return null;
 
   const byHour: WeightedEntry[][] = Array.from({ length: 24 }, () => []);

@@ -229,6 +229,36 @@ describe("analyzeBestRefuel — confidence", () => {
   });
 });
 
+describe("analyzeBestRefuel — day facts", () => {
+  it("counts the noon rise and ranks today's price", () => {
+    const now = deterministicNow();
+    const result = analyzeBestRefuel(buildHistory(28, now, noonHikePattern(0)));
+    expect(result?.facts).toEqual({
+      daily_range_cents: 10,
+      noon_days: 28,
+      noon_rise_days: 28,
+      noon_rise_cents: 10,
+      // The current price is the cheap one; the dear price held 11 of 24 hours.
+      cheaper_than_pct: 46,
+      dearer_than_pct: 0,
+    });
+  });
+
+  it("reports a flat series as a zero range with no noon rise", () => {
+    const now = deterministicNow();
+    const result = analyzeBestRefuel(buildHistory(28, now, () => [{ offsetMs: 0, price: CHEAP }]));
+    expect(result?.hour).toBeNull();
+    expect(result?.facts).toEqual({
+      daily_range_cents: 0,
+      noon_days: 28,
+      noon_rise_days: 0,
+      noon_rise_cents: 0,
+      cheaper_than_pct: 0,
+      dearer_than_pct: 0,
+    });
+  });
+});
+
 describe("analyzeBestRefuel — weekday", () => {
   // Real days never tie exactly, so every day gets its own level within
   // ±0.5 ct. Without it the weighted medians tie on the bit and the test
@@ -247,6 +277,23 @@ describe("analyzeBestRefuel — weekday", () => {
   it("names a weekday whose lead survives the permutation test", () => {
     const now = deterministicNow();
     const result = analyzeBestRefuel(buildHistory(28, now, withTuesdays(0.05)));
+    expect(result?.weekday).toBe(2);
+  });
+
+  it("uses history older than four weeks for the weekday only", () => {
+    const now = deterministicNow();
+    const rnd = lcg(5);
+    const result = analyzeBestRefuel(
+      buildHistory(84, now, (dayStart) => {
+        const off = (new Date(dayStart).getDay() === 2 ? 0.02 : 0) - (rnd() - 0.5) * 0.01;
+        return [
+          { offsetMs: 0, price: CHEAP - off },
+          { offsetMs: 12 * HOUR_MS, price: EXPENSIVE - off },
+        ];
+      }),
+    );
+    expect(result?.confidence?.span_days).toBe(28);
+    expect(result?.facts?.noon_days).toBe(28);
     expect(result?.weekday).toBe(2);
   });
 

@@ -43,7 +43,16 @@ class CheapWindowSensor(BestRefuelEntity, BinarySensorEntity):
 
     # These move with every re-analysis and say nothing worth a history row.
     _unrecorded_attributes = frozenset(
-        {"confidence_score", "span_days", "gap_cents", "consistency_pct"}
+        {
+            "confidence_score",
+            "span_days",
+            "gap_cents",
+            "consistency_pct",
+            "daily_range_cents",
+            "noon_days",
+            "noon_rise_days",
+            "noon_rise_cents",
+        }
     )
 
     @property
@@ -65,9 +74,15 @@ class CheapWindowSensor(BestRefuelEntity, BinarySensorEntity):
 
     @property
     def extra_state_attributes(self) -> dict[str, Any] | None:
-        """The windows, the cheapest weekday when it is significant, and the confidence."""
-        result = self.result
-        if result is None or result.confidence is None:
+        """The windows, the weekday, the confidence and the four-week facts.
+
+        The facts are there with enough history even when no hour of the
+        day is cheaper: the state is unknown then, but how much the price
+        moves and how often it rises at noon still tell an automation
+        something.
+        """
+        result = (self.coordinator.data or {}).get(self._fuel_type)
+        if result is None or not result.has_enough_data or result.facts is None:
             return None
         conf = result.confidence
         return {
@@ -78,9 +93,13 @@ class CheapWindowSensor(BestRefuelEntity, BinarySensorEntity):
             "weekday": None
             if result.weekday is None
             else WEEKDAY_NAMES[result.weekday],
-            "confidence": conf.level,
-            "confidence_score": round(conf.score, 2),
-            "span_days": conf.span_days,
-            "gap_cents": conf.gap_cents,
-            "consistency_pct": conf.consistency_pct,
+            "confidence": None if conf is None else conf.level,
+            "confidence_score": None if conf is None else round(conf.score, 2),
+            "span_days": None if conf is None else conf.span_days,
+            "gap_cents": None if conf is None else conf.gap_cents,
+            "consistency_pct": None if conf is None else conf.consistency_pct,
+            "daily_range_cents": result.facts.daily_range_cents,
+            "noon_days": result.facts.noon_days,
+            "noon_rise_days": result.facts.noon_rise_days,
+            "noon_rise_cents": result.facts.noon_rise_cents,
         }

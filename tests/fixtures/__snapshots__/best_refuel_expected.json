@@ -12,6 +12,14 @@
       "span_days": 28,
       "gap_cents": 10,
       "consistency_pct": 100
+    },
+    "facts": {
+      "daily_range_cents": 10,
+      "noon_days": 28,
+      "noon_rise_days": 28,
+      "noon_rise_cents": 10,
+      "cheaper_than_pct": 45,
+      "dearer_than_pct": 0
     }
   },
   "cheap 11-14": {
@@ -27,6 +35,14 @@
       "span_days": 28,
       "gap_cents": 10,
       "consistency_pct": 100
+    },
+    "facts": {
+      "daily_range_cents": 10,
+      "noon_days": 28,
+      "noon_rise_days": 0,
+      "noon_rise_cents": 0,
+      "cheaper_than_pct": 0,
+      "dearer_than_pct": 13
     }
   },
   "two cheap clusters": {
@@ -42,6 +58,14 @@
       "span_days": 28,
       "gap_cents": 10,
       "consistency_pct": 100
+    },
+    "facts": {
+      "daily_range_cents": 10,
+      "noon_days": 28,
+      "noon_rise_days": 0,
+      "noon_rise_cents": 0,
+      "cheaper_than_pct": 0,
+      "dearer_than_pct": 21
     }
   },
   "wraps midnight": {
@@ -57,6 +81,14 @@
       "span_days": 28,
       "gap_cents": 10,
       "consistency_pct": 100
+    },
+    "facts": {
+      "daily_range_cents": 10,
+      "noon_days": 28,
+      "noon_rise_days": 0,
+      "noon_rise_cents": 0,
+      "cheaper_than_pct": 75,
+      "dearer_than_pct": 0
     }
   },
   "three days only": {
@@ -70,7 +102,15 @@
     "alt_hour": null,
     "alt_hour_end": null,
     "weekday": null,
-    "confidence": null
+    "confidence": null,
+    "facts": {
+      "daily_range_cents": 0,
+      "noon_days": 14,
+      "noon_rise_days": 0,
+      "noon_rise_cents": 0,
+      "cheaper_than_pct": 0,
+      "dearer_than_pct": 0
+    }
   },
   "noisy, cheap tuesdays": {
     "hasEnoughData": true,
@@ -82,9 +122,17 @@
     "confidence": {
       "level": "high",
       "score": 1,
-      "span_days": 36,
+      "span_days": 28,
       "gap_cents": 3,
       "consistency_pct": 98
+    },
+    "facts": {
+      "daily_range_cents": 5.2,
+      "noon_days": 27,
+      "noon_rise_days": 27,
+      "noon_rise_cents": 3.5,
+      "cheaper_than_pct": 95,
+      "dearer_than_pct": 1
     }
   },
   "noisy across autumn DST": {
@@ -98,8 +146,16 @@
       "level": "high",
       "score": 1,
       "span_days": 28,
-      "gap_cents": 3,
+      "gap_cents": 3.1,
       "consistency_pct": 97
+    },
+    "facts": {
+      "daily_range_cents": 5.5,
+      "noon_days": 27,
+      "noon_rise_days": 27,
+      "noon_rise_cents": 3.5,
+      "cheaper_than_pct": 83,
+      "dearer_than_pct": 15
     }
   },
   "noisy across spring DST": {
@@ -112,9 +168,17 @@
     "confidence": {
       "level": "high",
       "score": 1,
-      "span_days": 31,
+      "span_days": 28,
       "gap_cents": 3,
       "consistency_pct": 98
+    },
+    "facts": {
+      "daily_range_cents": 5.2,
+      "noon_days": 27,
+      "noon_rise_days": 27,
+      "noon_rise_cents": 3.5,
+      "cheaper_than_pct": 80,
+      "dearer_than_pct": 16
     }
   },
   "noisy, ten days": {
@@ -130,6 +194,14 @@
       "span_days": 10,
       "gap_cents": 3.1,
       "consistency_pct": 100
+    },
+    "facts": {
+      "daily_range_cents": 5.2,
+      "noon_days": 10,
+      "noon_rise_days": 10,
+      "noon_rise_cents": 3.5,
+      "cheaper_than_pct": 82,
+      "dearer_than_pct": 14
     }
   }
 }

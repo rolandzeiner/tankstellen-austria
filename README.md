@@ -125,7 +125,7 @@ Two more entities per fuel type carry the card's refuel tip, so an automation ca
 | `binary_sensor.<entry name>_<fuel type>_cheap_window` | `on` during the cheapest hours of the day |
 | `sensor.<entry name>_<fuel type>_next_cheap_window` | When the window opens next (timestamp) |
 
-Both are `unknown` until there are 7 days of history, and also when no time of day is cheaper than the rest, as with CNG prices that never move. They are `unavailable` when the recorder isn't running. Neither exists in dynamic mode, where the card hides its tip too. The binary sensor's attributes:
+Both are `unknown` until there are 7 days of history, and also when no time of day is cheaper than the rest, as with CNG prices that never move; the binary sensor's fact attributes stay filled then. They are `unavailable` when the recorder isn't running. Neither exists in dynamic mode, where the card hides its tip too. The binary sensor's attributes:
 
 | Attribute | Description |
 |---|---|
@@ -134,10 +134,14 @@ Both are `unknown` until there are 7 days of history, and also when no time of d
 | `weekday` | The cheapest weekday (`monday` … `sunday`) when its lead is statistically significant, otherwise `null` |
 | `confidence` | `high`, `medium` or `low`, as on the card's badge |
 | `confidence_score`, `span_days`, `gap_cents`, `consistency_pct` | What the confidence is made of (see *How the window is computed*). Not stored in the recorder history. |
+| `daily_range_cents` | How much the price moves over a typical day: the median of the daily high minus low over four weeks |
+| `noon_days`, `noon_rise_days`, `noon_rise_cents` | On how many observed days the price rose at noon, and by how much on average. Not stored in the recorder history. |
+
+The facts are there with 7 days of history even when there is no window and the state is `unknown`.
 
 ### Long-term statistics
 
-Off by default. Without it, the sensors keep only state history, which the recorder purges after `purge_keep_days` (10 by default). With it on, Home Assistant also records hourly minimum, maximum and average prices, and those survive the purge. The refuel tip on the card and the *Cheap window* entities use those hourly averages for the days the recorder has purged, so they see four weeks without a longer `purge_keep_days`.
+Off by default. Without it, the sensors keep only state history, which the recorder purges after `purge_keep_days` (10 by default). With it on, Home Assistant also records hourly minimum, maximum and average prices, and those survive the purge. The refuel tip on the card and the *Cheap window* entities use those hourly averages for the days the recorder has purged, so they see four weeks without a longer `purge_keep_days`, and the weekday test reads twelve.
 
 Home Assistant pairs the `monetary` device class only with `state_class: total`, which makes no sense for a unit price. With statistics on, the sensors therefore drop `device_class: monetary` and use `state_class: measurement`. Entity IDs, unique IDs, attributes and the card stay the same.
 
@@ -228,7 +232,9 @@ Older cards keep working: the card reads the flat options of v1 (`max_stations`,
 
 ### Best refuel time
 
-The card, and the integration for the *Cheap window* entities, read up to four weeks of the sensor's history (again every 30 minutes) and look for the run of hours that is cheapest compared with the rest of each week. The window is as long as the data says: one hour when one hour stands out, most of the day when prices only jump at noon. When a price never moves, the card says so instead of naming a window. It is drawn as a green band on the chart, a second band and "also …" appear when another time of day is about as cheap, a cheapest weekday is added only when it passes a significance test, and a High, Medium or Low confidence badge explains itself on hover.
+The card, and the integration for the *Cheap window* entities, read up to four weeks of the sensor's history (again every 30 minutes) and look for the run of hours that is cheapest compared with the rest of each week. The window is as long as the data says: one hour when one hour stands out, most of the day when prices only jump at noon. When a price never moves, the card says so with the number that shows it, instead of naming a window. The window is drawn as a green band on the chart, a second band and "also …" appear when another time of day is about as cheap, a cheapest weekday is added only when it passes a significance test, and a High, Medium or Low confidence badge explains itself on hover.
+
+Under the tip stand two counted facts, whatever the confidence: on how many of the observed days the price rose at noon and by how much on average ("Fill up before 12:00" when it was half of them or more), and whether today's price is lower or higher than most of the last four weeks. Both describe the history and forecast nothing.
 
 Home Assistant keeps 10 days of history by default, which caps the confidence at Medium. Keep more, or turn on *Long-term statistics* (the hourly averages fill the purged days):
 
@@ -254,7 +260,7 @@ Austrian law lets stations raise prices once a day at 12:00 and lower them at an
 
 Confidence is the average of two parts, scaled by a third. The parts are how much of the 28 days the history spans, and the window's lead: the median of the hours outside the window minus the median inside, against a 1.5 cent reference. The scale is how reliably the window beat its own day, the share of window time at or below that day's median price. Noise with no daily pattern sits near 50 % there and scores Low whatever its lead looks like; a pattern that holds every day sits near 100 %. High needs a score of 0.75, Medium 0.5. A second window caps the badge at Medium, since a day of history can swap which run is named first.
 
-The weekday is named when the cheapest weekday's lead over the typical weekday is at least 0.5 cent and a permutation test, which shuffles the weekday labels of the days 200 times, finds a lead that large in at most 5 % of shuffles. With four weeks every weekday rests on about four days, so only a clear effect gets through.
+The weekday is named when the cheapest weekday's lead over the typical weekday is at least 0.5 cent and a permutation test, which shuffles the weekday labels of the days 200 times, finds a lead that large in at most 5 % of shuffles. With four weeks every weekday rests on about four days, so only a clear effect gets through. With *Long-term statistics* on, the weekday test reads twelve weeks; the window, the badge and the facts stay on the last four.
 
 </details>
 
@@ -332,7 +338,7 @@ The same works without YAML: go to **Settings → Devices & services → Helpers
 
 - Stations in Austria only.
 - At most five stations per fuel type, and only stations that report a price.
-- The refuel tip needs at least 7 days of history and gets better up to 28. It works in whole hours and doesn't treat public holidays separately. With four weeks of history a weekday effect under about 3 cents is usually not detected.
+- The refuel tip needs at least 7 days of history and gets better up to 28. It works in whole hours and doesn't treat public holidays separately. With four weeks of history a weekday effect under about 3 cents is usually not detected; twelve weeks of long-term statistics catch smaller ones.
 - Long-term statistics record whatever the entry watches. In dynamic mode that area moves with you, so the series mixes places.
 
 ## Troubleshooting

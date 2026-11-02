@@ -7,7 +7,7 @@ const ONE: CardSizeFacts = { entityCount: 1, stationCount: 5, carCount: 0, dynam
 // Expected values are the rendered heights measured at 525 px wide.
 describe("estimateCardHeight", () => {
   it("counts header, sparkline, refuel tip, five stations and footer by default", () => {
-    expect(estimateCardHeight({}, ONE)).toBe(616);
+    expect(estimateCardHeight({}, ONE)).toBe(650);
   });
 
   it("drops the sparkline when history is off or the entry is dynamic", () => {

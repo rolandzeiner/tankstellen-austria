@@ -33,6 +33,15 @@ HOUR_MS = 3_600_000
 DAY_MS = 86_400_000
 HALF_LIFE_MS = 14 * DAY_MS
 
+# The hour window, the day facts and today's rank read the last four weeks.
+# Older history, when the caller has it (long-term statistics), only feeds
+# the weekday test, where four observations per weekday are too few.
+WINDOW_DAYS = 28
+WINDOW_MS = WINDOW_DAYS * DAY_MS
+
+# A price change at noon smaller than this is float noise, not a rise.
+NOON_RISE_MIN_EUR = 0.001
+
 # Weeks with less observed time are skipped: their p05/p95 and mean are too
 # unstable and would contaminate every bucket entry derived from them.
 MIN_WEEK_MS = 3 * DAY_MS
@@ -86,6 +95,24 @@ class Confidence:
 
 
 @dataclass(frozen=True, slots=True)
+class DayFacts:
+    """Counted facts about the last four weeks, shown next to the tip.
+
+    Each is a plain measurement with its sample size, not a model output:
+    how much the price moves over a typical day, on how many days it rose
+    at noon and by how much, and where today's price sits in the four
+    weeks of prices (the share of time that was dearer, and cheaper).
+    """
+
+    daily_range_cents: float
+    noon_days: int
+    noon_rise_days: int
+    noon_rise_cents: float
+    cheaper_than_pct: int
+    dearer_than_pct: int
+
+
+@dataclass(frozen=True, slots=True)
 class BestRefuelResult:
     """The recommended window.
 
@@ -102,6 +129,7 @@ class BestRefuelResult:
     alt_hour_end: int | None = None
     weekday: int | None = None
     confidence: Confidence | None = None
+    facts: DayFacts | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -294,6 +322,56 @@ def _consistency(chunks: list[_Chunk], inside: list[bool]) -> float | None:
     return below / total if total > 0 else None
 
 
+def _day_facts(chunks: list[_Chunk], current: float) -> DayFacts:
+    """Measure the four-week facts; see DayFacts."""
+    days: dict[int, list[_Chunk]] = {}
+    for c in chunks:
+        days.setdefault(c.day_key, []).append(c)
+    ranges: list[float] = []
+    noon_days = 0
+    rise_days = 0
+    rise_sum = 0.0
+    for day_chunks in days.values():
+        observed = 0.0
+        for c in day_chunks:
+            observed += c.duration_ms
+        if observed < MIN_DAY_MS:
+            continue
+        ranges.append(
+            max(c.price for c in day_chunks) - min(c.price for c in day_chunks)
+        )
+        # The price in force just before 12:00 against the one at 13:00,
+        # when a legal noon rise has landed whatever its minute.
+        before = [c for c in day_chunks if c.hour == 11]
+        after = [c for c in day_chunks if c.hour == 13]
+        if not before or not after:
+            continue
+        noon_days += 1
+        diff = (
+            min(after, key=lambda c: c.t).price - max(before, key=lambda c: c.t).price
+        )
+        if diff > NOON_RISE_MIN_EUR:
+            rise_days += 1
+            rise_sum += diff
+    dearer_ms = 0.0
+    cheaper_ms = 0.0
+    total_ms = 0.0
+    for c in chunks:
+        total_ms += c.duration_ms
+        if c.price > current:
+            dearer_ms += c.duration_ms
+        elif c.price < current:
+            cheaper_ms += c.duration_ms
+    return DayFacts(
+        daily_range_cents=_js_round(_lower_median(ranges) * 1000) / 10 if ranges else 0,
+        noon_days=noon_days,
+        noon_rise_days=rise_days,
+        noon_rise_cents=_js_round(rise_sum / rise_days * 1000) / 10 if rise_days else 0,
+        cheaper_than_pct=_js_round(dearer_ms / total_ms * 100) if total_ms else 0,
+        dearer_than_pct=_js_round(cheaper_ms / total_ms * 100) if total_ms else 0,
+    )
+
+
 def _mulberry32(seed: int) -> Callable[[], float]:
     """The card's PRNG, bit for bit, so both sides shuffle the same way."""
     a = seed & 0xFFFFFFFF
@@ -406,18 +484,21 @@ def analyze_best_refuel(
     """Recommend the cheapest hour window from (epoch ms, price) points.
 
     Points must be sorted by time. Returns None for fewer than two points
-    and `has_enough_data=False` for under a week of history.
+    and `has_enough_data=False` for under a week of history. Points older
+    than WINDOW_DAYS only strengthen the weekday test.
     """
     if len(points) < 2:
         return None
 
-    span = now - points[0][0]
+    span = min(now - points[0][0], WINDOW_MS)
     if span < 7 * DAY_MS:
         return BestRefuelResult(has_enough_data=False)
 
     chunks = _walk_chunks(points, now, tz)
-    if not chunks:
+    recent = [c for c in chunks if c.t >= now - WINDOW_MS]
+    if not recent:
         return BestRefuelResult(has_enough_data=False)
+    facts = _day_facts(recent, points[-1][1])
 
     hour_buckets: list[list[tuple[float, float]]] = [[] for _ in range(24)]
     weekday_entries: list[tuple[float, float, int, int]] = []
@@ -431,7 +512,8 @@ def analyze_best_refuel(
             recency = math.pow(0.5, (now - c.t) / HALF_LIFE_MS)
             value = _clamp(c.price, p05, p95) - week_mean
             weight = c.duration_ms * recency
-            hour_buckets[c.hour].append((value, weight))
+            if c.t >= now - WINDOW_MS:
+                hour_buckets[c.hour].append((value, weight))
             weekday_entries.append((value, weight, c.weekday, c.day_key))
 
     hour_pick = _pick_best(hour_buckets)
@@ -442,7 +524,7 @@ def analyze_best_refuel(
         hour_pick.medians, hour_pick.best_idx, hour_pick.min_val
     )
     if window is None:
-        return BestRefuelResult(has_enough_data=True)
+        return BestRefuelResult(has_enough_data=True, facts=facts)
     start, end = window
     inside = _inside(start, end)
     alt = _alt_window(hour_pick.medians, inside, hour_pick.min_val)
@@ -458,7 +540,7 @@ def analyze_best_refuel(
     span_score = min(1, span_days / 28)
     gap = _window_gap_cents(hour_pick.medians, inside) or 0
     gap_score = _clamp(gap / GAP_REF_CENTS, 0, 1)
-    consistency = _consistency(chunks, covered)
+    consistency = _consistency(recent, covered)
     consistency_score = (
         0
         if consistency is None
@@ -492,6 +574,7 @@ def analyze_best_refuel(
             gap_cents=_js_round(gap * 10) / 10,
             consistency_pct=_js_round((consistency or 0) * 100),
         ),
+        facts=facts,
     )
 
 

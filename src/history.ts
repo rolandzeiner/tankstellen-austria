@@ -24,8 +24,14 @@ interface RawStatisticsRow {
 }
 
 export interface HistoryFetchOptions {
-  days?: number; // default: 28 (4 weeks)
+  // Default: 28 days, or 84 when the sensor records long-term statistics
+  // (their hourly means outlive the recorder's purge). The analysis reads
+  // the last 28 for the window and all of it for the weekday test.
+  days?: number;
 }
+
+export const HISTORY_DAYS = 28;
+export const STATISTICS_DAYS = 84;
 
 // In-memory cache shared across all card instances on the page. Keyed by
 // entity_id — refresh interval is 30 min so a second card for the same
@@ -94,13 +100,12 @@ export async function fetchHistory(
   const existing = inflight.get(entityId);
   if (existing) return existing;
 
-  const days = options.days ?? 28;
-  const now = new Date();
-  const startTime = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
-
   // A sensor with long-term statistics on is a `measurement`; its hourly
   // means outlive the recorder's purge (10 days by default).
   const withStatistics = hass.states?.[entityId]?.attributes?.state_class === "measurement";
+  const days = options.days ?? (withStatistics ? STATISTICS_DAYS : HISTORY_DAYS);
+  const now = new Date();
+  const startTime = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
 
   const promise = (async (): Promise<HistoryPoint[]> => {
     try {

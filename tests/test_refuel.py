@@ -123,6 +123,9 @@ async def test_on_inside_the_window_off_outside(
     assert state.attributes["confidence"] == "high"
     assert state.attributes["consistency_pct"] == 100
     assert state.attributes["gap_cents"] == 10
+    assert state.attributes["daily_range_cents"] == 10
+    assert state.attributes["noon_days"] == 28
+    assert state.attributes["noon_rise_days"] == 0
     nxt = hass.states.get(NEXT)
     assert nxt is not None
     assert dt_util.parse_datetime(nxt.state) == datetime(
@@ -174,7 +177,12 @@ async def test_unknown_when_no_hour_is_cheaper(
     flat = [(p[0], CHEAP) for p in _cheap_nights(now)]
     history.return_value = flat
     await _setup(hass)
-    assert hass.states.get(BINARY).state == "unknown"
+    state = hass.states.get(BINARY)
+    assert state.state == "unknown"
+    assert state.attributes["start_hour"] is None
+    assert state.attributes["confidence"] is None
+    assert state.attributes["daily_range_cents"] == 0
+    assert state.attributes["noon_days"] == 28
     assert hass.states.get(NEXT).state == "unknown"
 
 
@@ -267,6 +275,9 @@ async def test_statistics_fill_a_purged_history(
 
     history.statistics.assert_called_once()
     assert hass.states.get(BINARY).attributes["span_days"] == 28
+    # With statistics the read goes back twelve weeks, for the weekday test.
+    start, end = history.call_args_list[-1].args[2:]
+    assert end - start == timedelta(days=refuel.STATISTICS_DAYS)
 
 
 async def test_no_statistics_read_without_the_option(

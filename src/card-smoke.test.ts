@@ -155,8 +155,8 @@ describe("tankstellen-austria-card", () => {
       e.setConfig({ type: "x" });
       e.hass = hass();
     });
-    // 173 + 99 + 19 + 2 × 65 = 421 px.
-    expect(el.getCardSize()).toBe(9);
+    // 173 + 99 + 53 (tip and its two fact lines) + 2 × 65 = 455 px.
+    expect(el.getCardSize()).toBe(10);
   });
 
   it("reflects the layout HA sets, so the grid-cell rules can match", () => {

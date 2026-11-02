@@ -18,7 +18,8 @@ const TABS = 45;
 const HEADER_PRICE = 68;
 const FOOTER = 41;
 const SPARKLINE = 99;
-const REFUEL_TIP = 19;
+// The tip row plus the two fact lines under it.
+const REFUEL_TIP = 19 + 2 * 17;
 const CARS = 12; // the block's gap, once
 const CAR = 46;
 const STATION = 65;

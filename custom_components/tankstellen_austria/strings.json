@@ -119,6 +119,18 @@
           },
           "gap_cents": {
             "name": "Lead over the rest of the day (cents/l)"
+          },
+          "daily_range_cents": {
+            "name": "Typical daily range (cents/l)"
+          },
+          "noon_days": {
+            "name": "Days with noon observed"
+          },
+          "noon_rise_days": {
+            "name": "Days with a noon rise"
+          },
+          "noon_rise_cents": {
+            "name": "Average noon rise (cents/l)"
           }
         }
       }

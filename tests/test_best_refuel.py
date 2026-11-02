@@ -68,6 +68,14 @@ def test_matches_the_card(name: str) -> None:
         expected["alt_hour_end"],
         expected["weekday"],
     )
+    facts = expected["facts"]
+    assert result.facts is not None
+    assert result.facts.daily_range_cents == pytest.approx(facts["daily_range_cents"])
+    assert result.facts.noon_days == facts["noon_days"]
+    assert result.facts.noon_rise_days == facts["noon_rise_days"]
+    assert result.facts.noon_rise_cents == pytest.approx(facts["noon_rise_cents"])
+    assert result.facts.cheaper_than_pct == facts["cheaper_than_pct"]
+    assert result.facts.dearer_than_pct == facts["dearer_than_pct"]
     conf = expected["confidence"]
     if conf is None:
         assert result.confidence is None
@@ -200,10 +208,54 @@ def _days(
     return points
 
 
-def test_flat_history_has_no_window() -> None:
+def test_flat_history_has_no_window_but_facts() -> None:
     now = datetime(2026, 6, 1, tzinfo=TZ).timestamp() * 1000
     result = analyze_best_refuel(_days(now, 28, [(0, 1.5), (12, 1.5)]), now, TZ)
-    assert result == best_refuel.BestRefuelResult(has_enough_data=True)
+    assert result is not None
+    assert (result.hour, result.confidence) == (None, None)
+    assert result.facts == best_refuel.DayFacts(
+        daily_range_cents=0,
+        noon_days=28,
+        noon_rise_days=0,
+        noon_rise_cents=0,
+        cheaper_than_pct=0,
+        dearer_than_pct=0,
+    )
+
+
+def test_day_facts_count_the_noon_rise() -> None:
+    """Cheap until 12:00, 10 ct dearer until 23:00: a rise on every day."""
+    now = datetime(2026, 6, 1, tzinfo=TZ).timestamp() * 1000
+    result = analyze_best_refuel(
+        _days(now, 28, [(0, 1.5), (12, 1.6), (23, 1.5)]), now, TZ
+    )
+    assert result is not None and result.facts is not None
+    assert result.facts.daily_range_cents == pytest.approx(10)
+    assert (result.facts.noon_days, result.facts.noon_rise_days) == (28, 28)
+    assert result.facts.noon_rise_cents == pytest.approx(10)
+    # The current price is the cheap one; the dear price held 11 of 24 hours.
+    assert result.facts.cheaper_than_pct == 46
+    assert result.facts.dearer_than_pct == 0
+
+
+def test_older_history_feeds_only_the_weekday_test() -> None:
+    """Twelve weeks: the window still spans 28 days, the weekday has 12 samples."""
+    import random
+
+    rnd = random.Random(4)
+    now = datetime(2026, 6, 1, tzinfo=TZ).timestamp() * 1000
+    first = datetime(2026, 6, 1, tzinfo=TZ) - timedelta(days=84)
+    points = []
+    for d in range(84):
+        day = first + timedelta(days=d)
+        level = (rnd.random() - 0.5) * 0.01 - (0.02 if day.weekday() == 1 else 0)
+        points.append((day.timestamp() * 1000, 1.5 + level))
+        points.append(((day + timedelta(hours=12)).timestamp() * 1000, 1.6 + level))
+    result = analyze_best_refuel(points, now, TZ)
+    assert result is not None and result.confidence is not None
+    assert result.confidence.span_days == 28
+    assert result.weekday == 2
+    assert result.facts is not None and result.facts.noon_days == 28
 
 
 def test_two_tied_clusters_cap_the_level_at_medium() -> None:

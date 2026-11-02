@@ -73,6 +73,20 @@ describe("fetchHistory", () => {
     expect(points.map((p) => p.value)).toEqual([1.6, 1.59, 1.539]);
   });
 
+  it("reads twelve weeks with statistics and four weeks without", async () => {
+    const days = (msg: unknown): number => {
+      const m = msg as { start_time: string; end_time: string };
+      return (new Date(m.end_time).getTime() - new Date(m.start_time).getTime()) / (24 * HOUR);
+    };
+    const twelve = hass("sensor.twelve_weeks", "measurement", () => ({}));
+    await fetchHistory(twelve.h, "sensor.twelve_weeks");
+    expect(days(twelve.callWS.mock.calls[0]?.[0])).toBeCloseTo(84, 5);
+    expect(days(twelve.callWS.mock.calls[1]?.[0])).toBeCloseTo(84, 5);
+    const four = hass("sensor.four_weeks", undefined, () => ({}));
+    await fetchHistory(four.h, "sensor.four_weeks");
+    expect(days(four.callWS.mock.calls[0]?.[0])).toBeCloseTo(28, 5);
+  });
+
   it("reads no statistics for a monetary sensor", async () => {
     const { h, callWS } = hass("sensor.monetary", undefined, () => ({}));
     expect(await fetchHistory(h, "sensor.monetary")).toHaveLength(1);

@@ -32,9 +32,12 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
-# The card reads the same 28 days and refreshes on the same 30 minutes, so
-# the entities and the card's refuel tip move together.
+# The card reads the same days and refreshes on the same 30 minutes, so the
+# entities and the card's refuel tip move together. With long-term
+# statistics on, twelve weeks of hourly means are read: the analysis uses
+# the last four for the window and all of them for the weekday test.
 HISTORY_DAYS = 28
+STATISTICS_DAYS = 84
 REFRESH_INTERVAL = timedelta(minutes=30)
 
 type BestRefuelData = dict[str, BestRefuelResult | None]
@@ -104,7 +107,7 @@ def _analyse(
     tz: tzinfo,
     with_statistics: bool,
 ) -> BestRefuelData:
-    start = now - timedelta(days=HISTORY_DAYS)
+    start = now - timedelta(days=STATISTICS_DAYS if with_statistics else HISTORY_DAYS)
     now_ms = now.timestamp() * 1000
     out: BestRefuelData = {}
     for fuel_type, entity_id in entity_ids.items():
@@ -114,7 +117,7 @@ def _analyse(
         points = _history_points(hass, entity_id, start, now)
         if with_statistics:
             # The recorder purges states after purge_keep_days (10 by
-            # default); the statistics keep the rest of the 28 days.
+            # default); the statistics keep the rest of the twelve weeks.
             points = merge_statistics(
                 points, _statistics_points(hass, entity_id, start, now)
             )

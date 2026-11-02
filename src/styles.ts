@@ -506,6 +506,16 @@ export const cardStyles = css`
     --mdc-icon-size: 14px;
     flex-shrink: 0;
   }
+  .refuel-facts {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding-inline-start: 20px;
+    font-size: 0.75rem;
+    line-height: 1.3;
+    color: var(--secondary-text-color);
+    opacity: 0.85;
+  }
   .refuel-text {
     flex: 1;
     min-width: 0;

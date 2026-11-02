@@ -58,6 +58,7 @@ import {
   analyzeBestRefuel,
   buildHourlyEnvelope,
   type BestRefuelResult,
+  type DayFacts,
   type HourlyEnvelope,
 } from "./analytics/best-refuel";
 import { cardStyles } from "./styles";
@@ -864,8 +865,20 @@ export class TankstellenAustriaCard extends LitElement {
       </div>
     `;
     if (!analysis.hasEnoughData) return hint("not_enough_data_hint");
-    // Enough history, but no hour of the day cheaper than the rest.
-    if (analysis.hour == null) return hint("no_pattern_hint");
+    const facts = this._renderFacts(analysis.facts);
+    // Enough history, but no hour of the day cheaper than the rest: say so
+    // with the number that shows it, and what the day still tells.
+    if (analysis.hour == null) {
+      return html`
+        <div class="refuel-hint">
+          <ha-icon icon="mdi:information-outline" class="refuel-icon" aria-hidden="true"></ha-icon>
+          ${this._t("no_pattern_hint", {
+            range: (analysis.facts?.daily_range_cents ?? 0).toFixed(1),
+          })}
+        </div>
+        ${facts}
+      `;
+    }
 
     const hh = (h: number): string => String(h).padStart(2, "0");
     const hour = analysis.hour;
@@ -891,6 +904,7 @@ export class TankstellenAustriaCard extends LitElement {
           <ha-icon icon="mdi:lightbulb-outline" class="refuel-icon" aria-hidden="true"></ha-icon>
           <span class="refuel-text">${text}</span>
         </div>
+        ${facts}
       `;
     }
 
@@ -923,6 +937,40 @@ export class TankstellenAustriaCard extends LitElement {
           title=${breakdown}
           aria-label=${breakdown}
         >${levelLabel}</span>
+      </div>
+      ${facts}
+    `;
+  }
+
+  // Two counted facts under the tip: the noon rise, with the days it rests
+  // on, and where today's price sits in the last four weeks. Both are
+  // descriptions of the history, not forecasts, so they are shown whatever
+  // the confidence in the window.
+  private _renderFacts(facts: DayFacts | null | undefined): TemplateResult | typeof nothing {
+    if (!facts) return nothing;
+    const lines: string[] = [];
+    if (facts.noon_days >= 7) {
+      const vars = {
+        n: String(facts.noon_rise_days),
+        d: String(facts.noon_days),
+        c: facts.noon_rise_cents.toFixed(1),
+      };
+      if (facts.noon_rise_days === 0) lines.push(this._t("noon_none", vars));
+      else if (facts.noon_rise_days * 2 >= facts.noon_days)
+        lines.push(this._t("noon_before", vars));
+      else lines.push(this._t("noon_some", vars));
+    }
+    const { cheaper_than_pct: cheaper, dearer_than_pct: dearer } = facts;
+    if (cheaper >= dearer && cheaper >= 25) {
+      lines.push(this._t("now_cheaper", { pct: String(cheaper) }));
+    } else if (dearer > cheaper && dearer >= 25) {
+      lines.push(this._t("now_dearer", { pct: String(dearer) }));
+    } else {
+      lines.push(this._t("now_usual"));
+    }
+    return html`
+      <div class="refuel-facts">
+        ${lines.map((line) => html`<div class="refuel-fact">${line}</div>`)}
       </div>
     `;
   }
