@@ -3,105 +3,86 @@ import { css } from "lit";
 // Card-side styles. Live in the card's shadow root via
 // `static styles = cardStyles` — fully isolated from page CSS.
 //
-// Modern HA "tile-card" visual language: rounded square `.icon-tile`
-// header, stacked hero metric, chip-row vocabulary, container-query
-// density ladder. Tokens live on `:host` so a single override flips the
-// whole card.
+// One left rail: the fuel name, the big price, the facts, the station
+// names and the open detail panel all start at the same x; the icon tile
+// and the brand tiles share the gutter left of it. The chart is the one
+// block that bleeds to the card edge, as HA's sensor card does. Tokens
+// live on `:host` so a single override flips the whole card.
 export const cardStyles = css`
   :host {
-    /* color-scheme enables light-dark() and steers forced-colors palette
-       selection (WCAG 1.4.11). HA's active theme drives the resolution. */
-    color-scheme: light dark;
     display: block;
-    /* Fill the grid cell the dashboard gave us.
-       A sections view puts a fixed pixel height on the cell WRAPPER whenever
-       the card's rows are numeric -- which a user also causes by dragging the
-       row handle, since a stored grid_options overrides what getGridOptions()
-       returns -- and styles nothing inside that wrapper.
-       This host is display: block, so IT is the containing block for the
-       ha-card below, and a percentage height against a containing block whose
-       own height is auto computes to auto. Without this line ha-card therefore
-       sizes to its content, overflows a cell too short for it, and is painted
-       over the card underneath. Taking the cell's height here is what gives
-       ha-card's 100% something to resolve against.
-       In an auto-height cell it resolves to auto -- the height it already had
-       -- so it costs nothing there. */
-    block-size: 100%;
 
-    /* Brand accent — domain-specific, no HA equivalent. */
-    --tankst-accent: var(--primary-color);
-
-    /* Semantic state tokens layered over HA's official semantic palette
-       so theme authors can recolour the whole portfolio in one place;
-       hard-coded fallbacks for older HA versions. NOTE: editorStyles
-       :host also needs these — duplicated there. See ha-portfolio-design
-       § 4 "Multi-card integrations — every shadow scope needs the
-       tokens" for why. */
-    --tankst-rt:      var(--success-color, #4caf50);
+    /* Brand accent and the three state colours, layered over HA's flat
+       semantic palette so a theme recolours the whole portfolio at once. */
+    --tankst-accent:  var(--primary-color);
+    --tankst-good:    var(--success-color, #4caf50);
     --tankst-warning: var(--warning-color, #ffa000);
     --tankst-error:   var(--error-color,   #db4437);
-    --tankst-info:    var(--info-color,    #1565c0);
 
-    /* Spacing / radius / sizing — layered over the HA Design System
-       so the card moves with HA when tokens evolve. Hard-coded values
-       are the fallback for older HA versions. */
-    /* These names were wrong until v1.9.4 and nothing complained: var()
-       on a token HA does not define is not an error, it just resolves to
-       the fallback. So the card ran entirely on its own literals while
-       looking theme-aware — which is how --ha-spacing-3 came to mean
-       14px on one line and 12px on the next.
-
-       Verified against the frontend's src/resources/theme/core.globals.ts:
-         --ha-space-N          4px grid, 1…20   (was --ha-spacing-N)
-         --ha-font-size-*      xs 10 / s 12 / m 14 / l 16 / xl 20px.
-                               typography.globals.ts sets the root to
-                               font-size:14px, so -m is 1rem, NOT 0.875 —
-                               do the rem maths at 14px or just write px.
-         --ha-border-radius-*  sm 4 / md 8 / lg 12 / xl 16 / pill / circle
-                                                (was --ha-radius-*)
-         --ha-animation-duration-*  none 1 / instant 75 / fast 150 /
-                                    normal 250 / slow 350ms
-                                                (was --ha-transition-duration-*)
-       There is no easing token — --ha-transition-easing-standard never
-       existed either, so easings are now named directly.
-
-       Fallbacks are kept and now match the token they stand in for.
-       Adopting a new --ha-* token means checking core.globals.ts first;
-       a typo here is invisible. */
-    --tankst-radius-sm: var(--ha-border-radius-sm, 4px);
-    --tankst-radius-md: var(--ha-border-radius-md, 8px);
-    --tankst-radius-lg: var(--ha-card-border-radius, var(--ha-border-radius-lg, 12px));
-    --tankst-pad-x:     var(--ha-space-4, 16px);
-    --tankst-pad-y:     var(--ha-space-3, 12px);
-    --tankst-row-gap:   var(--ha-space-3, 12px);
-    --tankst-tile-size: 40px;
+    /* One horizontal padding and one tile size; everything else is HA's.
+       Verified against core.globals.ts: --ha-space-N is a 4 px grid,
+       --ha-border-radius-{sm,md} are 4 / 8 px, --ha-animation-duration-fast
+       is 150 ms. A var() on a token HA does not define silently takes the
+       fallback, so check the file before adopting a new name. */
+    --tankst-pad:  var(--ha-space-4, 16px);
+    --tankst-tile: 40px;
+    /* The rail: where every text block starts. Tile plus its gap. */
+    --tankst-rail: calc(var(--tankst-pad) + var(--tankst-tile) + var(--ha-space-3, 12px));
   }
   ha-card {
-    /* Resolves against the height :host just took from the cell, so
-       overflow: hidden clips inside the card rather than the card spilling
-       past its own cell. The two declarations only work as a pair: core cards
-       that set this one alone leave :host at its default inline display, where
-       the cell wrapper is ha-card's containing block instead. */
-    block-size: 100%;
-
+    /* Clips content to the card; in a grid cell the gated rule below puts
+       that edge at the cell's height. */
     overflow: hidden;
-    /* Card responds to its own width, not the viewport — narrow
-       dashboard columns trigger the compact density tier even on wide
-       screens. */
+    /* The card responds to its own width, not the viewport. */
     container-type: inline-size;
     container-name: tscard;
-  }
-  .wrap {
-    padding: var(--tankst-pad-y) var(--tankst-pad-x);
+    /* A column, so that in a fixed-height cell the tabs and footer keep
+       their size and .body between them scrolls. */
     display: flex;
     flex-direction: column;
-    gap: var(--tankst-row-gap);
+  }
+  /* Fill the grid cell the dashboard hands us. A sections view puts a fixed
+     pixel height on the cell wrapper when rows is numeric (a user's drag
+     stores grid_options that override getGridOptions()) and styles nothing
+     inside it. :host is display: block, so it is ha-card's containing
+     block, and the two declarations only work as a pair. Gated on the
+     layout HA sets ("grid" in a sections view and its edit dialog, "panel"
+     in a panel view): the add-card picker sets none and centres each
+     preview in a tile as tall as the tallest in its row, which an ungated
+     100% would stretch the card down to. */
+  :host([layout="grid"]),
+  :host([layout="panel"]) {
+    block-size: 100%;
+  }
+  :host([layout="grid"]) ha-card,
+  :host([layout="panel"]) ha-card {
+    block-size: 100%;
+  }
+  /* The one scroller: whatever height the tabs and footer leave. */
+  .body {
+    flex: 1 1 auto;
+    min-block-size: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+  }
+  ha-alert {
+    display: block;
+    margin: var(--ha-space-3, 12px) var(--tankst-pad) 0;
   }
   .empty {
-    padding: 24px 0;
+    padding: 24px var(--tankst-pad);
     text-align: center;
     color: var(--secondary-text-color);
-    font-size: 0.875rem;
+    font-size: var(--ha-font-size-s, 0.857rem);
+  }
+  .empty-title {
+    color: var(--primary-text-color);
+    font-weight: var(--ha-font-weight-medium, 500);
+  }
+  .empty-detail {
+    margin-block-start: var(--ha-space-1, 4px);
+    font-size: 0.875em;
   }
 
   /* ── Version-mismatch banner ────────────────────────────────────── */
@@ -113,751 +94,543 @@ export const cardStyles = css`
     background: var(--tankst-warning);
     color: #fff;
     padding: 10px 14px;
-    margin: calc(var(--tankst-pad-y) * -1) calc(var(--tankst-pad-x) * -1) 0;
-    font-size: 0.8125rem;
-    font-weight: 500;
+    font-size: var(--ha-font-size-s, 0.857rem);
+    font-weight: var(--ha-font-weight-medium, 500);
   }
   .version-reload-btn {
     flex-shrink: 0;
     background: #fff;
     color: var(--tankst-warning);
     border: none;
-    border-radius: 999px;
+    border-radius: var(--ha-border-radius-pill, 999px);
     padding: 6px 14px;
     font-weight: 600;
-    font-size: 0.75rem;
+    font-size: var(--ha-font-size-s, 0.857rem);
     cursor: pointer;
     min-height: 32px;
     font-family: inherit;
   }
 
   /* ── Tabs ───────────────────────────────────────────────────────── */
-  /* Direct child of <ha-card>, flush with the card edges. The .wrap
-     padding handles the breathing room to the first content row. */
   .tabs {
     display: flex;
-    border-bottom: 1px solid var(--divider-color, rgba(127, 127, 127, 0.18));
+    flex-shrink: 0;
+    border-bottom: 1px solid var(--divider-color);
     overflow-x: auto;
     scrollbar-width: none;
   }
   .tabs::-webkit-scrollbar {
     display: none;
   }
+  /* 48 px like HA's tab bar; colour, weight and underline mark the active
+     one, so the state survives any single-channel deficit. */
   .tab {
-    /* 44px tall tap target, three independent active cues (colour,
-       weight, underline) so the active state survives any single-channel
-       deficit (low vision, protanopia, grayscale). */
     flex: 1;
     min-width: 0;
-    height: 44px;
-    padding: 0 14px;
+    height: 48px;
+    padding: 0 12px;
+    border: 0;
     background: none;
-    border: none;
-    box-shadow: inset 0 -2px 0 transparent;
     color: var(--secondary-text-color);
-    font-size: 0.85rem;
-    font-weight: 500;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
+    font: inherit;
+    font-weight: var(--ha-font-weight-medium, 500);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    cursor: pointer;
+    box-shadow: inset 0 -2px 0 transparent;
     transition:
       color var(--ha-animation-duration-fast, 150ms) ease,
-      box-shadow var(--ha-animation-duration-fast, 150ms) ease,
-      background-color var(--ha-animation-duration-fast, 150ms) ease;
-    font-family: inherit;
+      box-shadow var(--ha-animation-duration-fast, 150ms) ease;
   }
   .tab:hover {
     color: var(--primary-text-color);
-    background: color-mix(in srgb, var(--primary-color) 6%, transparent);
   }
   .tab.active {
-    color: var(--primary-color);
+    color: var(--tankst-accent);
     font-weight: var(--ha-font-weight-bold, 700);
-    box-shadow: inset 0 -2px 0 var(--primary-color);
+    box-shadow: inset 0 -2px 0 var(--tankst-accent);
   }
 
-  /* ── Section + Header ───────────────────────────────────────────── */
-  .station-section {
-    display: flex;
-    flex-direction: column;
-    gap: var(--tankst-row-gap);
-  }
-  .header {
-    display: flex;
+  /* ── Head: tile, fuel name, the big price under the name ────────── */
+  .head {
+    display: grid;
+    grid-template-columns: var(--tankst-tile) 1fr auto;
+    grid-template-areas:
+      "tile name  act"
+      "tile price price";
+    column-gap: var(--ha-space-3, 12px);
     align-items: center;
-    gap: 12px;
+    padding: var(--tankst-pad) var(--tankst-pad) var(--ha-space-2, 8px);
   }
-  .icon-tile {
-    /* Modern HA tile-card vocabulary: rounded square, accent-tinted
-       background, accent-coloured icon. Gives the card immediate visual
-       identity in dashboards. */
-    width: var(--tankst-tile-size);
-    height: var(--tankst-tile-size);
-    border-radius: var(--tankst-radius-md);
-    flex-shrink: 0;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
+  .head.no-title {
+    grid-template-areas: "price price act";
+    grid-template-columns: 1fr auto;
+  }
+  .tile {
+    grid-area: tile;
+    align-self: start;
+    width: var(--tankst-tile);
+    height: var(--tankst-tile);
+    border-radius: var(--ha-border-radius-md, 8px);
+    display: grid;
+    place-items: center;
     background: color-mix(in srgb, var(--tankst-accent) 18%, transparent);
     color: var(--tankst-accent);
     --mdc-icon-size: 22px;
   }
-  .header-text {
-    min-width: 0;
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
   .title {
-    /* <h2> override: nuke UA heading margins. */
+    grid-area: name;
     margin: 0;
-    font-size: 1rem;
-    font-weight: 600;
+    min-width: 0;
+    font-size: var(--ha-font-size-l, 1.143rem);
+    font-weight: var(--ha-font-weight-medium, 500);
     line-height: 1.25;
-    color: var(--primary-text-color);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
   .subtitle {
-    /* <p> override. */
-    margin: 0;
-    font-size: 0.75rem;
+    display: block;
+    font-size: var(--ha-font-size-s, 0.857rem);
+    font-weight: var(--ha-font-weight-normal, 400);
     color: var(--secondary-text-color);
-    font-weight: 400;
-    letter-spacing: 0.1px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
-  .header-actions {
-    /* Right-side cluster in dynamic mode: refresh button on top, the
-       last-updated + no_new_data chips below — visually grouped with
-       the action they relate to. */
+  .price-line {
+    grid-area: price;
     display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 6px;
-    flex-shrink: 0;
-  }
-  .header-actions .chip-row {
-    /* Right-align the wrapped chip overflow under the button. */
-    justify-content: flex-end;
-  }
-  .icon-action {
-    flex-shrink: 0;
-    width: 40px;
-    height: 40px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 50%;
-    color: var(--secondary-text-color);
-    text-decoration: none;
-    background: none;
-    border: none;
-    cursor: pointer;
-    transition:
-      background-color var(--ha-animation-duration-fast, 150ms) ease,
-      color var(--ha-animation-duration-fast, 150ms) ease;
-    --mdc-icon-size: 20px;
-    font-family: inherit;
-  }
-  .icon-action:hover {
-    background: color-mix(in srgb, var(--primary-color) 12%, transparent);
-    color: var(--primary-color);
-  }
-
-  /* Map-pin action and its distance caption stacked as one column, so the
-     Luftlinie value reads as an annotation to the pin rather than a
-     free-floating number. The pin keeps the only interactive affordance;
-     the caption stays quiet (muted, tabular so values align down the list,
-     tight line-height so it tucks under the pin circle — which shrinks via
-     .has-distance below so the column never exceeds the 40px standalone
-     pin and the row height stays put). */
-  .map-action {
-    flex-shrink: 0;
-    display: inline-flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 1px;
-  }
-  .distance {
-    font-size: 0.68rem;
-    line-height: 1;
-    color: var(--secondary-text-color);
-    font-variant-numeric: tabular-nums;
-    letter-spacing: 0.02em;
-    white-space: nowrap;
-  }
-  /* With the caption present, shrink the pin circle so the stacked column
-     (28px pin + 1px gap + ~11px caption) matches the 40px standalone pin —
-     toggling show_distance must not change the row height. 28px keeps the
-     tap target above the WCAG 2.2 24px minimum. */
-  .map-action.has-distance .icon-action {
-    width: 28px;
-    height: 28px;
-    --mdc-icon-size: 16px;
-  }
-
-  /* ── Hero metric ────────────────────────────────────────────────── */
-  .hero {
-    display: flex;
-    align-items: flex-end;
-    justify-content: space-between;
-    gap: 12px;
-    flex-wrap: wrap;
-  }
-  .metric {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    min-width: 0;
-  }
-  .metric-value {
-    display: inline-flex;
     align-items: baseline;
-    gap: 6px;
-    line-height: 1;
+    flex-wrap: wrap;
+    gap: 0 8px;
+    line-height: 1.1;
+    margin-top: 2px;
   }
-  .metric-num {
-    font-size: 2.25rem;
+  .price-big {
+    font-size: 32px;
     font-weight: var(--ha-font-weight-bold, 700);
-    color: var(--primary-text-color);
-    font-variant-numeric: tabular-nums;
     letter-spacing: -0.5px;
-  }
-  .metric-of {
-    font-size: 1rem;
-    color: var(--secondary-text-color);
-    font-weight: 500;
     font-variant-numeric: tabular-nums;
   }
-  .metric-label {
-    font-size: 0.75rem;
+  .price-ctx {
+    font-size: var(--ha-font-size-s, 0.857rem);
     color: var(--secondary-text-color);
-    font-weight: 500;
-    letter-spacing: 0.2px;
-    text-transform: uppercase;
+    font-variant-numeric: tabular-nums;
+  }
+  .price-ctx b {
+    font-weight: var(--ha-font-weight-medium, 500);
+    color: var(--primary-text-color);
+  }
+  /* Dynamic mode: refresh button with the last-updated chip under it. */
+  .head-actions {
+    grid-area: act;
+    align-self: start;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
   }
 
-  /* ── Chips ──────────────────────────────────────────────────────── */
+  /* ── Chips (dynamic-mode status, payment match) ─────────────────── */
   .chip-row {
     display: inline-flex;
     flex-wrap: wrap;
+    justify-content: flex-end;
     gap: 6px;
-    align-items: center;
   }
   .chip {
     display: inline-flex;
     align-items: center;
     gap: 4px;
     padding: 5px 10px;
-    border-radius: 999px;
-    font-size: 0.75rem;
+    border-radius: var(--ha-border-radius-pill, 999px);
+    font-size: var(--ha-font-size-s, 0.857rem);
     font-weight: 600;
     line-height: 1;
-    background: color-mix(in srgb, var(--primary-color) 14%, transparent);
-    color: var(--primary-color);
-    font-variant-numeric: tabular-nums;
-  }
-  .chip ha-icon {
-    --mdc-icon-size: 14px;
-  }
-  .chip.muted {
     background: color-mix(in srgb, var(--secondary-text-color) 12%, transparent);
     color: var(--secondary-text-color);
+    font-variant-numeric: tabular-nums;
+    --mdc-icon-size: 14px;
   }
   .chip.warn {
     background: color-mix(in srgb, var(--tankst-warning) 16%, transparent);
     color: var(--tankst-warning);
   }
   .chip.match {
-    /* Payment-method match highlight chip (filter mode + highlight
-       toggle). Same accent vocabulary as the hero metric. */
-    background: color-mix(in srgb, var(--tankst-rt) 16%, transparent);
-    color: var(--tankst-rt);
-  }
-
-  /* ── Status flags (closed / closing-soon) ───────────────────────── */
-  .flag {
-    display: inline-flex;
-    align-items: center;
-    padding: 4px 10px;
-    border-radius: 999px;
-    font-size: 0.7rem;
-    font-weight: 600;
-    background: color-mix(in srgb, var(--secondary-text-color) 12%, transparent);
-    color: var(--secondary-text-color);
-    white-space: nowrap;
-    flex-shrink: 0;
-  }
-  .flag.closed {
-    background: color-mix(in srgb, var(--tankst-error) 16%, transparent);
-    color: var(--tankst-error);
-  }
-  .flag.closing-soon {
-    background: color-mix(in srgb, var(--tankst-warning) 16%, transparent);
-    color: var(--tankst-warning);
+    background: color-mix(in srgb, var(--tankst-good) 16%, transparent);
+    color: var(--tankst-good);
   }
 
   /* ── Filled CTA (dynamic-mode refresh) ──────────────────────────── */
   .btn-primary {
     display: inline-flex;
     align-items: center;
-    justify-content: center;
     gap: 5px;
     padding: 0 14px;
     height: 32px;
     border: none;
-    border-radius: 999px;
+    border-radius: var(--ha-border-radius-pill, 999px);
     background: var(--tankst-accent);
     color: var(--text-primary-color, #fff);
-    font-size: 0.75rem;
+    font: inherit;
+    font-size: var(--ha-font-size-s, 0.857rem);
     font-weight: 600;
-    cursor: pointer;
-    text-decoration: none;
-    box-shadow: 0 1px 2px color-mix(in srgb, #000 12%, transparent);
-    transition:
-      filter var(--ha-animation-duration-fast, 150ms) ease,
-      transform var(--ha-animation-duration-fast, 150ms) ease,
-      opacity var(--ha-animation-duration-fast, 150ms) ease;
-    flex-shrink: 0;
-    font-family: inherit;
     font-variant-numeric: tabular-nums;
-  }
-  .btn-primary:hover:not(.cooling) {
-    filter: brightness(1.08);
-  }
-  .btn-primary:active:not(.cooling) {
-    transform: translateY(1px);
+    cursor: pointer;
+    --mdc-icon-size: 16px;
+    transition: opacity var(--ha-animation-duration-fast, 150ms) ease;
   }
   .btn-primary.cooling {
     opacity: 0.55;
     cursor: default;
     pointer-events: none;
   }
-  .btn-primary ha-icon {
-    --mdc-icon-size: 16px;
-  }
 
-  /* ── Sparkline ──────────────────────────────────────────────────── */
-  .sparkline-container {
-    cursor: pointer;
-    position: relative;
-  }
-  /* Tight wrap around the SVG that gives marker + hover-dot HTML
-     overlays a positioning context EQUAL to the SVG's rendered box.
-     If the markers were positioned against .sparkline-container
-     directly, their percentage top/left would resolve against a
-     taller container that also includes tooltip + labels — dot
-     would land below the line. */
-  .sparkline-svg-wrap {
-    position: relative;
-    width: 100%;
-  }
-  .sparkline {
-    width: 100%;
-    height: var(--ts-sparkline-height, clamp(40px, 8vw + 24px, 72px));
+  /* ── Chart: full-bleed like hui-sensor-card, opens more-info ────── */
+  .chart {
     display: block;
-  }
-  /* Cheapest-refill marker + hover dot. Both live OUTSIDE the SVG
-     (HTML overlays positioned via percentage left/top inside
-     .sparkline-svg-wrap) because the SVG uses preserveAspectRatio
-     "none" to stretch the line across the card width — circles
-     inside that SVG get squashed into ovals on wide cards. As regular
-     HTML elements with border-radius: 50%, these stay true circles
-     regardless of card width. */
-  .sparkline-marker,
-  .sparkline-hover-dot {
-    position: absolute;
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    border: 1.5px solid var(--card-background-color, #fff);
-    transform: translate(-50%, -50%);
-    pointer-events: none;
-    z-index: 1;
-  }
-  .sparkline-marker {
-    background: var(--tankst-rt);
-  }
-  .sparkline-hover-dot {
-    background: var(--primary-color);
-    /* The dot follows the pointer, so it wants the shortest real
-       duration HA ships — instant, not fast. The old 60ms literal
-       was aiming at the same thing. */
-    transition:
-      left var(--ha-animation-duration-instant, 75ms) linear,
-      top var(--ha-animation-duration-instant, 75ms) linear,
-      opacity var(--ha-animation-duration-fast, 150ms) ease;
-  }
-  .sparkline-tooltip {
-    position: absolute;
-    top: -28px;
-    display: flex;
-    gap: 6px;
-    padding: 3px 7px;
-    background: var(--card-background-color, #fff);
-    border: 1px solid var(--divider-color);
-    border-radius: var(--tankst-radius-sm);
-    box-shadow: 0 2px 6px color-mix(in srgb, #000 12%, transparent);
-    font-size: 0.75rem;
-    white-space: nowrap;
-    pointer-events: none;
-    z-index: 2;
-  }
-  .sparkline-tooltip[hidden] {
-    display: none;
-  }
-  .sparkline-tooltip-time {
-    color: var(--secondary-text-color);
-  }
-  .sparkline-tooltip-price {
-    color: var(--primary-text-color);
-    font-weight: 600;
-  }
-  .sparkline-labels {
-    display: flex;
-    justify-content: space-between;
-    font-size: 0.6875rem;
-    color: var(--secondary-text-color);
-    padding: 2px 0 0;
-  }
-  .sparkline-period {
-    font-size: 0.6875rem;
-    opacity: 0.6;
-  }
-  .sparkline-minmax-label {
-    opacity: 0.6;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-  }
-  .median-delta {
-    font-weight: 500;
-    opacity: 0.9;
-  }
-  .median-delta-good {
-    color: var(--tankst-rt);
-  }
-  .median-delta-bad {
-    color: var(--tankst-warning);
-  }
-  .median-delta-neutral {
-    color: var(--secondary-text-color);
+    width: 100%;
+    padding: 0;
+    margin: 0 0 var(--ha-space-1, 4px);
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: start;
+    cursor: pointer;
   }
 
-  /* ── Best-refuel recommendation ─────────────────────────────────── */
-  .refuel-recommendation {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 0.75rem;
-    font-weight: 500;
-    color: var(--tankst-rt);
-    line-height: 1.3;
-  }
-  .refuel-hint {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 0.75rem;
+  /* ── Facts under the chart: icon column at the pad, text on the rail ─ */
+  .facts {
+    list-style: none;
+    margin: 0;
+    padding: var(--ha-space-2, 8px) var(--tankst-pad) var(--ha-space-3, 12px);
+    display: grid;
+    grid-template-columns: 20px 1fr auto;
+    row-gap: 4px;
+    column-gap: 8px;
+    font-size: var(--ha-font-size-s, 0.857rem);
     color: var(--secondary-text-color);
-    opacity: 0.85;
   }
-  .refuel-icon {
-    --mdc-icon-size: 14px;
-    flex-shrink: 0;
+  .facts li {
+    display: grid;
+    grid-template-columns: subgrid;
+    grid-column: 1 / -1;
+    align-items: center;
   }
-  .refuel-text {
-    flex: 1;
-    min-width: 0;
+  .facts ha-icon {
+    --mdc-icon-size: 16px;
+    justify-self: center;
   }
-  .refuel-confidence {
-    flex-shrink: 0;
-    font-size: 0.625rem;
-    font-weight: 600;
-    text-transform: uppercase;
+  .facts .lead {
+    color: var(--tankst-good);
+    font-weight: var(--ha-font-weight-medium, 500);
+  }
+  .conf {
+    font-size: var(--ha-font-size-xs, 0.714rem);
+    font-weight: var(--ha-font-weight-bold, 700);
     letter-spacing: 0.3px;
+    text-transform: uppercase;
     padding: 3px 8px;
-    border-radius: 999px;
+    border-radius: var(--ha-border-radius-pill, 999px);
     cursor: help;
     white-space: nowrap;
   }
-  .refuel-confidence-high {
-    background: color-mix(in srgb, var(--tankst-rt) 18%, transparent);
-    color: var(--tankst-rt);
+  .conf-high {
+    background: color-mix(in srgb, var(--tankst-good) 18%, transparent);
+    color: var(--tankst-good);
   }
-  .refuel-confidence-medium {
+  .conf-medium {
     background: color-mix(in srgb, var(--tankst-warning) 18%, transparent);
     color: var(--tankst-warning);
   }
-  .refuel-confidence-low {
-    background: color-mix(in srgb, var(--secondary-text-color, #888) 15%, transparent);
-    color: var(--secondary-text-color, #888);
+  .conf-low {
+    background: color-mix(in srgb, var(--secondary-text-color) 15%, transparent);
+    color: var(--secondary-text-color);
   }
 
-  /* ── Cars fill-up block ─────────────────────────────────────────── */
-  .cars-fillup {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    padding-top: var(--tankst-row-gap);
-    border-top: 1px solid var(--divider-color, rgba(127, 127, 127, 0.15));
+  /* ── Cars: the same three columns as the facts ──────────────────── */
+  .cars {
+    list-style: none;
+    margin: 0;
+    padding: var(--ha-space-2, 8px) var(--tankst-pad) var(--ha-space-3, 12px);
+    border-top: 1px solid var(--divider-color);
+    display: grid;
+    grid-template-columns: 20px 1fr auto;
+    row-gap: 6px;
+    column-gap: 8px;
   }
-  .car-fillup-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 8px;
-  }
-  .car-fillup-name {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 0.875rem;
-    color: var(--primary-text-color);
+  .cars li {
+    display: grid;
+    grid-template-columns: subgrid;
+    grid-column: 1 / -1;
+    align-items: baseline;
     min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
-  .car-icon {
+  .cars ha-icon {
     --mdc-icon-size: 16px;
     color: var(--secondary-text-color);
-    flex-shrink: 0;
+    justify-self: center;
+    align-self: center;
   }
-  .car-fillup-liters {
-    font-size: 0.75rem;
-    opacity: 0.7;
+  .cars small {
     color: var(--secondary-text-color);
+    font-size: var(--ha-font-size-s, 0.857rem);
   }
-  .car-fillup-cost {
-    font-size: 0.9375rem;
+  .cars .num {
     font-weight: var(--ha-font-weight-bold, 700);
-    color: var(--primary-text-color);
     font-variant-numeric: tabular-nums;
-    flex-shrink: 0;
-  }
-  .car-per100-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding-left: 22px;
-    margin-top: -4px;
-  }
-  .car-per100-label {
-    font-size: 0.75rem;
-    color: var(--secondary-text-color);
-    opacity: 0.85;
-  }
-  .car-per100-cost {
-    font-size: 0.8125rem;
-    color: var(--secondary-text-color);
-    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
   }
 
-  /* ── Stations list ──────────────────────────────────────────────── */
+  /* ── Stations: one <li> per station, row button and map link side by
+        side, the detail panel under both ───────────────────────────── */
   .stations {
-    display: flex;
-    flex-direction: column;
-    /* Negative side + bottom margins so the list bleeds to the card's
-       edges (full-bleed list look) while the rest of the section
-       content stays inside .wrap's padding. Keeps the gap-rhythm above
-       intact. */
-    margin: 0 calc(var(--tankst-pad-x) * -1) calc(var(--tankst-pad-y) * -1);
-    border-top: 1px solid var(--divider-color, rgba(127, 127, 127, 0.15));
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    border-top: 1px solid var(--divider-color);
   }
-  .station {
-    border-bottom: 1px solid var(--divider-color, rgba(127, 127, 127, 0.1));
+  .st {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: stretch;
+    border-bottom: 1px solid var(--divider-color);
   }
-  .station:last-child {
-    border-bottom: none;
+  .st:last-child {
+    border-bottom: 0;
   }
-  .station.pm-highlight {
-    box-shadow: inset 3px 0 0 var(--tankst-rt);
-    background: color-mix(in srgb, var(--tankst-rt) 6%, transparent);
+  .st.pm-highlight {
+    box-shadow: inset 3px 0 0 var(--tankst-good);
+    background: color-mix(in srgb, var(--tankst-good) 6%, transparent);
   }
-  .station.pm-highlight .station-main:hover {
-    background: color-mix(in srgb, var(--tankst-rt) 12%, transparent);
-  }
-  .station-main {
-    display: flex;
+  /* Two lines on four columns: tile, name over address, price over
+     distance, chevron. Carries a narrow card without a second layout. */
+  .st-row {
+    grid-column: 1;
+    display: grid;
+    grid-template-columns: 28px 1fr auto 20px;
+    grid-template-areas:
+      "tile name price chev"
+      "tile addr dist  chev";
+    column-gap: 12px;
+    row-gap: 1px;
     align-items: center;
-    gap: 12px;
-    padding: 12px var(--tankst-pad-x);
+    padding: 10px 0 10px var(--tankst-pad);
+    min-height: 56px;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: start;
     cursor: pointer;
     transition: background-color var(--ha-animation-duration-fast, 150ms) ease;
   }
-  .station-main:hover {
-    background: color-mix(in srgb, var(--primary-color) 6%, transparent);
+  .st-row.no-map {
+    padding-inline-end: var(--tankst-pad);
   }
-  .index-tile {
-    /* Rounded-square index badge. Same vocabulary as the header
-       .icon-tile but smaller and label-bearing. */
+  /* Rank and brand both off: no tile column, the text starts at the pad. */
+  .st-row.no-tile {
+    grid-template-columns: 1fr auto 20px;
+    grid-template-areas:
+      "name price chev"
+      "addr dist  chev";
+  }
+  .st-row.no-tile ~ .st-detail > div {
+    padding-left: var(--tankst-pad);
+  }
+  .st-row:not([aria-expanded]) {
+    cursor: default;
+  }
+  .st-row:hover,
+  .st-map:hover {
+    background: color-mix(in srgb, var(--tankst-accent) 6%, transparent);
+  }
+  /* The rank, or the brand's initials on its colour. */
+  .st-tile {
+    grid-area: tile;
     width: 28px;
     height: 28px;
-    border-radius: var(--tankst-radius-sm);
-    flex-shrink: 0;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    background: color-mix(in srgb, var(--tankst-accent) 18%, transparent);
-    color: var(--tankst-accent);
-    font-size: 0.8125rem;
+    border-radius: var(--ha-border-radius-sm, 4px);
+    display: grid;
+    place-items: center;
+    font-size: var(--ha-font-size-s, 0.857rem);
     font-weight: var(--ha-font-weight-bold, 700);
     font-variant-numeric: tabular-nums;
+    background: color-mix(in srgb, var(--tankst-accent) 18%, transparent);
+    color: var(--tankst-accent);
   }
-  .info {
-    flex: 1;
-    min-width: 0;
+  .st-tile.circle {
+    border-radius: 50%;
   }
-  .name {
-    font-weight: 500;
-    font-size: 0.9375rem;
+  .st-tile.brand {
+    font-size: 10px;
+    letter-spacing: -0.02em;
+  }
+  /* A station without a known brand: neutral, so it never passes for one. */
+  .st-tile.brand:not(.brand-known) {
+    background: color-mix(in srgb, var(--primary-text-color) 9%, transparent);
     color: var(--primary-text-color);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+  }
+  .st-tile.brand-known {
+    background: var(--tankst-tile-bg);
+    color: var(--tankst-tile-fg);
+  }
+  .st-name {
+    grid-area: name;
+    min-width: 0;
     display: flex;
     align-items: center;
     gap: 6px;
-  }
-  .address {
-    font-size: 0.8125rem;
-    color: var(--secondary-text-color);
+    font-weight: var(--ha-font-weight-medium, 500);
     white-space: nowrap;
+  }
+  /* The name gives way, not the flag after it. */
+  .st-name > span[lang] {
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  .price {
-    font-weight: var(--ha-font-weight-bold, 700);
-    font-size: 1.125rem;
-    color: var(--primary-text-color);
-    font-variant-numeric: tabular-nums;
+  .st-addr {
+    grid-area: addr;
+    min-width: 0;
+    font-size: var(--ha-font-size-s, 0.857rem);
+    color: var(--secondary-text-color);
+    overflow: hidden;
+    text-overflow: ellipsis;
     white-space: nowrap;
-    flex-shrink: 0;
   }
-  /* Chevron arrow indicating collapsibility. Rotates 180° on
-     aria-expanded="true" so the cue follows the WAI-ARIA state without
-     a bespoke CSS class — same pattern as wiener-linien-austria. */
-  .expander-chevron {
+  .st-price {
+    grid-area: price;
+    font-size: var(--ha-font-size-l, 1.143rem);
+    font-weight: var(--ha-font-weight-bold, 700);
+    font-variant-numeric: tabular-nums;
+    text-align: end;
+    white-space: nowrap;
+  }
+  .st-dist {
+    grid-area: dist;
+    font-size: var(--ha-font-size-xs, 0.714rem);
+    color: var(--secondary-text-color);
+    font-variant-numeric: tabular-nums;
+    text-align: end;
+    white-space: nowrap;
+  }
+  .chev {
+    grid-area: chev;
     --mdc-icon-size: 20px;
     color: var(--secondary-text-color);
     transition: transform var(--ha-animation-duration-fast, 150ms) ease;
-    flex-shrink: 0;
   }
-  .station-main[aria-expanded="true"] .expander-chevron {
+  .st-row[aria-expanded="true"] .chev {
     transform: rotate(180deg);
   }
-
-  /* Station-detail drawer.
-     grid-template-rows 0fr ↔ 1fr animates to intrinsic height — long
-     content (many opening-hour lines + payment methods) is not clipped.
-     The single direct child gets overflow:hidden + min-height:0 so the
-     row collapse actually hides it. */
-  .station-detail {
+  .st-map {
+    grid-column: 2;
+    display: grid;
+    place-items: center;
+    width: 44px;
+    color: var(--secondary-text-color);
+    text-decoration: none;
+    --mdc-icon-size: 20px;
+    transition:
+      background-color var(--ha-animation-duration-fast, 150ms) ease,
+      color var(--ha-animation-duration-fast, 150ms) ease;
+  }
+  .st-map:hover {
+    color: var(--tankst-accent);
+  }
+  .flag {
+    font-size: var(--ha-font-size-xs, 0.714rem);
+    font-weight: var(--ha-font-weight-bold, 700);
+    padding: 2px 7px;
+    border-radius: var(--ha-border-radius-pill, 999px);
+    white-space: nowrap;
+    flex-shrink: 0;
+    background: color-mix(in srgb, var(--tankst-warning) 16%, transparent);
+    color: var(--tankst-warning);
+  }
+  .flag.closed {
+    background: color-mix(in srgb, var(--tankst-error) 16%, transparent);
+    color: var(--tankst-error);
+  }
+  /* Detail drawer: 0fr ↔ 1fr animates to intrinsic height, so long content
+     is never clipped. Hours and payment sit side by side when there is
+     room, aligned to the row's name. */
+  .st-detail {
+    grid-column: 1 / -1;
     display: grid;
     grid-template-rows: 0fr;
-    transition:
-      grid-template-rows 0.3s ease,
-      padding 0.3s ease;
-    padding: 0 var(--tankst-pad-x) 0 calc(var(--tankst-pad-x) + 28px + 12px);
+    transition: grid-template-rows var(--ha-animation-duration-normal, 250ms) ease;
   }
-  .station-detail > * {
+  .st-detail > div {
     overflow: hidden;
     min-height: 0;
-  }
-  .station-detail.expanded {
-    grid-template-rows: 1fr;
-    padding: 0 var(--tankst-pad-x) 12px calc(var(--tankst-pad-x) + 28px + 12px);
-  }
-  .detail-cols {
     display: flex;
-    gap: 16px;
     flex-wrap: wrap;
+    gap: 8px 28px;
+    padding: 0 var(--tankst-pad) 0 calc(var(--tankst-pad) + 40px);
+    font-size: var(--ha-font-size-s, 0.857rem);
   }
-  .detail-col {
-    flex: 1 1 140px;
-    min-width: 0;
+  .st-detail.expanded {
+    grid-template-rows: 1fr;
   }
-  .hours-grid {
+  .st-detail.expanded > div {
+    padding-bottom: 12px;
+  }
+  .hours {
+    margin: 0;
     display: grid;
-    grid-template-columns: auto 1fr;
-    gap: 2px 12px;
-    font-size: 0.8125rem;
+    grid-template-columns: auto auto;
+    gap: 1px 12px;
     color: var(--secondary-text-color);
+    font-variant-numeric: tabular-nums;
   }
-  .hours-grid .day {
-    font-weight: 600;
+  .hours dt {
+    font-weight: var(--ha-font-weight-medium, 500);
     color: var(--primary-text-color);
   }
-
-  /* Payment methods — chip vocabulary. */
-  .pm-section {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
+  .hours dd {
+    margin: 0;
   }
-  .pm-label {
-    font-size: 0.75rem;
-    font-weight: 600;
-    letter-spacing: 0.2px;
-    text-transform: uppercase;
-    color: var(--secondary-text-color);
-  }
-  .pm-badges {
+  /* Takes the width left beside the hours and wraps its chips inside it;
+     only under 180 px of room does the whole block drop below. Without a
+     basis its natural width is all chips in one line, and a station with
+     many cards pushed the block under the hours. */
+  .pay {
+    flex: 1 1 180px;
+    min-width: 0;
     display: flex;
     flex-wrap: wrap;
+    align-content: flex-start;
     gap: 5px;
   }
-  .pm-badge {
+  .pay span {
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    padding: 4px 10px;
-    border-radius: 999px;
-    font-size: 0.75rem;
-    font-weight: 500;
-    line-height: 1.2;
-    background: color-mix(in srgb, var(--secondary-text-color) 10%, transparent);
-    color: var(--primary-text-color);
-  }
-  .pm-badge ha-icon {
+    padding: 3px 9px;
+    border-radius: var(--ha-border-radius-pill, 999px);
+    background: color-mix(in srgb, var(--secondary-text-color) 12%, transparent);
     --mdc-icon-size: 13px;
-    color: var(--secondary-text-color);
   }
-  .pm-badge.pm-other {
+  .pay .pm-other {
     font-style: italic;
   }
 
-  /* ── Brand footer (E-Control logo-link + attribution) ──────────── */
-  /* Mirrors the Ladestellen Austria card's footer vocabulary —
-     adaptive logo silhouette (filter brightness(0) [invert(1)]) so
-     a brand-coloured PNG/SVG follows hass.themes.darkMode when the
-     user enables logo_adapt_to_theme. */
+  /* ── Footer: E-Control logo-link + attribution ──────────────────── */
   .footer {
+    flex-shrink: 0;
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    padding: 10px var(--tankst-pad-x);
+    padding: 8px var(--tankst-pad);
     border-top: 1px solid var(--divider-color);
   }
   .brand-link {
     display: inline-flex;
     align-items: center;
     text-decoration: none;
-    transition: opacity 0.16s ease;
-  }
-  .brand-link:hover {
-    opacity: 0.7;
   }
   .brand-logo {
     display: block;
@@ -865,8 +638,8 @@ export const cardStyles = css`
     width: auto;
     max-width: 140px;
     object-fit: contain;
-    transition: filter 0.16s ease;
   }
+  /* Theme-following silhouette when logo_adapt_to_theme is on. */
   .brand-logo.adaptive.adaptive-light {
     filter: brightness(0);
   }
@@ -874,92 +647,73 @@ export const cardStyles = css`
     filter: brightness(0) invert(1);
   }
   .attribution-text {
-    font-size: 0.75rem;
+    font-size: var(--ha-font-size-xs, 0.714rem);
     color: var(--secondary-text-color);
     letter-spacing: 0.03em;
-    opacity: 0.85;
   }
 
-  /* ── Density ladder (container queries, not viewport) ───────────── */
-  /* Compact: narrow phone columns, side-by-side panels. */
+  /* ── Density: two steps ─────────────────────────────────────────── */
   @container tscard (inline-size < 360px) {
-    :host {
-      --tankst-pad-x: 14px;
-      --tankst-pad-y: 12px;
-      --tankst-tile-size: 36px;
+    .price-big {
+      font-size: 28px;
     }
-    .metric-num {
-      font-size: 2rem;
+    .st-row {
+      column-gap: 10px;
     }
-    .icon-tile {
-      --mdc-icon-size: 20px;
+    .st-detail > div {
+      padding-left: var(--tankst-pad);
     }
-    .address {
+    .st-name {
       white-space: normal;
+      flex-wrap: wrap;
     }
-    .price {
-      font-size: 1rem;
+    .st-name > span[lang] {
+      overflow: visible;
     }
-    .station-main {
-      gap: 8px;
-    }
-    .footer {
-      padding: 8px 14px;
-    }
-    .brand-logo {
-      height: 18px;
+    .cars .num {
+      grid-column: 2;
     }
   }
-  /* Wide: sidebar / panel mode / 2-column section view. */
   @container tscard (inline-size > 480px) {
     :host {
-      --tankst-pad-x: 20px;
-      --tankst-pad-y: 16px;
-      --tankst-tile-size: 44px;
+      --tankst-pad: var(--ha-space-5, 20px);
+      --tankst-tile: 44px;
     }
-    .metric-num {
-      font-size: 2.5rem;
+    .price-big {
+      font-size: 36px;
     }
-    .icon-tile {
-      --mdc-icon-size: 24px;
+    .st-row {
+      min-height: 60px;
     }
   }
 
-  /* ── Accessibility primitives ───────────────────────────────────── */
-  .tab:focus-visible,
-  .station-main:focus-visible,
-  .sparkline-container:focus-visible,
-  a:focus-visible,
-  button:focus-visible {
-    outline: 2px solid var(--primary-color);
+  /* ── Accessibility ──────────────────────────────────────────────── */
+  :is(button, a):focus-visible {
+    outline: 2px solid var(--tankst-accent);
     outline-offset: 2px;
     border-radius: 6px;
   }
-  .btn-primary:focus-visible {
-    outline-offset: 3px;
+  /* These sit flush with a clipping edge, so the ring goes inside. */
+  .tab:focus-visible,
+  .st-row:focus-visible,
+  .st-map:focus-visible,
+  .chart:focus-visible {
+    outline-offset: -2px;
   }
-
-  /* Forced-colors fallback (Windows High Contrast). */
   @media (forced-colors: active) {
-    .tab:focus-visible,
-    .station-main:focus-visible,
-    .sparkline-container:focus-visible,
-    a:focus-visible,
-    button:focus-visible {
+    :is(button, a):focus-visible {
       outline-color: CanvasText;
     }
-    .icon-tile,
-    .index-tile,
+    .tile,
+    .st-tile,
     .chip,
     .flag,
     .btn-primary,
-    .pm-badge,
-    .refuel-confidence {
+    .pay span,
+    .conf {
       forced-color-adjust: none;
     }
   }
-
-  /* Honour user motion preference (catch-all). */
   @media (prefers-reduced-motion: reduce) {
     *,
     *::before,
@@ -996,14 +750,6 @@ export const editorStyles = css`
     flex-direction: column;
     gap: 12px;
   }
-  .editor-section {
-    background: var(--secondary-background-color, rgba(0, 0, 0, 0.04));
-    border-radius: 12px;
-    padding: 14px 16px;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
   .section-header {
     font-size: 0.75rem;
     font-weight: 600;
@@ -1020,7 +766,7 @@ export const editorStyles = css`
 
   /* Recorder hint + copy button */
   .recorder-hint {
-    margin: 4px 0 2px 16px;
+    margin: 0;
     padding: 8px 10px;
     border-radius: 6px;
     background: var(--secondary-background-color, rgba(255, 255, 255, 0.04));
@@ -1051,23 +797,6 @@ export const editorStyles = css`
     flex-wrap: wrap;
     gap: 8px;
   }
-  .recorder-copy-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 3px 8px;
-    border-radius: 4px;
-    background: transparent;
-    border: 1px solid var(--divider-color);
-    color: var(--primary-text-color);
-    font-size: 0.75rem;
-    cursor: pointer;
-    font-family: inherit;
-  }
-  .recorder-copy-btn:hover {
-    background: var(--primary-background-color);
-  }
-  .recorder-copy-btn ha-icon,
   .recorder-docs-link ha-icon {
     --mdc-icon-size: 14px;
   }
@@ -1083,217 +812,89 @@ export const editorStyles = css`
     text-decoration: underline;
   }
 
-  /* Tab labels */
-  .tab-label-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-  .tab-label-default {
-    flex: 0 0 40%;
-    font-size: 0.875rem;
-    color: var(--secondary-text-color);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .tab-label-input {
-    flex: 1;
-    min-width: 0;
-    padding: 6px 10px;
-    border-radius: 6px;
-    border: 1px solid var(--divider-color);
-    background: var(--card-background-color, #fff);
-    color: var(--primary-text-color);
-    font-size: 0.875rem;
-    font-family: inherit;
-  }
-  .tab-label-input:focus {
-    outline: none;
-    border-color: var(--primary-color);
-  }
-
-  /* Payment filter chips */
-  .pm-filter-chips {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-  }
-  .pm-filter-chip {
-    padding: 6px 12px;
-    min-height: 32px;
-    border-radius: 14px;
-    font-size: 0.8125rem;
-    cursor: pointer;
-    border: 1px solid var(--divider-color);
-    background: var(--card-background-color, #fff);
-    color: var(--primary-text-color);
-    transition: all var(--ha-animation-duration-fast, 150ms) ease;
-    font-family: inherit;
-  }
-  .pm-filter-chip.active {
-    background: var(--primary-color);
-    color: var(--text-primary-color, #fff);
-    border-color: var(--primary-color);
-  }
-  .pm-filter-chip:hover {
-    opacity: 0.85;
-  }
-  .pm-filter-chip.confirm {
-    background: var(--tankst-error);
-    color: #fff;
-    border-color: var(--tankst-error);
-  }
-  .pm-custom-row {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-  .pm-custom-row ha-selector {
-    flex: 1;
-    /* Flex items default to min-width:auto; the selector's input has an
-       intrinsic minimum that would otherwise push the + button off-row. */
-    min-width: 0;
-  }
-  .pm-custom-row ha-icon-button {
-    color: var(--primary-color);
-    flex-shrink: 0;
-  }
-
-  /* Cars editor */
-  .car-editor-group {
+  /* Tab labels, under the sensor picker */
+  .tab-labels {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 4px;
   }
-  .car-editor-row {
+
+  /* Section panels: the body pads the form the way HA's own editors do. */
+  ha-expansion-panel {
+    --expansion-panel-content-padding: 0 16px 16px;
+  }
+  ha-expansion-panel ha-icon[slot="leading-icon"] {
+    color: var(--secondary-text-color);
+  }
+  .panel-body {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  /* Cars: one outlined list, a row per car, one open at a time */
+  .car-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    border: 1px solid var(--divider-color);
+    border-radius: var(--ha-card-border-radius, 12px);
+    overflow: hidden;
+  }
+  .car-item + .car-item {
+    border-top: 1px solid var(--divider-color);
+  }
+  .car-head {
     display: flex;
     align-items: center;
-    gap: 4px;
-    flex-wrap: wrap;
+    gap: 2px;
+    padding-inline-end: 4px;
   }
-  .car-input {
-    background: var(--input-fill-color, rgba(0, 0, 0, 0.06));
-    border: 1px solid var(--divider-color);
-    border-radius: 8px;
-    padding: 6px 8px;
-    font-size: 0.875rem;
-    color: var(--primary-text-color);
-    outline: none;
-    font-family: inherit;
+  .car-toggle {
+    flex: 1;
+    min-width: 0;
+    min-height: 56px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 12px;
+    background: none;
+    border: 0;
+    color: inherit;
+    font: inherit;
+    text-align: start;
+    cursor: pointer;
+  }
+  .car-toggle:focus-visible {
+    outline: 2px solid var(--tankst-accent, var(--primary-color));
+    outline-offset: -2px;
+  }
+  .car-toggle ha-icon {
+    color: var(--secondary-text-color);
+    flex-shrink: 0;
+  }
+  .car-text {
+    display: flex;
+    flex-direction: column;
     min-width: 0;
   }
-  .car-input:focus {
-    border-color: var(--primary-color);
+  .car-name,
+  .car-details {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
-  .car-name-input {
-    flex: 1 1 50px;
-    min-width: 50px;
-  }
-  .car-tank-input {
-    width: 54px;
-    flex-shrink: 0;
-  }
-  .car-consumption-input {
-    width: 60px;
-    flex-shrink: 0;
-  }
-  .car-select {
-    background: var(--input-fill-color, rgba(0, 0, 0, 0.06));
-    border: 1px solid var(--divider-color);
-    border-radius: 8px;
-    padding: 6px 2px;
-    font-size: 0.875rem;
-    color: var(--primary-text-color);
-    cursor: pointer;
-    font-family: inherit;
-    flex-shrink: 0;
-    max-width: 90px;
-  }
-  .car-delete-btn {
-    background: none;
-    border: none;
-    color: var(--tankst-error);
-    cursor: pointer;
-    padding: 4px;
-    border-radius: 6px;
-    display: flex;
-    align-items: center;
-    flex-shrink: 0;
-    margin-left: auto;
-  }
-  .car-delete-btn:hover {
-    background: rgba(219, 68, 55, 0.1);
-  }
-  .car-add-btn {
-    align-self: flex-start;
-    background: none;
-    border: 1px dashed var(--divider-color);
-    border-radius: 8px;
-    color: var(--primary-color);
-    cursor: pointer;
-    font-size: 0.875rem;
-    padding: 8px 14px;
-    width: 100%;
-    font-family: inherit;
-    transition: background var(--ha-animation-duration-fast, 150ms) ease;
-  }
-  .car-add-btn:hover {
-    background: rgba(0, 0, 0, 0.04);
-  }
-  .car-icon-btn {
-    background: var(--secondary-background-color, rgba(0, 0, 0, 0.06));
-    border: 1px solid var(--divider-color);
-    border-radius: 8px;
-    color: var(--primary-color);
-    cursor: pointer;
-    padding: 6px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    transition: background var(--ha-animation-duration-fast, 150ms) ease, border-color var(--ha-animation-duration-fast, 150ms) ease;
-    --mdc-icon-size: 20px;
-  }
-  .car-icon-btn.active {
-    border-color: var(--primary-color);
-    background: rgba(var(--rgb-primary-color, 33, 150, 243), 0.1);
-  }
-  .car-icon-btn:hover {
-    border-color: var(--primary-color);
-  }
-  .car-icon-picker {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    padding: 6px 8px;
-    background: var(--secondary-background-color, rgba(0, 0, 0, 0.04));
-    border-radius: 8px;
-    border: 1px solid var(--divider-color);
-  }
-  .car-icon-option {
-    background: none;
-    border: 1px solid transparent;
-    border-radius: 6px;
+  .car-details {
+    font-size: 0.8125rem;
     color: var(--secondary-text-color);
-    cursor: pointer;
-    padding: 6px;
-    min-width: 32px;
-    min-height: 32px;
+  }
+  .car-body {
+    padding: 4px 12px 12px;
     display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all var(--ha-animation-duration-fast, 150ms) ease;
-    --mdc-icon-size: 20px;
+    flex-direction: column;
+    gap: 8px;
   }
-  .car-icon-option:hover {
-    background: var(--card-background-color, #fff);
-    color: var(--primary-color);
-    border-color: var(--divider-color);
-  }
-  .car-icon-option.active {
-    background: var(--primary-color);
-    color: var(--text-primary-color, #fff);
-    border-color: var(--primary-color);
+  .car-add {
+    align-self: flex-start;
   }
 `;

@@ -1,7 +1,8 @@
 {
   "domain": "tankstellen_austria",
   "name": "Tankstellen Austria",
-  "after_dependencies": ["frontend", "http", "lovelace"],
+  "after_dependencies": ["frontend", "http", "lovelace", "recorder"],
+  "categories": ["local_services"],
   "codeowners": ["@rolandzeiner"],
   "config_flow": true,
   "dependencies": [],
@@ -11,5 +12,5 @@
   "issue_tracker": "https://github.com/rolandzeiner/tankstellen-austria/issues",
   "loggers": ["custom_components.tankstellen_austria"],
   "requirements": [],
-  "version": "1.10.2"
+  "version": "2.0.0"
 }

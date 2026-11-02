@@ -17,9 +17,6 @@ CONF_SCAN_INTERVAL = "scan_interval"
 CONF_DYNAMIC_ENTITY = "dynamic_entity"
 CONF_LONG_TERM_STATISTICS = "long_term_statistics"
 
-API_BASE_URL = "https://api.e-control.at/sprit/1.0"
-API_ENDPOINT = "/search/gas-stations/by-address"
-
 FUEL_TYPES = {
     "DIE": "Diesel",
     "SUP": "Super 95",
@@ -107,19 +104,6 @@ NO_DATA_RETRY_MINUTES = 10
 # success resets it.
 BACKOFF_CAP_SECONDS: Final = MAX_POLL_MINUTES * 60
 
-# --- E-Control maintenance page, measured 2026-09-27 ----------------------
-#   From 2026-09-26 ~14:13 UTC every path under /sprit/1.0 — and
-#   www.spritpreisrechner.at itself — answered `HTTP/1.0 507` with a 485-byte
-#   text/html page titled "E-control Wartungsarbeiten" (meta refresh 15 s).
-#   No Retry-After header, no JSON body. charge/1.0 and rc/1.0 on the same
-#   host stayed up (401 without credentials), so the window is per service.
-#   The page text is the signal, not the status: 507 means "Insufficient
-#   Storage", and the next window may just as well answer 503 or 200.
-# ----------------------------------------------------------------------------
-MAINTENANCE_MARKER: Final = "Wartungsarbeiten"
-# Most of an HTML body we read to look for the marker. The measured page is
-# 485 B with the marker in <title>; the cap only guards against a huge page.
-MAINTENANCE_SNIFF_BYTES: Final = 4096
 # While E-Control reports maintenance, every entry shares one probe per
 # window: a refresh inside it fails fast without a request. Pinned to the
 # informal 10-minute floor, so the install stays within it however many

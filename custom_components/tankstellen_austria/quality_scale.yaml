@@ -114,32 +114,34 @@ rules:
     comment: This integration creates a single device per config entry at setup time. There are no external devices that can appear or disappear at runtime.
   entity-category:
     status: exempt
-    comment: All entities are primary price sensors; there are no diagnostic or configuration entities.
+    comment: All entities are primary data (the price sensors and the cheap-window sensors built on their history); there are no diagnostic or configuration entities.
   entity-device-class:
     status: done
     comment: >-
       Sensors set SensorDeviceClass.MONETARY by default. With the opt-in
       long_term_statistics option they publish SensorStateClass.MEASUREMENT
       instead, because DEVICE_CLASS_STATE_CLASSES pairs MONETARY only with
-      TOTAL and TOTAL is meaningless for a unit price.
+      TOTAL and TOTAL is meaningless for a unit price. The next-cheap-window
+      sensor is a TIMESTAMP; the cheap-window binary sensor has no fitting
+      device class and leaves it unset.
   entity-disabled-by-default:
     status: exempt
-    comment: Every configured fuel-type sensor is primary data; disabling any by default would hide what the user explicitly opted in to.
+    comment: Every configured fuel-type sensor is primary data, and the cheap-window pair per fuel type is what the integration computes from it; disabling any by default would hide what the user explicitly opted in to.
   entity-translations:
     status: done
-    comment: Entities use translation_key fuel_die/fuel_sup/fuel_gas; names are provided in strings.json and all translation files.
+    comment: Entities use translation_key fuel_die/fuel_sup/fuel_gas, cheap_window and next_cheap_window (the last two with a {fuel} placeholder); names and attribute names are provided in strings.json and all translation files.
   exception-translations:
     status: done
-    comment: UpdateFailed raises in coordinator.py all use translation_domain/translation_key/translation_placeholders.
+    comment: UpdateFailed raises in coordinator.py and refuel.py all use translation_domain/translation_key (with translation_placeholders where the message has any).
   icon-translations:
     status: done
-    comment: icons.json maps each fuel-type translation_key to its default MDI icon.
+    comment: icons.json maps each translation_key to its default MDI icon; the cheap-window binary sensor has a second icon for on.
   reconfiguration-flow:
     status: done
     comment: config_flow.async_step_reconfigure lets users change location, fuel types, include_closed, scan_interval, and dynamic_entity while preserving the entry's existing entities.
   repair-issues:
     status: done
-    comment: When a configured device_tracker goes missing, the coordinator raises an issue_registry issue (tracker_missing_{entry_id}) and clears it when the tracker returns.
+    comment: When a configured device_tracker goes missing, the coordinator raises an issue_registry issue (tracker_missing_{entry_id}) and clears it when the tracker returns. A sustained E-Control outage (5xx, unusable body or the maintenance page, at least twice over 10 minutes) raises one domain-wide issue (upstream_unavailable), cleared by the first real answer and by removing the last entry.
   stale-devices:
     status: exempt
     comment: See dynamic-devices — the single device per entry is owned by the config entry and removed via entry delete.

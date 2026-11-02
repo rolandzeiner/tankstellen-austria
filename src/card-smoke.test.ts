@@ -17,6 +17,9 @@
  * 2. **Render-path coverage.** The card entrypoint carries most of the
  *    render logic and no other test imports it.
  *
+ * 3. **Behaviour only the mounted card exposes**: the tab strip's keyboard
+ *    pattern and a live state change appended to the chart.
+ *
  * `ha-card`, `ha-icon` and friends are HA-provided elements that do not
  * exist here. happy-dom renders them as inert containers, which is fine:
  * this suite asserts that rendering completes and produces the expected
@@ -27,6 +30,7 @@ import type { LitElement } from "lit";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vite-plus/test";
 
 import type { HomeAssistant, Station, TankstellenAustriaCardConfig } from "./types";
+import { OPTION_DEFAULTS } from "./utils/config";
 
 type Card = LitElement & {
   hass: HomeAssistant;
@@ -95,6 +99,19 @@ function hass(overrides: Partial<HomeAssistant> = {}): HomeAssistant {
   } as unknown as HomeAssistant;
 }
 
+/** The shadow root's markup without Lit's comment markers: a clone with
+ *  the comment nodes removed, not a regex over the HTML string (CodeQL
+ *  reads that as incomplete sanitisation; ladestellen does it this way). */
+function markup(root: ShadowRoot): string {
+  const host = document.createElement("div");
+  for (const child of root.childNodes) host.append(child.cloneNode(true));
+  const walker = document.createTreeWalker(host, NodeFilter.SHOW_COMMENT);
+  const comments: Node[] = [];
+  while (walker.nextNode()) comments.push(walker.currentNode);
+  for (const c of comments) c.parentNode?.removeChild(c);
+  return host.innerHTML;
+}
+
 async function mount<T extends LitElement>(tag: string, setup: (el: T) => void): Promise<T> {
   const el = document.createElement(tag) as T;
   setup(el);
@@ -135,15 +152,46 @@ describe("Lit reactive properties survive decorator lowering", () => {
 describe("tankstellen-austria-card", () => {
   it("rejects a config that is not an object, or entities of the wrong shape", () => {
     const el = document.createElement("tankstellen-austria-card") as Card;
-    expect(() => el.setConfig(null)).toThrow();
-    expect(() => el.setConfig([])).toThrow();
-    expect(() => el.setConfig({ type: "x", entities: 42 })).toThrow();
+    expect(() => el.setConfig(null)).toThrow("config must be an object");
+    expect(() => el.setConfig([])).toThrow("config must be an object");
+    expect(() => el.setConfig({ type: "x", entities: 42 })).toThrow(
+      "config.entities must be a string or array of entity IDs",
+    );
   });
 
-  it("fills its grid cell", () => {
+  it("declares its grid options and card size", () => {
     const el = document.createElement("tankstellen-austria-card") as Card;
     expect(el.getGridOptions()).toMatchObject({ columns: 12, rows: "auto" });
-    expect(el.getCardSize()).toBeGreaterThan(0);
+    // No config or hass yet: five stations, sparkline and tip assumed.
+    expect(el.getCardSize()).toBe(13);
+  });
+
+  it("sizes itself from the stations the sensor has", async () => {
+    const el = await mount<Card>("tankstellen-austria-card", (e) => {
+      e.setConfig({ type: "x" });
+      e.hass = hass();
+    });
+    // 137 + 80 + 83 (the three fact rows) + 2 × 62 = 424 px.
+    expect(el.getCardSize()).toBe(9);
+  });
+
+  it("reflects the layout HA sets, so the grid-cell rules can match", () => {
+    const ctor = customElements.get("tankstellen-austria-card") as unknown as typeof LitElement;
+    expect(ctor.getPropertyOptions("layout").reflect).toBe(true);
+  });
+
+  it("shows the version banner on the dashboard but not in the edit-dialog preview", async () => {
+    const el = await mount<Card>("tankstellen-austria-card", (e) => {
+      e.setConfig({ type: "x" });
+      e.hass = hass();
+    });
+    const banner = () => el.shadowRoot?.querySelector(".version-notice");
+    (el as unknown as { _versionMismatch: string | null })._versionMismatch = "9.9.9";
+    await el.updateComplete;
+    expect(banner()).not.toBeNull();
+    (el as unknown as { preview: boolean }).preview = true;
+    await el.updateComplete;
+    expect(banner()).toBeNull();
   });
 
   it("shows the loading state before hass arrives", async () => {
@@ -254,7 +302,109 @@ describe("tankstellen-austria-card", () => {
     expect(callWS).toHaveBeenCalledWith(
       expect.objectContaining({ type: "history/history_during_period" }),
     );
-    expect(el.shadowRoot?.querySelector("svg.sparkline path")).not.toBeNull();
+    const chart = el.shadowRoot?.querySelector<LitElement>("tankstellen-austria-sparkline");
+    await chart?.updateComplete;
+    expect(chart?.shadowRoot?.querySelector("svg.sparkline path")).not.toBeNull();
+  });
+
+  it("shows brand initials in the rank tile with stations.brand", async () => {
+    const tiles = async (config: Record<string, unknown>) => {
+      const h = hass();
+      h.states["sensor.tankstellen_diesel"]!.attributes.stations = [
+        { name: "JET TANKSTELLE", price: 1.5, open: true },
+        { name: "Landforst Obdach", price: 1.6, open: true },
+      ];
+      const el = await mount<Card>("tankstellen-austria-card", (e) => {
+        e.setConfig({ type: "x", ...config });
+        e.hass = h;
+      });
+      const found = [...el.shadowRoot!.querySelectorAll<HTMLElement>(".st-tile")];
+      el.remove();
+      return found.map((t) => [
+        t.textContent?.trim(),
+        t.style.getPropertyValue("--tankst-tile-bg"),
+      ]);
+    };
+    expect(await tiles({})).toEqual([
+      ["1", ""],
+      ["2", ""],
+    ]);
+    expect(await tiles({ stations: { brand: true } })).toEqual([
+      ["JET", "#ffb700"],
+      ["LO", ""],
+    ]);
+    // The brand tile doesn't need the rank switched on; with both off
+    // there is no tile.
+    expect(await tiles({ stations: { index: false, brand: true } })).toEqual([
+      ["JET", "#ffb700"],
+      ["LO", ""],
+    ]);
+    expect(await tiles({ stations: { index: false } })).toEqual([]);
+  });
+
+  it("draws round rank tiles with stations.tile_shape: circle", async () => {
+    const circles = async (stations: Record<string, unknown>) => {
+      const el = await mount<Card>("tankstellen-austria-card", (e) => {
+        e.setConfig({ type: "x", stations });
+        e.hass = hass();
+      });
+      const found = [...el.shadowRoot!.querySelectorAll(".st-tile")].map((t) =>
+        t.classList.contains("circle"),
+      );
+      el.remove();
+      return found;
+    };
+    expect((await circles({})).every((c) => !c)).toBe(true);
+    for (const stations of [{ tile_shape: "circle" }, { tile_shape: "circle", brand: true }]) {
+      const found = await circles(stations);
+      expect(found.length).toBeGreaterThan(0);
+      expect(found.every(Boolean)).toBe(true);
+    }
+  });
+
+  it("renders an unset config like one with every default spelled out", async () => {
+    // OPTION_DEFAULTS is what the editor draws on unset toggles; the card's
+    // render code holds its own defaults. A wrong entry in the table would
+    // show the user a toggle in the opposite state of the card.
+    // Only Date is frozen, so both renders share one 7-day window while
+    // setTimeout still runs.
+    vi.useFakeTimers({ toFake: ["Date"], now: new Date("2026-11-01T12:00:00Z") });
+    const now = Date.now() / 1000;
+    const points = Array.from({ length: 24 * 9 }, (_, i) => ({
+      lu: now - (24 * 9 - i) * 3600,
+      s: (1.5 + 0.05 * Math.sin(i / 4)).toFixed(3),
+    }));
+    const callWS = vi.fn(async (msg: { type: string; entity_ids?: string[] }) =>
+      msg.type === "history/history_during_period" ? { [msg.entity_ids?.[0] ?? ""]: points } : {},
+    );
+    const render = async (config: Record<string, unknown>): Promise<string> => {
+      const el = await mount<Card>("tankstellen-austria-card", (e) => {
+        e.setConfig({ type: "x", entities: ["sensor.tankstellen_defaults"], ...config });
+        const h = hass({ callWS } as unknown as Partial<HomeAssistant>);
+        h.states["sensor.tankstellen_defaults"] = {
+          ...h.states["sensor.tankstellen_diesel"]!,
+          entity_id: "sensor.tankstellen_defaults",
+        };
+        e.hass = h;
+      });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await el.updateComplete;
+      // The chart renders in its own shadow root; its gradient id and
+      // Lit's markers differ per mount.
+      const chart = el.shadowRoot!.querySelector<LitElement>("tankstellen-austria-sparkline");
+      await chart?.updateComplete;
+      const html =
+        `${markup(el.shadowRoot!)}${chart?.shadowRoot ? markup(chart.shadowRoot) : ""}`.replaceAll(
+          /spark-grad-\w+/g,
+          "spark-grad",
+        );
+      el.remove();
+      return html;
+    };
+    const bare = await render({});
+    expect(bare).toContain("sparkline");
+    expect(await render(structuredClone(OPTION_DEFAULTS))).toBe(bare);
+    vi.useRealTimers();
   });
 
   it("survives a station payload missing optional fields", async () => {
@@ -271,6 +421,157 @@ describe("tankstellen-austria-card", () => {
   });
 });
 
+describe("E-Control maintenance notice", () => {
+  // Written during the 2026-09-26/27 maintenance window, which no one can
+  // stage on demand: this suite is the only check the wiring still works.
+  // An unavailable entity has no attributes and an entry in setup retry has
+  // none at all, so the card asks the backend over the api_status command,
+  // and only while a sensor it shows is unavailable.
+  const unavailable = (maintenance: boolean) => {
+    const callWS = vi.fn(async (msg: { type: string }) =>
+      msg.type === "tankstellen_austria/api_status" ? { maintenance } : [],
+    );
+    const h = hass({ callWS } as unknown as Partial<HomeAssistant>);
+    h.states["sensor.tankstellen_diesel"] = {
+      entity_id: "sensor.tankstellen_diesel",
+      state: "unavailable",
+      attributes: { friendly_name: "Diesel" },
+    } as HomeAssistant["states"][string];
+    return { h, callWS };
+  };
+  const statusCalls = (callWS: ReturnType<typeof vi.fn>) =>
+    callWS.mock.calls.filter(([msg]) => msg.type === "tankstellen_austria/api_status").length;
+  const settle = async (el: LitElement) => {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await el.updateComplete;
+  };
+  const notice = (el: LitElement) => el.shadowRoot?.querySelector('ha-alert[alert-type="info"]');
+
+  it("says E-Control is down for maintenance while the sensor is unavailable", async () => {
+    const { h, callWS } = unavailable(true);
+    const el = await mount<Card>("tankstellen-austria-card", (e) => {
+      e.setConfig({ type: "x", entities: ["sensor.tankstellen_diesel"] });
+      e.hass = h;
+    });
+    await settle(el);
+    expect(statusCalls(callWS)).toBeGreaterThan(0);
+    expect(notice(el)?.textContent).toContain("down for maintenance");
+  });
+
+  it("shows no maintenance notice for an ordinary outage", async () => {
+    const { h } = unavailable(false);
+    const el = await mount<Card>("tankstellen-austria-card", (e) => {
+      e.setConfig({ type: "x", entities: ["sensor.tankstellen_diesel"] });
+      e.hass = h;
+    });
+    await settle(el);
+    expect(notice(el)).toBeNull();
+  });
+
+  it("never asks while every sensor has data", async () => {
+    const callWS = vi.fn(async () => []);
+    const el = await mount<Card>("tankstellen-austria-card", (e) => {
+      e.setConfig({ type: "x", entities: ["sensor.tankstellen_diesel"] });
+      e.hass = hass({ callWS } as unknown as Partial<HomeAssistant>);
+    });
+    await settle(el);
+    expect(statusCalls(callWS)).toBe(0);
+  });
+
+  it("notices maintenance that starts while the dashboard is open", async () => {
+    const el = await mount<Card>("tankstellen-austria-card", (e) => {
+      e.setConfig({ type: "x", entities: ["sensor.tankstellen_diesel"] });
+      e.hass = hass();
+    });
+    await settle(el);
+    expect(notice(el)).toBeNull();
+
+    const { h, callWS } = unavailable(true);
+    el.hass = h;
+    await settle(el);
+    expect(statusCalls(callWS)).toBeGreaterThan(0);
+    expect(notice(el)?.textContent).toContain("down for maintenance");
+  });
+
+  it("drops the notice once prices are back", async () => {
+    const { h } = unavailable(true);
+    const el = await mount<Card>("tankstellen-austria-card", (e) => {
+      e.setConfig({ type: "x", entities: ["sensor.tankstellen_diesel"] });
+      e.hass = h;
+    });
+    await settle(el);
+    expect(notice(el)).not.toBeNull();
+
+    el.hass = hass();
+    await settle(el);
+    expect(notice(el)).toBeNull();
+    expect(text(el)).toContain("Teststation Nord");
+  });
+});
+
+describe("unreachable notice", () => {
+  // An outage used to read as "No data available", which is what a sensor
+  // with nothing to report says too, so a dead API looked like a broken
+  // install. Independent of the maintenance alert above.
+  const unavailable = (): HomeAssistant => {
+    const h = hass();
+    h.states["sensor.tankstellen_diesel"] = {
+      entity_id: "sensor.tankstellen_diesel",
+      state: "unavailable",
+      attributes: { friendly_name: "Diesel" },
+    } as HomeAssistant["states"][string];
+    return h;
+  };
+  const mountWith = (h: HomeAssistant, config: Record<string, unknown> = {}) =>
+    mount<Card>("tankstellen-austria-card", (e) => {
+      e.setConfig({ type: "x", entities: ["sensor.tankstellen_diesel"], ...config });
+      e.hass = h;
+    });
+
+  it("says it can't reach E-Control when the sensor is unavailable", async () => {
+    const el = await mountWith(unavailable());
+    const notice = el.shadowRoot!.querySelector(".empty");
+    expect(notice?.querySelector(".empty-title")?.textContent?.trim()).toBe(
+      "Can't reach E-Control",
+    );
+    expect(notice?.getAttribute("role")).toBe("status");
+    expect(text(el)).not.toContain("No data available");
+  });
+
+  it("shows the notice with the station list hidden too", async () => {
+    const el = await mountWith(unavailable(), { max_stations: 0 });
+    expect(text(el)).toContain("Can't reach E-Control");
+  });
+
+  it("still says no data for an available sensor without stations", async () => {
+    const h = hass();
+    h.states["sensor.tankstellen_diesel"]!.attributes.stations = [];
+    const el = await mountWith(h);
+    expect(text(el)).toContain("No data available");
+    expect(text(el)).not.toContain("Can't reach");
+  });
+
+  it("follows the card's language", async () => {
+    const el = await mountWith(unavailable(), { language: "de" });
+    expect(text(el)).toContain("Keine Verbindung zur E-Control");
+  });
+
+  it("follows a language switch that touched no sensor", async () => {
+    // A profile language switch leaves every state object as it was; the
+    // re-render gate used to skip it and keep the old text.
+    const h = unavailable();
+    const el = await mountWith(h);
+    // Let the history fetch started at mount land first: its _history update
+    // would otherwise ride along with the switch and pass the gate on its own.
+    await new Promise((r) => setTimeout(r, 0));
+    await el.updateComplete;
+    expect(text(el)).toContain("Can't reach E-Control");
+    el.hass = { ...h, language: "de" };
+    await el.updateComplete;
+    expect(text(el)).toContain("Keine Verbindung zur E-Control");
+  });
+});
+
 describe("tankstellen-austria-card-editor", () => {
   it("renders with a config and hass", async () => {
     const el = await mount<Editor>("tankstellen-austria-card-editor", (e) => {
@@ -278,5 +579,125 @@ describe("tankstellen-austria-card-editor", () => {
       e.setConfig({ type: "custom:tankstellen-austria-card" });
     });
     expect(el.shadowRoot?.childElementCount).toBeGreaterThan(0);
+  });
+});
+
+describe("fuel tabs", () => {
+  function twoFuels(): HomeAssistant {
+    const h = hass();
+    h.states["sensor.tankstellen_super"] = {
+      ...h.states["sensor.tankstellen_diesel"]!,
+      entity_id: "sensor.tankstellen_super",
+      attributes: { ...h.states["sensor.tankstellen_diesel"]!.attributes, fuel_type: "SUP" },
+    };
+    return h;
+  }
+
+  const tabs = (el: Card): HTMLButtonElement[] =>
+    Array.from(el.shadowRoot?.querySelectorAll<HTMLButtonElement>('[role="tab"]') ?? []);
+  const selected = (el: Card): number =>
+    tabs(el).findIndex((t) => t.getAttribute("aria-selected") === "true");
+
+  async function press(el: Card, index: number, key: string): Promise<void> {
+    tabs(el)[index]!.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }));
+    await el.updateComplete;
+  }
+
+  it("move with the arrow keys, wrapping, and jump with Home and End", async () => {
+    const el = await mount<Card>("tankstellen-austria-card", (e) => {
+      e.setConfig({
+        type: "x",
+        entities: ["sensor.tankstellen_diesel", "sensor.tankstellen_super"],
+      });
+      e.hass = twoFuels();
+    });
+    expect(tabs(el)).toHaveLength(2);
+    expect(selected(el)).toBe(0);
+    await press(el, 0, "ArrowRight");
+    expect(selected(el)).toBe(1);
+    await press(el, 1, "ArrowRight");
+    expect(selected(el)).toBe(0);
+    await press(el, 0, "ArrowLeft");
+    expect(selected(el)).toBe(1);
+    await press(el, 1, "Home");
+    expect(selected(el)).toBe(0);
+    await press(el, 0, "End");
+    expect(selected(el)).toBe(1);
+    // Any other key is left to the browser.
+    await press(el, 1, "Tab");
+    expect(selected(el)).toBe(1);
+    // Focus follows the selection once the re-render has landed.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(el.shadowRoot?.activeElement).toBe(tabs(el)[1]);
+  });
+});
+
+describe("live price changes", () => {
+  const id = "sensor.tankstellen_live";
+
+  function historyOf(points: Array<{ lu: number; s: string }>) {
+    return vi.fn(async (msg: { type: string; entity_ids?: string[] }) =>
+      msg.type === "history/history_during_period" ? { [msg.entity_ids?.[0] ?? ""]: points } : {},
+    );
+  }
+
+  async function mounted(
+    callWS: ReturnType<typeof historyOf>,
+  ): Promise<{ el: Card; h: HomeAssistant }> {
+    const h = hass({ callWS } as unknown as Partial<HomeAssistant>);
+    h.states[id] = { ...h.states["sensor.tankstellen_diesel"]!, entity_id: id };
+    const el = await mount<Card>("tankstellen-austria-card", (e) => {
+      e.setConfig({ type: "x", entities: [id] });
+      e.hass = h;
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await el.updateComplete;
+    return { el, h };
+  }
+
+  const chartPoints = async (el: Card): Promise<Array<{ time: number; value: number }>> => {
+    const chart = el.shadowRoot?.querySelector<
+      LitElement & { points: Array<{ time: number; value: number }> }
+    >("tankstellen-austria-sparkline");
+    await chart?.updateComplete;
+    return chart?.points ?? [];
+  };
+
+  function withState(h: HomeAssistant, state: string, lastChanged: string): HomeAssistant {
+    return {
+      ...h,
+      states: { ...h.states, [id]: { ...h.states[id]!, state, last_changed: lastChanged } },
+    };
+  }
+
+  it("appends a changed sensor state to the chart before the next refetch", async () => {
+    const now = Date.now();
+    const points = Array.from({ length: 48 }, (_, i) => ({
+      lu: (now - (48 - i) * 3_600_000) / 1000,
+      s: "1.539",
+    }));
+    const { el, h } = await mounted(historyOf(points));
+    expect(await chartPoints(el)).toHaveLength(48);
+
+    // Same state object again: nothing to append.
+    el.hass = { ...h };
+    await el.updateComplete;
+    expect(await chartPoints(el)).toHaveLength(48);
+
+    // A non-numeric state is not a price.
+    el.hass = withState(h, "unavailable", new Date(now + 1000).toISOString());
+    await el.updateComplete;
+    expect(await chartPoints(el)).toHaveLength(48);
+
+    // The same price again is not a change the recorder would keep either.
+    el.hass = withState(h, "1.539", new Date(now + 2000).toISOString());
+    await el.updateComplete;
+    expect(await chartPoints(el)).toHaveLength(48);
+
+    el.hass = withState(h, "1.599", new Date(now + 3000).toISOString());
+    await el.updateComplete;
+    const after = await chartPoints(el);
+    expect(after).toHaveLength(49);
+    expect(after[48]).toEqual({ time: now + 3000, value: 1.599 });
   });
 });

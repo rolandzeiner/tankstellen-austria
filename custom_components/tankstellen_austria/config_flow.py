@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-import aiohttp
 import voluptuous as vol
 from homeassistant.config_entries import (
     ConfigEntry,
@@ -31,9 +30,15 @@ from homeassistant.helpers.selector import (
     TextSelector,
 )
 
+from .api import (
+    PROBE_TIMEOUT_SECONDS,
+    SEARCH_URL,
+    EControlConnectionError,
+    EControlHttpError,
+    EControlTimeoutError,
+    check_connection,
+)
 from .const import (
-    API_BASE_URL,
-    API_ENDPOINT,
     CONF_DYNAMIC_ENTITY,
     CONF_FUEL_TYPES,
     CONF_INCLUDE_CLOSED,
@@ -50,7 +55,6 @@ from .const import (
     MIN_POLL_MINUTES,
     USER_AGENT,
 )
-from .http import base_request_headers
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -59,43 +63,39 @@ async def _test_api_connection(
     hass: HomeAssistant, lat: float, lng: float, fuel_type: str
 ) -> bool:
     """Return True if the E-Control API is reachable with the given coordinates."""
-    session = async_get_clientsession(hass)
-    url = f"{API_BASE_URL}{API_ENDPOINT}"
-    params: dict[str, str] = {
-        "latitude": str(lat),
-        "longitude": str(lng),
-        "fuelType": fuel_type,
-        "includeClosed": "true",
-    }
     try:
-        async with session.get(
-            url,
-            params=params,
-            headers=base_request_headers(USER_AGENT),
-            timeout=aiohttp.ClientTimeout(total=10),
-        ) as resp:
-            resp.raise_for_status()
-    except TimeoutError:
-        _LOGGER.warning("API connection test timed out after 10s (%s)", url)
+        await check_connection(
+            async_get_clientsession(hass),
+            latitude=lat,
+            longitude=lng,
+            fuel_type=fuel_type,
+            user_agent=USER_AGENT,
+        )
+    except EControlTimeoutError:
+        _LOGGER.warning(
+            "API connection test timed out after %ds (%s)",
+            PROBE_TIMEOUT_SECONDS,
+            SEARCH_URL,
+        )
         return False
-    except aiohttp.ClientResponseError as err:
+    except EControlHttpError as err:
         _LOGGER.warning(
             "API connection test failed with HTTP %s: %s (%s)",
             err.status,
-            err.message,
-            url,
+            err.reason,
+            SEARCH_URL,
         )
         return False
-    except aiohttp.ClientError as err:
+    except EControlConnectionError as err:
         _LOGGER.warning(
             "API connection test failed: %s: %s (%s)",
-            type(err).__name__,
-            err,
-            url,
+            err.error_type,
+            err.error,
+            SEARCH_URL,
         )
         return False
     except Exception:
-        _LOGGER.exception("Unexpected error in API connection test (%s)", url)
+        _LOGGER.exception("Unexpected error in API connection test (%s)", SEARCH_URL)
         return False
     return True
 
@@ -310,9 +310,15 @@ class TankstellenConfigFlow(ConfigFlow, domain=DOMAIN):
                     # the new unique_id matches a *different* existing entry.
                     await self.async_set_unique_id(new_unique_id)
                     self._abort_if_unique_id_mismatch()
+                    # options={}: the form showed every setting merged, so
+                    # what was submitted is the whole truth. The options
+                    # flow writes the same record to entry.options, and
+                    # every reader merges options over data, so a copy left
+                    # there would outrank this write.
                     return self.async_update_and_abort(
                         entry,
                         data=_build_entry_data(user_input, lat, lng, fuel_types),
+                        options={},
                     )
 
         current = {**entry.data, **entry.options}

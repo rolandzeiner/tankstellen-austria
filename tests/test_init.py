@@ -5,7 +5,8 @@ config-flow or coordinator tests:
 
 * the ``tankstellen_austria/card_version`` WebSocket command,
 * ``async_unload_entry`` happy path,
-* ``JSModuleRegistration`` static-path + Lovelace-resource branches.
+* ``JSModuleRegistration`` static-path + Lovelace-resource branches,
+* ``async_remove_entry`` deleting the entry's Repairs issue.
 """
 
 from __future__ import annotations
@@ -16,6 +17,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
@@ -392,6 +394,39 @@ async def test_remove_entry_handles_missing_lovelace(hass: HomeAssistant) -> Non
     hass.data.pop("lovelace", None)
 
     await async_remove_entry(hass, entry)  # must not raise
+
+
+async def test_remove_entry_deletes_its_repair_issue(hass: HomeAssistant) -> None:
+    """The removed entry's issue goes, even while other entries remain."""
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+    other = MockConfigEntry(
+        domain=DOMAIN,
+        data=BASE_ENTRY_DATA,
+        options={},
+        title="Other",
+        unique_id="48.200_16.400",
+    )
+    other.add_to_hass(hass)
+    for each in (entry, other):
+        ir.async_create_issue(
+            hass,
+            DOMAIN,
+            f"tracker_missing_{each.entry_id}",
+            is_fixable=False,
+            severity=ir.IssueSeverity.WARNING,
+            translation_key="tracker_missing",
+            translation_placeholders={
+                "entity_id": "device_tracker.car",
+                "entry_title": each.title,
+            },
+        )
+
+    await async_remove_entry(hass, entry)
+
+    registry = ir.async_get(hass)
+    assert registry.async_get_issue(DOMAIN, f"tracker_missing_{entry.entry_id}") is None
+    assert registry.async_get_issue(DOMAIN, f"tracker_missing_{other.entry_id}")
 
 
 async def test_setup_uses_no_deprecated_ha_api(

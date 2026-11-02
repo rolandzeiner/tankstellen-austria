@@ -2,10 +2,17 @@
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import aiohttp
+import pytest
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
 
+from custom_components.tankstellen_austria.api import (
+    EControlConnectionError,
+    EControlHttpError,
+    EControlTimeoutError,
+)
 from custom_components.tankstellen_austria.const import (
     CONF_FUEL_TYPES,
     CONF_INCLUDE_CLOSED,
@@ -212,10 +219,8 @@ async def test_connection_test_sends_canonical_user_agent(hass: HomeAssistant) -
 
     assert session.get.called
     headers = session.get.call_args.kwargs["headers"]
-    assert headers == {
-        "User-Agent": USER_AGENT,
-        "Accept-Encoding": "gzip",
-    }
+    # No Accept-Encoding: passing one would replace aiohttp's own offer.
+    assert headers == {"User-Agent": USER_AGENT}
 
 
 async def test_options_flow_syncs_unique_id_on_location_change(
@@ -394,6 +399,48 @@ async def test_reconfigure_updates_entry_data_and_keeps_unique_id(
     await hass.async_block_till_done()
 
 
+async def test_reconfigure_after_options_save_wins(
+    hass: HomeAssistant, mock_fetch
+) -> None:
+    """Options and reconfigure write the same record to different stores.
+
+    Readers merge options over data, so an options save used to outrank
+    every later reconfigure silently. Reconfigure now clears options.
+    """
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    await hass.config_entries.flow.async_configure(result["flow_id"], VALID_USER_INPUT)
+    entry = hass.config_entries.async_entries(DOMAIN)[0]
+
+    settings = {key: value for key, value in VALID_USER_INPUT.items() if key != "name"}
+    options = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await hass.config_entries.options.async_configure(
+        options["flow_id"], {**settings, CONF_SCAN_INTERVAL: 90}
+    )
+    assert result["type"] == FlowResultType.CREATE_ENTRY
+    await hass.async_block_till_done()
+    assert entry.options[CONF_SCAN_INTERVAL] == 90
+
+    flow = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={
+            "source": config_entries.SOURCE_RECONFIGURE,
+            "entry_id": entry.entry_id,
+        },
+    )
+    result = await hass.config_entries.flow.async_configure(
+        flow["flow_id"], {**settings, CONF_SCAN_INTERVAL: 120}
+    )
+    assert result["reason"] == "reconfigure_successful"
+    await hass.async_block_till_done()
+
+    refreshed = hass.config_entries.async_get_entry(entry.entry_id)
+    assert refreshed is not None
+    assert refreshed.options == {}
+    assert {**refreshed.data, **refreshed.options}[CONF_SCAN_INTERVAL] == 120
+
+
 async def test_reconfigure_cannot_connect(hass: HomeAssistant, mock_fetch) -> None:
     """API failure during reconfigure shows cannot_connect and does not mutate the entry."""
     result = await hass.config_entries.flow.async_init(
@@ -469,3 +516,36 @@ async def test_options_flow_toggles_statistics(hass: HomeAssistant, mock_fetch) 
     # Drain the reload task spawned by the update listener so its
     # coordinator first-refresh completes before fixture teardown.
     await hass.async_block_till_done()
+
+
+@pytest.mark.parametrize(
+    ("raised", "logged"),
+    [
+        (EControlTimeoutError("request timed out"), "timed out after 10s"),
+        (
+            EControlHttpError(503, "Service Unavailable"),
+            "HTTP 503: Service Unavailable",
+        ),
+        (
+            EControlConnectionError(aiohttp.ClientConnectionError("refused")),
+            "ClientConnectionError: refused",
+        ),
+        (RuntimeError("boom"), "Unexpected error in API connection test"),
+    ],
+)
+async def test_connection_test_logs_each_failure_and_returns_false(
+    hass: HomeAssistant,
+    caplog: pytest.LogCaptureFixture,
+    raised: Exception,
+    logged: str,
+) -> None:
+    """Every probe failure turns into False plus a log line that says which one."""
+    from custom_components.tankstellen_austria.config_flow import _test_api_connection
+
+    with patch(
+        "custom_components.tankstellen_austria.config_flow.check_connection",
+        new_callable=AsyncMock,
+        side_effect=raised,
+    ):
+        assert await _test_api_connection(hass, 48.0, 16.0, "DIE") is False
+    assert logged in caplog.text

@@ -1,13 +1,12 @@
 // Best-refuel-time analytics — bucketed by hour-of-day and weekday.
 //
-// Locality assumption: ``Date.getHours()`` and ``Date.getDay()`` return
-// values in the *browser's* local timezone, not UTC. The recommendation
-// is therefore framed in the user's clock ("Tuesday morning is typically
-// cheapest"), which matches the UX intent for an Austrian fuel-price
-// integration where every user is on Europe/Vienna in practice. A
-// dashboard viewed from another timezone will see the analysis re-bucket
-// to that timezone's clock — do NOT cache results across sessions or
-// share them between users without re-running the analysis.
+// Clock: hours and weekdays are read in the zone the caller passes (the
+// card resolves it the way HA does: the profile's "local" is the browser's
+// zone, otherwise the server's), falling back to the browser's zone. The
+// recommendation is framed in that clock ("Tuesday morning is typically
+// cheapest"), so a dashboard viewed from another zone with the "server"
+// setting still speaks Vienna time. Do NOT cache results across sessions
+// or share them between users without re-running the analysis.
 //
 // DST: chunks are split at UTC hour boundaries and labelled with the
 // local clock-hour at the chunk start. Vienna's offset is always integer
@@ -44,15 +43,27 @@
 // the aggregate cheapest", which is the actionable question for a driver
 // choosing among the N stations. Do not interpret the medians or the
 // recommendation as statements about any individual station's pricing.
+//
+// The integration's `best_refuel.py` is a line-for-line port of this file,
+// held to it by tests/fixtures/best_refuel_parity.json. Change both.
 
 import type { HistoryPoint } from "../history";
-import type { HourlyEnvelope } from "../sparkline";
 import type { WeightedEntry } from "../utils/math";
 import { clamp, weightedPercentile } from "../utils/math";
+import { zonedClock, type ZonedClock } from "../utils/tz";
 
 const HOUR_MS = 3_600_000;
 const DAY_MS = 86_400_000;
 const HALF_LIFE_MS = 14 * DAY_MS;
+
+// The hour window, the day facts and today's rank read the last four weeks.
+// Older history, when the caller has it (long-term statistics), only feeds
+// the weekday test, where four observations per weekday are too few.
+const WINDOW_DAYS = 28;
+const WINDOW_MS = WINDOW_DAYS * DAY_MS;
+
+// A price change at noon smaller than this is float noise, not a rise.
+const NOON_RISE_MIN_EUR = 0.001;
 
 // Skip per-week aggregation when fewer than this many ms of observed time
 // fell in the week. The first and last ISO weeks of a 28-day window are
@@ -61,20 +72,68 @@ const HALF_LIFE_MS = 14 * DAY_MS;
 // derived from that week.
 const MIN_WEEK_MS = 3 * DAY_MS;
 
+// A bucket needs this many chunks before its median counts.
+const MIN_BUCKET_COUNT = 3;
+
+// Confidence: the window's lead over the rest of the day saturates the gap
+// score at this many cents, and the share of window time at or below the
+// day's median maps 50 % (chance) → 0 and 90 % → 1.
+const GAP_REF_CENTS = 1.5;
+const CONSISTENCY_CHANCE = 0.5;
+const CONSISTENCY_FULL = 0.9;
+
+// A day enters the consistency check and the day facts once this much of it
+// was observed; see observedDays().
+const MIN_DAY_MS = 20 * HOUR_MS;
+
+// Weekday: the cheapest weekday is named when its lead over the typical
+// weekday is at least this much and a permutation test of the day labels
+// finds a lead that large in at most 5 % of shuffles.
+const MIN_WEEKDAY_GAP_EUR = 0.005;
+const WEEKDAY_PERMUTATIONS = 200;
+const WEEKDAY_P_MAX = 0.05;
+const WEEKDAY_SEED = 0x5eed;
+
+export interface HourlyEnvelope {
+  // Per hour-of-day (0-23). null when that hour has no samples.
+  minByHour: Array<number | null>;
+  maxByHour: Array<number | null>;
+}
+
 export type Confidence = "high" | "medium" | "low";
+
+// Counted facts about the last four weeks, shown next to the tip. Each is
+// a plain measurement with its sample size, not a model output: how much
+// the price moves over a typical day, on how many days it rose at noon and
+// by how much, and where today's price sits in the four weeks of prices
+// (the share of time that was dearer, and cheaper).
+export interface DayFacts {
+  daily_range_cents: number;
+  noon_days: number;
+  noon_rise_days: number;
+  noon_rise_cents: number;
+  cheaper_than_pct: number;
+  dearer_than_pct: number;
+}
 
 export interface BestRefuelResult {
   hasEnoughData: boolean;
-  hour?: number; // 0-23, start of recommended window
-  hour_end?: number; // 0-23, exclusive end of recommended window (wraps past 23)
-  weekday?: number | null; // 0-6 (Sun..Sat), only set when weekday signal is strong
+  // Start of the recommended window (0-23). null with enough data but no
+  // hour of the day cheaper than the rest: nothing to recommend.
+  hour?: number | null;
+  hour_end?: number | null; // exclusive end of the window (wraps past 23)
+  // A second, disjoint run of hours about as cheap as the window.
+  alt_hour?: number | null;
+  alt_hour_end?: number | null;
+  weekday?: number | null; // 0-6 (Sun..Sat), only when its lead is significant
   confidence?: {
     level: Confidence;
     score: number;
     span_days: number;
-    coverage_pct: number;
     gap_cents: number;
-  };
+    consistency_pct: number;
+  } | null;
+  facts?: DayFacts | null;
 }
 
 interface Chunk {
@@ -82,17 +141,9 @@ interface Chunk {
   t: number; // chunk start (epoch ms, local-clock-relevant)
   hour: number; // 0-23 in local time
   weekday: number; // 0-6 in local time
+  dayKey: number; // local-midnight epoch ms of the chunk's day
   weekKey: number; // Monday-aligned local-midnight epoch ms
   durationMs: number;
-}
-
-// Monday-aligned week key (midnight on the Monday of the week containing t).
-function mondayKey(t: number): number {
-  const d = new Date(t);
-  d.setHours(0, 0, 0, 0);
-  const day = d.getDay();
-  d.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
-  return d.getTime();
 }
 
 // Walk every step-function price interval and emit one chunk per hour the
@@ -105,7 +156,7 @@ function mondayKey(t: number): number {
 // a brief integration glitch) would poison the per-week mean for the entire
 // week it landed in. Skip the chunk silently — a missed segment is far less
 // damaging than a NaN-poisoned weekMean.
-function walkChunks(data: HistoryPoint[], now: number): Chunk[] {
+function walkChunks(data: HistoryPoint[], now: number, clock: ZonedClock): Chunk[] {
   const out: Chunk[] = [];
   const emit = (price: number, start: number, end: number): void => {
     if (end <= start) return;
@@ -114,13 +165,14 @@ function walkChunks(data: HistoryPoint[], now: number): Chunk[] {
     while (cursor < end) {
       const nextHour = Math.floor(cursor / HOUR_MS) * HOUR_MS + HOUR_MS;
       const chunkEnd = Math.min(end, nextHour);
-      const dt = new Date(cursor);
+      const at = clock.parts(cursor);
       out.push({
         price,
         t: cursor,
-        hour: dt.getHours(),
-        weekday: dt.getDay(),
-        weekKey: mondayKey(cursor),
+        hour: at.hour,
+        weekday: at.weekday,
+        dayKey: clock.startOfDay(cursor),
+        weekKey: clock.mondayKey(cursor),
         durationMs: chunkEnd - cursor,
       });
       cursor = chunkEnd;
@@ -134,14 +186,27 @@ function walkChunks(data: HistoryPoint[], now: number): Chunk[] {
   return out;
 }
 
-function groupByWeek(chunks: Chunk[]): Map<number, Chunk[]> {
-  const weeks = new Map<number, Chunk[]>();
+function groupBy(chunks: Chunk[], key: (c: Chunk) => number): Map<number, Chunk[]> {
+  const groups = new Map<number, Chunk[]>();
   for (const c of chunks) {
-    const arr = weeks.get(c.weekKey);
+    const k = key(c);
+    const arr = groups.get(k);
     if (arr) arr.push(c);
-    else weeks.set(c.weekKey, [c]);
+    else groups.set(k, [c]);
   }
-  return weeks;
+  return groups;
+}
+
+// The days with at least MIN_DAY_MS observed. A day the recorder saw only
+// part of would skew its median or its range.
+function observedDays(chunks: Chunk[]): Chunk[][] {
+  const days: Chunk[][] = [];
+  for (const dayChunks of groupBy(chunks, (c) => c.dayKey).values()) {
+    let observed = 0;
+    for (const c of dayChunks) observed += c.durationMs;
+    if (observed >= MIN_DAY_MS) days.push(dayChunks);
+  }
+  return days;
 }
 
 interface WinsorisedWeek {
@@ -156,7 +221,7 @@ interface WinsorisedWeek {
 // envelope qualify weeks identically and clip against the same p05/p95 — only
 // what they do with the clipped prices differs — so the rule lives here once.
 function* winsorisedWeeks(chunks: Chunk[]): Generator<WinsorisedWeek> {
-  for (const weekChunks of groupByWeek(chunks).values()) {
+  for (const weekChunks of groupBy(chunks, (c) => c.weekKey).values()) {
     let totalMs = 0;
     for (const c of weekChunks) totalMs += c.durationMs;
     if (totalMs < MIN_WEEK_MS) continue;
@@ -176,9 +241,184 @@ function* winsorisedWeeks(chunks: Chunk[]): Generator<WinsorisedWeek> {
 
 interface BestPick {
   medians: number[];
-  bestIdx: number; // index of the seed bucket (may have been shifted by tiebreaker)
-  bestVal: number; // median of the seed bucket (may be > minVal after tiebreaker)
-  minVal: number; // unconditional minimum across all valid bucket medians
+  bestIdx: number; // index of the seed bucket: the first absolute minimum
+  minVal: number; // minimum across all valid bucket medians
+}
+
+function pickBest(buckets: WeightedEntry[][]): BestPick {
+  const medians = buckets.map((b) =>
+    b.length >= MIN_BUCKET_COUNT ? weightedPercentile(b, 0.5) : NaN,
+  );
+  let bestIdx = -1;
+  let minVal = Infinity;
+  medians.forEach((m, i) => {
+    if (!Number.isNaN(m) && m < minVal) {
+      minVal = m;
+      bestIdx = i;
+    }
+  });
+  return { medians, bestIdx, minVal };
+}
+
+// Lower median, the type-1 convention `weightedPercentile` uses too. The
+// copy is sorted in place: the card is built for ES2022, before toSorted.
+function lowerMedian(values: number[]): number {
+  const ordered = [...values];
+  ordered.sort((a, b) => a - b);
+  return ordered[Math.floor((ordered.length - 1) / 2)]!;
+}
+
+// Median of the weekday medians minus the cheapest one, in cents.
+function weekdayGapCents(pick: BestPick): number | null {
+  const valid = pick.medians.filter((m) => !Number.isNaN(m));
+  if (valid.length < 2 || pick.bestIdx < 0) return null;
+  return (lowerMedian(valid) - pick.minVal) * 100;
+}
+
+// Median of the hour medians outside the window minus the one inside.
+// Measured against the hours outside rather than against all 24: under the
+// noon rule the cheap run is often half the day or more, and the median of
+// all hours would then sit inside the window and read zero.
+function windowGapCents(medians: number[], inside: boolean[]): number | null {
+  const outside = medians.filter((m, h) => !inside[h] && !Number.isNaN(m));
+  const within = medians.filter((m, h) => inside[h] && !Number.isNaN(m));
+  if (outside.length === 0 || within.length === 0) return null;
+  return (lowerMedian(outside) - lowerMedian(within)) * 100;
+}
+
+// Share of window time at or below its day's duration-weighted median,
+// pooled over the days with at least MIN_DAY_MS observed. Noise with no
+// time-of-day pattern lands near 0.5, a pattern that holds every day near
+// 1. Raw prices, so a week with an odd level counts like any other.
+function consistency(chunks: Chunk[], inside: boolean[]): number | null {
+  let below = 0;
+  let total = 0;
+  for (const dayChunks of observedDays(chunks)) {
+    const dayMedian = weightedPercentile(
+      dayChunks.map((c) => ({ value: c.price, weight: c.durationMs })),
+      0.5,
+    );
+    for (const c of dayChunks) {
+      if (!inside[c.hour]) continue;
+      total += c.durationMs;
+      if (c.price <= dayMedian) below += c.durationMs;
+    }
+  }
+  return total > 0 ? below / total : null;
+}
+
+// Measure the four-week facts; see DayFacts.
+function dayFacts(chunks: Chunk[], current: number): DayFacts {
+  const ranges: number[] = [];
+  let noonDays = 0;
+  let riseDays = 0;
+  let riseSum = 0;
+  for (const dayChunks of observedDays(chunks)) {
+    let lo = Infinity;
+    let hi = -Infinity;
+    for (const c of dayChunks) {
+      lo = Math.min(lo, c.price);
+      hi = Math.max(hi, c.price);
+    }
+    ranges.push(hi - lo);
+    // The price in force just before 12:00 against the one at 13:00, when
+    // a legal noon rise has landed whatever its minute.
+    let before: Chunk | undefined;
+    let after: Chunk | undefined;
+    for (const c of dayChunks) {
+      if (c.hour === 11 && (!before || c.t > before.t)) before = c;
+      if (c.hour === 13 && (!after || c.t < after.t)) after = c;
+    }
+    if (!before || !after) continue;
+    noonDays++;
+    const diff = after.price - before.price;
+    if (diff > NOON_RISE_MIN_EUR) {
+      riseDays++;
+      riseSum += diff;
+    }
+  }
+  let dearerMs = 0;
+  let cheaperMs = 0;
+  let totalMs = 0;
+  for (const c of chunks) {
+    totalMs += c.durationMs;
+    if (c.price > current) dearerMs += c.durationMs;
+    else if (c.price < current) cheaperMs += c.durationMs;
+  }
+  return {
+    daily_range_cents: ranges.length ? Math.round(lowerMedian(ranges) * 1000) / 10 : 0,
+    noon_days: noonDays,
+    noon_rise_days: riseDays,
+    noon_rise_cents: riseDays ? Math.round((riseSum / riseDays) * 1000) / 10 : 0,
+    cheaper_than_pct: totalMs ? Math.round((dearerMs / totalMs) * 100) : 0,
+    dearer_than_pct: totalMs ? Math.round((cheaperMs / totalMs) * 100) : 0,
+  };
+}
+
+// mulberry32: a small PRNG the Python port reproduces bit for bit, so both
+// sides shuffle the same way and the parity fixture holds.
+function mulberry32(seed: number): () => number {
+  let a = seed | 0;
+  return () => {
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+interface WeekdayEntry extends WeightedEntry {
+  weekday: number;
+  dayKey: number;
+}
+
+// The cheapest weekday, when its lead survives a permutation test. The test
+// shuffles which calendar day carries which weekday label and asks how often
+// a lead at least as large as the observed one appears by chance. With four
+// weeks of history every weekday rests on about four days, so a lead alone
+// says little; this is what keeps noise from naming a day.
+function weekdayIfSignificant(entries: WeekdayEntry[]): number | null {
+  const buckets: WeightedEntry[][] = Array.from({ length: 7 }, () => []);
+  for (const e of entries) buckets[e.weekday]!.push(e);
+  const pick = pickBest(buckets);
+  const observed = weekdayGapCents(pick);
+  if (observed === null || observed < MIN_WEEKDAY_GAP_EUR * 100) return null;
+
+  const byDay = groupByDay(entries);
+  const days = [...byDay.keys()];
+  days.sort((a, b) => a - b);
+  const labels = days.map((d) => byDay.get(d)!.weekday);
+
+  const rnd = mulberry32(WEEKDAY_SEED);
+  let atLeast = 0;
+  for (let n = 0; n < WEEKDAY_PERMUTATIONS; n++) {
+    for (let i = labels.length - 1; i > 0; i--) {
+      const j = Math.floor(rnd() * (i + 1));
+      const tmp = labels[i]!;
+      labels[i] = labels[j]!;
+      labels[j] = tmp;
+    }
+    const shuffled: WeightedEntry[][] = Array.from({ length: 7 }, () => []);
+    days.forEach((d, i) => {
+      shuffled[labels[i]!]!.push(...byDay.get(d)!.entries);
+    });
+    const gap = weekdayGapCents(pickBest(shuffled));
+    if (gap !== null && gap >= observed) atLeast++;
+  }
+  const pValue = (atLeast + 1) / (WEEKDAY_PERMUTATIONS + 1);
+  return pValue <= WEEKDAY_P_MAX ? pick.bestIdx : null;
+}
+
+function groupByDay(
+  entries: WeekdayEntry[],
+): Map<number, { weekday: number; entries: WeightedEntry[] }> {
+  const byDay = new Map<number, { weekday: number; entries: WeightedEntry[] }>();
+  for (const e of entries) {
+    const day = byDay.get(e.dayKey);
+    if (day) day.entries.push(e);
+    else byDay.set(e.dayKey, { weekday: e.weekday, entries: [e] });
+  }
+  return byDay;
 }
 
 // Adjacent hours whose median is within 0.5¢/L (= 0.005 EUR/L) of the
@@ -206,18 +446,14 @@ const EXPAND_TOLERANCE_EUR = 0.005;
 // window (e.g. 18 hours covering "anytime except midday"); a station with
 // a sharp single cheap hour returns a 1-hour window.
 //
-// Single-cluster only: only the contiguous run of cheap hours containing
-// the seed is returned. If a station has *two* disjoint cheap clusters
-// (e.g. cheap morning + cheap evening separated by an expensive midday
-// spike), the cluster not containing the seed is silently dropped. We
-// accept this because the surfaced recommendation is one window, not a
-// set, and the absolute-minimum seed deterministically picks the same
-// cluster every render.
+// null when every hour is within tolerance: then no time of day is cheaper
+// than the rest and there is no window to recommend. (Without this check
+// the two walks met and the result was a 23-hour window missing the seed.)
 function expandHourWindow(
   medians: number[],
   seedIdx: number,
   minVal: number,
-): { start: number; end: number } {
+): { start: number; end: number } | null {
   const withinTolerance = (m: number | undefined): boolean =>
     m !== undefined && !Number.isNaN(m) && m - minVal <= EXPAND_TOLERANCE_EUR;
 
@@ -231,66 +467,68 @@ function expandHourWindow(
     if (!withinTolerance(medians[(seedIdx - step + 24) % 24])) break;
     backward = step;
   }
+  if (forward + backward + 1 >= 24) return null;
 
   const start = (seedIdx - backward + 24) % 24;
   const end = (seedIdx + forward + 1) % 24;
   return { start, end };
 }
 
-function pickBest(buckets: WeightedEntry[][], minCount: number): BestPick {
-  const medians = buckets.map((b) => (b.length >= minCount ? weightedPercentile(b, 0.5) : NaN));
-  let bestIdx = -1;
-  let bestVal = Infinity;
-  medians.forEach((m, i) => {
-    if (!Number.isNaN(m) && m < bestVal) {
-      bestVal = m;
-      bestIdx = i;
+/** Hours in the circular window [start, end). */
+function windowLength(start: number, end: number): number {
+  return (end - start + 24) % 24 || 24;
+}
+
+function insideWindow(start: number, end: number): boolean[] {
+  const len = windowLength(start, end);
+  return Array.from({ length: 24 }, (_, h) => (h - start + 24) % 24 < len);
+}
+
+// A second run of hours, outside the window, about as cheap as it. Seeded
+// at the cheapest such hour and grown with the same tolerance; it cannot
+// reach the window, since the hours between were out of tolerance. Two
+// disjoint cheap runs (cheap morning + cheap evening around an expensive
+// midday) are common on aggregate data; naming only one of them let a
+// single day of history swap which was shown.
+function altWindow(
+  medians: number[],
+  inside: boolean[],
+  minVal: number,
+): { start: number; end: number } | null {
+  let seed = -1;
+  let seedVal = Infinity;
+  medians.forEach((m, h) => {
+    if (inside[h] || Number.isNaN(m) || m - minVal > EXPAND_TOLERANCE_EUR) return;
+    if (m < seedVal) {
+      seedVal = m;
+      seed = h;
     }
   });
-  // Both fields hold the unconditional minimum today (no tiebreaker is
-  // applied). Kept as separate fields so a future tiebreaker that shifts
-  // `bestVal` (e.g. seed → most-daytime tied hour) doesn't silently break
-  // downstream callers that need the *true* floor — they already pick the
-  // right one (`expandHourWindow` uses minVal, the public hour echoes
-  // bestIdx).
-  return { medians, bestIdx, bestVal, minVal: bestVal };
+  if (seed < 0) return null;
+  return expandHourWindow(medians, seed, minVal);
 }
 
-// Gap between the unconditional minimum bucket median and the median of all
-// bucket medians, expressed as a 0..1 confidence ratio against `refCents`.
-// Uses `minVal` (not `bestVal`) so the reported separation reflects the
-// actual cheap-zone strength.
-//
-// Reference is the median *of bucket medians*, not the median price. For a
-// strongly bimodal pattern (cheap night, expensive day, no spread inside
-// either zone) this lands inside the expensive cluster and inflates the gap
-// → high confidence. We accept this because high confidence on a clean
-// bimodal pattern is the correct answer for fuel pricing — the user really
-// can refuel cheaper at the cluster minimum.
-function scoreSeparation(pick: BestPick, refCents: number): number {
-  const valid = pick.medians.filter((m) => !Number.isNaN(m));
-  valid.sort((a, b) => a - b);
-  if (valid.length < 2 || pick.bestIdx < 0) return 0;
-  const mid = valid[Math.floor((valid.length - 1) / 2)]!;
-  const gapCents = (mid - pick.minVal) * 100;
-  return clamp(gapCents / refCents, 0, 1);
-}
-
-export function analyzeBestRefuel(data: HistoryPoint[]): BestRefuelResult | null {
+export function analyzeBestRefuel(
+  data: HistoryPoint[],
+  timeZone?: string,
+): BestRefuelResult | null {
   if (!data || data.length < 2) return null;
 
   const now = Date.now();
-  const span = now - data[0]!.time;
+  // Points older than WINDOW_DAYS only strengthen the weekday test.
+  const span = Math.min(now - data[0]!.time, WINDOW_MS);
   if (span < 7 * DAY_MS) return { hasEnoughData: false };
 
-  const chunks = walkChunks(data, now);
-  if (chunks.length === 0) return { hasEnoughData: false };
+  const chunks = walkChunks(data, now, zonedClock(timeZone));
+  const recent = chunks.filter((c) => c.t >= now - WINDOW_MS);
+  if (recent.length === 0) return { hasEnoughData: false };
+  const facts = dayFacts(recent, data[data.length - 1]!.value);
 
   // Per-week duration-weighted winsorise (p05/p95) → normalise as
   // (clipped_price − week_mean) → bucket entry weighted by
   // duration × recency-decay (14-day half-life).
   const hourBuckets: WeightedEntry[][] = Array.from({ length: 24 }, () => []);
-  const weekdayBuckets: WeightedEntry[][] = Array.from({ length: 7 }, () => []);
+  const weekdayEntries: WeekdayEntry[] = [];
 
   for (const { weekChunks, totalMs, p05, p95 } of winsorisedWeeks(chunks)) {
     let weightedSum = 0;
@@ -302,64 +540,68 @@ export function analyzeBestRefuel(data: HistoryPoint[]): BestRefuelResult | null
     for (const c of weekChunks) {
       const clipped = clamp(c.price, p05, p95);
       const recency = Math.pow(0.5, (now - c.t) / HALF_LIFE_MS);
-      const entry: WeightedEntry = {
-        value: clipped - weekMean,
-        weight: c.durationMs * recency,
-      };
-      hourBuckets[c.hour]!.push(entry);
-      weekdayBuckets[c.weekday]!.push(entry);
+      const value = clipped - weekMean;
+      const weight = c.durationMs * recency;
+      if (c.t >= now - WINDOW_MS) hourBuckets[c.hour]!.push({ value, weight });
+      weekdayEntries.push({ value, weight, weekday: c.weekday, dayKey: c.dayKey });
     }
   }
 
-  const hourPick = pickBest(hourBuckets, 3);
+  const hourPick = pickBest(hourBuckets);
   if (hourPick.bestIdx < 0) return { hasEnoughData: false };
-  const weekdayPick = pickBest(weekdayBuckets, 3);
-
-  // Confidence scoring: average of span, coverage, and separation. The
-  // reference gaps (1.5¢ for hour, 0.8¢ for weekday) and the high/medium
-  // thresholds (0.75 / 0.5) are *UX calibration constants*, not statistical
-  // thresholds. They were tuned to produce a sensible spread of high/medium/
-  // low labels on real Austrian fuel-price histories — change them only if
-  // you also re-look at how they bin in practice.
-  const spanDays = span / DAY_MS;
-  const span_score = Math.min(1, spanDays / 28);
-
-  const hourCoverage = hourBuckets.filter((b) => b.length >= 3).length / 24;
-  const hourSep = scoreSeparation(hourPick, 1.5);
-  const validHour = hourPick.medians.filter((m) => !Number.isNaN(m));
-  validHour.sort((a, b) => a - b);
-  const hourGapCents =
-    validHour.length >= 2
-      ? (validHour[Math.floor((validHour.length - 1) / 2)]! - hourPick.minVal) * 100
-      : 0;
-  const hourConfidence = (span_score + hourCoverage + hourSep) / 3;
-  const hourLevel: Confidence =
-    hourConfidence >= 0.75 ? "high" : hourConfidence >= 0.5 ? "medium" : "low";
-
-  const weekdayCoverage = weekdayBuckets.filter((b) => b.length >= 3).length / 7;
-  const weekdaySep = scoreSeparation(weekdayPick, 0.8);
-  const weekdayConfidence =
-    weekdayPick.bestIdx >= 0 ? (span_score + weekdayCoverage + weekdaySep) / 3 : 0;
-  const showWeekday = weekdayConfidence >= 0.75;
 
   const window = expandHourWindow(hourPick.medians, hourPick.bestIdx, hourPick.minVal);
+  if (!window) {
+    return {
+      hasEnoughData: true,
+      hour: null,
+      hour_end: null,
+      alt_hour: null,
+      alt_hour_end: null,
+      weekday: null,
+      confidence: null,
+      facts,
+    };
+  }
+  const inside = insideWindow(window.start, window.end);
+  const alt = altWindow(hourPick.medians, inside, hourPick.minVal);
+  const covered = alt ? inside.map((a, h) => a || insideWindow(alt.start, alt.end)[h]!) : inside;
+
+  // Confidence: sample size (span) and effect size (gap) are averaged, then
+  // scaled by how reliably the window beat its day. Noise with no
+  // time-of-day pattern sits at chance there and scores zero however large
+  // its gap looks. The 0.75 / 0.5 level thresholds are a display choice.
+  const spanDays = span / DAY_MS;
+  const spanScore = Math.min(1, spanDays / 28);
+  const gap = windowGapCents(hourPick.medians, inside) || 0;
+  const gapScore = clamp(gap / GAP_REF_CENTS, 0, 1);
+  const cons = consistency(recent, covered);
+  const consistencyScore =
+    cons === null
+      ? 0
+      : clamp((cons - CONSISTENCY_CHANCE) / (CONSISTENCY_FULL - CONSISTENCY_CHANCE), 0, 1);
+  const score = ((spanScore + gapScore) / 2) * consistencyScore;
+  let level: Confidence = score >= 0.75 ? "high" : score >= 0.5 ? "medium" : "low";
+  // A second run as cheap as the window: a single day of history can swap
+  // which one is named, so the badge never claims High.
+  if (alt && level === "high") level = "medium";
 
   return {
     hasEnoughData: true,
     hour: window.start,
     hour_end: window.end,
-    weekday: showWeekday ? weekdayPick.bestIdx : null,
+    alt_hour: alt ? alt.start : null,
+    alt_hour_end: alt ? alt.end : null,
+    weekday: weekdayIfSignificant(weekdayEntries),
     confidence: {
-      level: hourLevel,
-      score: hourConfidence,
+      level,
+      score,
       span_days: Math.round(spanDays),
-      coverage_pct: Math.round(hourCoverage * 100),
-      // Rounded to 0.1¢ for display only — two genuinely different gaps
-      // (e.g. 0.04¢ and 0.05¢) report as 0.0 vs 0.1. Source value is
-      // `hourGapCents`. Internal confidence-level scoring uses the raw
-      // `hourSep` ratio, not this rounded display value.
-      gap_cents: Math.round(hourGapCents * 10) / 10,
+      // Rounded to 0.1¢ for display only; the level uses the raw values.
+      gap_cents: Math.round(gap * 10) / 10,
+      consistency_pct: Math.round((cons || 0) * 100),
     },
+    facts,
   };
 }
 
@@ -367,13 +609,18 @@ export function analyzeBestRefuel(data: HistoryPoint[]): BestRefuelResult | null
 // p10/p90 bounds per hour-of-day, suitable for drawing a band behind the
 // 7-day sparkline. null when too sparse. Uses the same duration-weighted
 // chunk walker as the recommendation so the band stays consistent with it.
-export function buildHourlyEnvelope(allData: HistoryPoint[]): HourlyEnvelope | null {
+export function buildHourlyEnvelope(
+  allData: HistoryPoint[],
+  timeZone?: string,
+): HourlyEnvelope | null {
   if (!allData || allData.length < 2) return null;
 
   const now = Date.now();
   if (now - allData[0]!.time < 7 * DAY_MS) return null;
 
-  const chunks = walkChunks(allData, now);
+  const chunks = walkChunks(allData, now, zonedClock(timeZone)).filter(
+    (c) => c.t >= now - WINDOW_MS,
+  );
   if (chunks.length === 0) return null;
 
   const byHour: WeightedEntry[][] = Array.from({ length: 24 }, () => []);
@@ -391,7 +638,7 @@ export function buildHourlyEnvelope(allData: HistoryPoint[]): HourlyEnvelope | n
   let filled = 0;
   for (let h = 0; h < 24; h++) {
     const bucket = byHour[h]!;
-    if (bucket.length < 3) continue;
+    if (bucket.length < MIN_BUCKET_COUNT) continue;
     // p10/p90 of already-clipped, duration-weighted chunks → middle 80% of
     // typical values at this hour.
     minByHour[h] = weightedPercentile(bucket, 0.1);

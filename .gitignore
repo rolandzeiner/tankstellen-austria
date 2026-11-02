@@ -157,3 +157,9 @@ private_*.py
 # ───────────────────────────────────────────────────────────────────
 custom_components/*/_dev_fixture.py
 .vitest/
+
+# Local notes, not published
+core-checklist.md
+
+# Release-body drafts stay local: GitHub Releases are the published text.
+release-notes/

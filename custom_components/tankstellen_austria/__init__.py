@@ -16,6 +16,7 @@ from homeassistant.const import EVENT_HOMEASSISTANT_STARTED, Platform
 from homeassistant.core import CoreState, Event, HomeAssistant
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import issue_registry as ir
 
 from .card_registration import JSModuleRegistration
 from .const import CARD_VERSION, DOMAIN
@@ -24,11 +25,12 @@ from .coordinator import (
     TankstellenCoordinator,
     maintenance_window,
 )
+from .outage import async_clear_outage
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 _LOGGER = logging.getLogger(__name__)
-PLATFORMS: list[Platform] = [Platform.SENSOR]
+PLATFORMS: list[Platform] = [Platform.BINARY_SENSOR, Platform.SENSOR]
 
 
 @websocket_command({vol.Required("type"): "tankstellen_austria/card_version"})
@@ -115,6 +117,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: TankstellenConfigEntry) 
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(_async_reload_entry))
+    # The recorder query runs off the setup path: the cheap-window entities
+    # stay unknown for a moment rather than holding up HA's start. Dynamic
+    # mode has no such entities, so nothing to analyse.
+    if not coordinator.dynamic_mode:
+        entry.async_create_background_task(
+            hass,
+            coordinator.best_refuel.async_refresh(),
+            f"{DOMAIN} best refuel {entry.entry_id}",
+        )
 
     return True
 
@@ -142,7 +153,12 @@ async def async_remove_entry(
     not per entry), so this only runs when no other entries of this
     integration remain. Reload goes through async_unload_entry, not
     here, so the card stays registered across reloads.
+
+    The entry's own Repairs issue goes every time, before that guard: nothing
+    else clears it once the coordinator is gone, and it would keep warning
+    about a tracker nobody uses any more.
     """
+    ir.async_delete_issue(hass, DOMAIN, f"tracker_missing_{entry.entry_id}")
     remaining = [
         e
         for e in hass.config_entries.async_entries(DOMAIN)
@@ -150,4 +166,6 @@ async def async_remove_entry(
     ]
     if remaining:
         return
+    # Nothing is left to report an outage for.
+    async_clear_outage(hass)
     await JSModuleRegistration(hass).async_unregister()

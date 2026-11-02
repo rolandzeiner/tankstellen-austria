@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
 import type { TankstellenAustriaCardConfig } from "../types";
-import { normaliseConfig } from "./config";
+import { fromGrouped, normaliseConfig, toGrouped } from "./config";
 
 const base = { type: "custom:tankstellen-austria-card" };
 
@@ -16,7 +16,9 @@ afterEach(() => {
 
 describe("normaliseConfig", () => {
   it("throws on a missing config", () => {
-    expect(() => normaliseConfig(undefined as unknown as TankstellenAustriaCardConfig)).toThrow();
+    expect(() => normaliseConfig(undefined as unknown as TankstellenAustriaCardConfig)).toThrow(
+      "config missing",
+    );
   });
 
   it("does not mutate its input", () => {
@@ -127,5 +129,130 @@ describe("normaliseConfig", () => {
       }).cars!;
       for (const car of cars) expect(car).not.toHaveProperty("consumption");
     });
+  });
+});
+
+// Every v1 flat key, set away from its default where it has one.
+const V1 = {
+  type: "custom:tankstellen-austria-card",
+  entities: ["sensor.diesel"],
+  tab_labels: { "sensor.diesel": "D" },
+  grid_options: { rows: 6 },
+  max_stations: 3,
+  sort_by_distance: true,
+  show_index: false,
+  show_distance: true,
+  show_opening_hours: false,
+  show_payment_methods: false,
+  show_map_links: false,
+  map_provider: "apple",
+  payment_filter: ["UTA"],
+  payment_highlight_mode: true,
+  hide_header: true,
+  hide_header_price: true,
+  show_history: false,
+  show_best_refuel: false,
+  show_median_line: true,
+  show_hour_envelope: true,
+  show_noon_markers: true,
+  show_minmax: false,
+  show_cars: true,
+  show_car_fillup: false,
+  show_car_consumption: false,
+  cars: [{ name: "Golf", fuel_type: "DIE", tank_size: 50 }],
+  hide_attribution: true,
+  logo_adapt_to_theme: true,
+};
+
+describe("toGrouped", () => {
+  it("moves every v1 key into its group", () => {
+    expect(toGrouped(V1)).toEqual({
+      type: "custom:tankstellen-austria-card",
+      entities: ["sensor.diesel"],
+      tab_labels: { "sensor.diesel": "D" },
+      grid_options: { rows: 6 },
+      stations: {
+        count: 3,
+        sort: "distance",
+        index: false,
+        distance: true,
+        opening_hours: false,
+        payment_methods: false,
+        map_links: false,
+        map_provider: "apple",
+        payment_filter: ["UTA"],
+        payment_mode: "highlight",
+      },
+      header: { show: false, price: false },
+      chart: {
+        show: false,
+        best_refuel: false,
+        median_line: true,
+        hour_envelope: true,
+        noon_markers: true,
+        min_max: false,
+      },
+      cars: {
+        show: true,
+        fill_up: false,
+        consumption: false,
+        items: [{ name: "Golf", fuel_type: "DIE", tank_size: 50 }],
+      },
+      footer: { show: false, adaptive_logo: true },
+    });
+  });
+
+  it("maps the two-valued keys both ways", () => {
+    expect(toGrouped({ ...base, sort_by_distance: false }).stations).toEqual({ sort: "price" });
+    expect(toGrouped({ ...base, payment_highlight_mode: false }).stations).toEqual({
+      payment_mode: "filter",
+    });
+    expect(toGrouped({ ...base, hide_header: false }).header).toEqual({ show: true });
+  });
+
+  it("leaves a grouped config as it is", () => {
+    const grouped = toGrouped(V1);
+    expect(toGrouped(grouped)).toEqual(grouped);
+  });
+
+  it("lets a grouped value win over a leftover flat key", () => {
+    const mixed = { ...base, show_index: false, stations: { index: true } };
+    expect(toGrouped(mixed)).toEqual({ ...base, stations: { index: true } });
+  });
+
+  it("adds no empty groups and keeps keys it doesn't know", () => {
+    expect(toGrouped({ ...base, view_layout: { position: "main" } })).toEqual({
+      ...base,
+      view_layout: { position: "main" },
+    });
+  });
+
+  it("drops a group that isn't an object", () => {
+    expect(toGrouped({ ...base, chart: "yes", header: ["x"] })).toEqual(base);
+  });
+});
+
+describe("fromGrouped", () => {
+  it("reads every group back into the v1 keys", () => {
+    expect(fromGrouped(toGrouped(V1))).toEqual(V1);
+  });
+
+  it("keeps unset keys unset, so the card's defaults apply", () => {
+    expect(fromGrouped({ ...base, stations: {}, chart: { show: true } })).toEqual({
+      ...base,
+      show_history: true,
+    });
+  });
+
+  it("ignores a group that isn't an object", () => {
+    expect(fromGrouped({ ...base, cars: [] as never })).toEqual(base);
+  });
+});
+
+describe("stations.tile_shape", () => {
+  it("maps onto the flat key the card reads and back", () => {
+    const grouped = { type: "x", stations: { tile_shape: "circle" as const } };
+    expect(fromGrouped(grouped)).toMatchObject({ tile_shape: "circle" });
+    expect(toGrouped(fromGrouped(grouped) as Record<string, unknown>)).toEqual(grouped);
   });
 });

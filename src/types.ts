@@ -44,6 +44,14 @@ export interface HomeAssistant {
   language?: string;
   themes?: { darkMode?: boolean } & Record<string, unknown>;
   config?: { time_zone?: string } & Record<string, unknown>;
+  // The profile's locale: `time_zone` is "local" or "server", `time_format`
+  // "12", "24", "language" or "system", as HA's FrontendLocaleData.
+  locale?: {
+    language?: string;
+    time_zone?: string;
+    time_format?: string;
+    number_format?: string;
+  } & Record<string, unknown>;
   localize?: (key: string, ...args: unknown[]) => string;
   callWS<T = unknown>(msg: { type: string; [key: string]: unknown }): Promise<T>;
   callService(
@@ -66,24 +74,19 @@ export interface LovelaceCardEditor extends HTMLElement {
   setConfig(config: LovelaceCardConfig): void;
 }
 
-/** `LovelaceCard` is only referenced as the `hui-error-card` tag-map
- *  entry below, so an HTMLElement alias suffices. */
-type LovelaceCard = HTMLElement;
-
 /** Local `fireEvent` shim — same shape as the helper from
  *  custom-card-helpers. `bubbles: true` + `composed: true` are required
  *  so the event crosses the editor's shadow boundary and reaches the
  *  dashboard's card-editor listener. */
-export function fireEvent<T>(node: HTMLElement, type: string, detail: T): void {
+export function fireEvent(node: HTMLElement, type: string, detail: unknown): void {
   node.dispatchEvent(new CustomEvent(type, { detail, bubbles: true, composed: true }));
 }
 
-// Register your editor element + the built-in error card with the global
-// HTMLElementTagNameMap so TypeScript autocompletes them in templates.
+// Register your editor element with the global HTMLElementTagNameMap so
+// TypeScript autocompletes it in templates.
 declare global {
   interface HTMLElementTagNameMap {
     "tankstellen-austria-card-editor": LovelaceCardEditor;
-    "hui-error-card": LovelaceCard;
   }
 }
 
@@ -107,6 +110,10 @@ export interface TankstellenAustriaCardConfig extends LovelaceCardConfig {
   max_stations?: number; // 0..5
 
   show_index?: boolean;
+  // The rank tile shows the brand's initials and colour instead (v2).
+  show_brand?: boolean;
+  // The rank tile's shape: HA's small-radius square (default) or a circle.
+  tile_shape?: "square" | "circle";
   show_map_links?: boolean;
   // Where the navigation link opens. "auto" (also the absent-key default)
   // routes per device: Apple Maps on iOS, geo: chooser on Android, Google
@@ -157,6 +164,72 @@ export interface TankstellenAustriaCardConfig extends LovelaceCardConfig {
   // line). Defaults to false: the footer is visible by default,
   // matching E-Control §3 attribution practice.
   hide_attribution?: boolean;
+}
+
+// --- The YAML a dashboard stores (since v2.0.0). ---
+//
+// Options sit in groups, by the part of the card they change. The card
+// still runs on the flat `TankstellenAustriaCardConfig` above:
+// `utils/config.ts` moves the flat keys of a v1 config into these groups
+// (`toGrouped`) and reads the groups back into flat keys (`fromGrouped`).
+// Absent keys stay absent both ways, so every default lives in one place,
+// the card's render code.
+
+export interface StationsOptions {
+  count?: number; // 0..5
+  sort?: "price" | "distance";
+  index?: boolean;
+  // Brand initials and colour in the rank tile instead of the rank.
+  brand?: boolean;
+  // Rank tile shape, for the rank and the brand alike.
+  tile_shape?: "square" | "circle";
+  distance?: boolean;
+  opening_hours?: boolean;
+  payment_methods?: boolean;
+  map_links?: boolean;
+  map_provider?: "auto" | "google" | "apple";
+  payment_filter?: string[];
+  // What the payment filter does to the stations without a match.
+  payment_mode?: "filter" | "highlight";
+}
+
+export interface HeaderOptions {
+  show?: boolean;
+  price?: boolean;
+}
+
+export interface ChartOptions {
+  show?: boolean;
+  best_refuel?: boolean;
+  median_line?: boolean;
+  hour_envelope?: boolean;
+  noon_markers?: boolean;
+  min_max?: boolean;
+}
+
+export interface CarsOptions {
+  show?: boolean;
+  fill_up?: boolean;
+  consumption?: boolean;
+  items?: CarConfig[];
+}
+
+export interface FooterOptions {
+  show?: boolean;
+  adaptive_logo?: boolean;
+}
+
+export interface TankstellenCardYaml extends LovelaceCardConfig {
+  type: string;
+  name?: string;
+  entities?: string[];
+  language?: "de" | "en";
+  tab_labels?: Record<string, string>;
+  stations?: StationsOptions;
+  header?: HeaderOptions;
+  chart?: ChartOptions;
+  cars?: CarsOptions;
+  footer?: FooterOptions;
 }
 
 // --- Upstream API shapes, as surfaced on the HA sensor's `.attributes`. ---
@@ -220,12 +293,9 @@ export interface TankstellenEntity {
 // ---------------------------------------------------------------------------
 //
 // These mirror the HA core editor types so the form editor stays
-// strictly typed. `expandable` + `flatten: true` is non-negotiable —
-// without `flatten`, ha-form scopes inner-schema values under
-// `data[name]` and the card's flat-key reads silently default. The
-// HaFormExpandableSchema interface declares `flatten?: boolean`
-// explicitly so a future maintainer can't add an expandable that
-// quietly nests its values.
+// strictly typed. The editor's expandables are not flattened: ha-form
+// then keeps each one's values under `data[name]`, which is exactly the
+// grouped YAML shape (`stations`, `chart`, ...).
 
 export interface DeviceSelectorFilter {
   integration?: string;
@@ -278,11 +348,14 @@ export type HASelector =
         custom_value?: boolean;
         options: ReadonlyArray<{ value: string; label: string }>;
       };
-    };
+    }
+  | { icon: { placeholder?: string } };
 
 export interface HaFormBaseSchema {
   name: string;
   required?: boolean;
+  // Shown while the key is unset; for a toggle, the state it draws.
+  default?: unknown;
 }
 
 export interface HaFormSelectorSchema extends HaFormBaseSchema {
@@ -293,16 +366,20 @@ export interface HaFormExpandableSchema {
   type: "expandable";
   name: string;
   title?: string;
-  /** When true, ha-form keeps the inner schema's values flat in
-   *  `data` (i.e. `data.show_history` rather than
-   *  `data.display.show_history`). Required for cards whose render()
-   *  reads flat config keys — forgetting it silently leaves every
-   *  flag at its default. */
+  /** MDI icon drawn before the title. */
+  icon?: string;
+  /** When true, ha-form keeps the inner schema's values flat in `data`
+   *  instead of under `data[name]`. The editor leaves it off. */
   flatten?: boolean;
   schema: ReadonlyArray<HaFormSchema>;
 }
 
 export type HaFormSchema = HaFormSelectorSchema | HaFormExpandableSchema;
+
+/** The names of the expandables a field sits in, outermost first. */
+interface HaFormPath {
+  path?: string[];
+}
 
 // `<ha-form>` element shape — mirror the props the editor sets so
 // `vp check` validates the template at compile time.
@@ -310,8 +387,8 @@ interface HaFormElement extends HTMLElement {
   hass?: HomeAssistant;
   data?: Record<string, unknown>;
   schema?: ReadonlyArray<HaFormSchema>;
-  computeLabel?: (field: { name: string }) => string;
-  computeHelper?: (field: { name: string }) => string | undefined;
+  computeLabel?: (field: { name: string }, data?: unknown, options?: HaFormPath) => string;
+  computeHelper?: (field: { name: string }, options?: HaFormPath) => string | undefined;
 }
 
 declare global {
