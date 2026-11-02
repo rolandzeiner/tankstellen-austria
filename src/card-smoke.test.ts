@@ -563,3 +563,123 @@ describe("tankstellen-austria-card-editor", () => {
     expect(el.shadowRoot?.childElementCount).toBeGreaterThan(0);
   });
 });
+
+describe("fuel tabs", () => {
+  function twoFuels(): HomeAssistant {
+    const h = hass();
+    h.states["sensor.tankstellen_super"] = {
+      ...h.states["sensor.tankstellen_diesel"]!,
+      entity_id: "sensor.tankstellen_super",
+      attributes: { ...h.states["sensor.tankstellen_diesel"]!.attributes, fuel_type: "SUP" },
+    };
+    return h;
+  }
+
+  const tabs = (el: Card): HTMLButtonElement[] =>
+    Array.from(el.shadowRoot?.querySelectorAll<HTMLButtonElement>('[role="tab"]') ?? []);
+  const selected = (el: Card): number =>
+    tabs(el).findIndex((t) => t.getAttribute("aria-selected") === "true");
+
+  async function press(el: Card, index: number, key: string): Promise<void> {
+    tabs(el)[index]!.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }));
+    await el.updateComplete;
+  }
+
+  it("move with the arrow keys, wrapping, and jump with Home and End", async () => {
+    const el = await mount<Card>("tankstellen-austria-card", (e) => {
+      e.setConfig({
+        type: "x",
+        entities: ["sensor.tankstellen_diesel", "sensor.tankstellen_super"],
+      });
+      e.hass = twoFuels();
+    });
+    expect(tabs(el)).toHaveLength(2);
+    expect(selected(el)).toBe(0);
+    await press(el, 0, "ArrowRight");
+    expect(selected(el)).toBe(1);
+    await press(el, 1, "ArrowRight");
+    expect(selected(el)).toBe(0);
+    await press(el, 0, "ArrowLeft");
+    expect(selected(el)).toBe(1);
+    await press(el, 1, "Home");
+    expect(selected(el)).toBe(0);
+    await press(el, 0, "End");
+    expect(selected(el)).toBe(1);
+    // Any other key is left to the browser.
+    await press(el, 1, "Tab");
+    expect(selected(el)).toBe(1);
+    // Focus follows the selection once the re-render has landed.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(el.shadowRoot?.activeElement).toBe(tabs(el)[1]);
+  });
+});
+
+describe("live price changes", () => {
+  const id = "sensor.tankstellen_live";
+
+  function historyOf(points: Array<{ lu: number; s: string }>) {
+    return vi.fn(async (msg: { type: string; entity_ids?: string[] }) =>
+      msg.type === "history/history_during_period" ? { [msg.entity_ids?.[0] ?? ""]: points } : {},
+    );
+  }
+
+  async function mounted(
+    callWS: ReturnType<typeof historyOf>,
+  ): Promise<{ el: Card; h: HomeAssistant }> {
+    const h = hass({ callWS } as unknown as Partial<HomeAssistant>);
+    h.states[id] = { ...h.states["sensor.tankstellen_diesel"]!, entity_id: id };
+    const el = await mount<Card>("tankstellen-austria-card", (e) => {
+      e.setConfig({ type: "x", entities: [id] });
+      e.hass = h;
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await el.updateComplete;
+    return { el, h };
+  }
+
+  const chartPoints = async (el: Card): Promise<Array<{ time: number; value: number }>> => {
+    const chart = el.shadowRoot?.querySelector<
+      LitElement & { points: Array<{ time: number; value: number }> }
+    >("tankstellen-austria-sparkline");
+    await chart?.updateComplete;
+    return chart?.points ?? [];
+  };
+
+  function withState(h: HomeAssistant, state: string, lastChanged: string): HomeAssistant {
+    return {
+      ...h,
+      states: { ...h.states, [id]: { ...h.states[id]!, state, last_changed: lastChanged } },
+    };
+  }
+
+  it("appends a changed sensor state to the chart before the next refetch", async () => {
+    const now = Date.now();
+    const points = Array.from({ length: 48 }, (_, i) => ({
+      lu: (now - (48 - i) * 3_600_000) / 1000,
+      s: "1.539",
+    }));
+    const { el, h } = await mounted(historyOf(points));
+    expect(await chartPoints(el)).toHaveLength(48);
+
+    // Same state object again: nothing to append.
+    el.hass = { ...h };
+    await el.updateComplete;
+    expect(await chartPoints(el)).toHaveLength(48);
+
+    // A non-numeric state is not a price.
+    el.hass = withState(h, "unavailable", new Date(now + 1000).toISOString());
+    await el.updateComplete;
+    expect(await chartPoints(el)).toHaveLength(48);
+
+    // The same price again is not a change the recorder would keep either.
+    el.hass = withState(h, "1.539", new Date(now + 2000).toISOString());
+    await el.updateComplete;
+    expect(await chartPoints(el)).toHaveLength(48);
+
+    el.hass = withState(h, "1.599", new Date(now + 3000).toISOString());
+    await el.updateComplete;
+    const after = await chartPoints(el);
+    expect(after).toHaveLength(49);
+    expect(after[48]).toEqual({ time: now + 3000, value: 1.599 });
+  });
+});

@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
-import { fetchHistory, mergeStatistics } from "./history";
+import {
+  appendCachedPoint,
+  fetchHistory,
+  getCachedHistory,
+  mergeStatistics,
+  type HistoryPoint,
+} from "./history";
 import type { HomeAssistant } from "./types";
 
 const HOUR = 3_600_000;
@@ -104,5 +110,36 @@ describe("fetchHistory", () => {
       "sensor.failing",
       expect.any(Error),
     );
+  });
+});
+
+describe("appendCachedPoint", () => {
+  const id = "sensor.live_append";
+  const base = { time: 1_000_000, value: 1.5 };
+
+  async function primed(): Promise<HistoryPoint[]> {
+    const callWS = vi.fn(async () => ({ [id]: [{ lu: base.time / 1000, s: String(base.value) }] }));
+    const h = { callWS, states: { [id]: { attributes: {} } } } as unknown as HomeAssistant;
+    return fetchHistory(h, id);
+  }
+
+  it("ignores an entity with no cached history", () => {
+    expect(appendCachedPoint("sensor.never_fetched", base)).toBe(false);
+    expect(getCachedHistory("sensor.never_fetched")).toEqual([]);
+  });
+
+  it("keeps only a newer point with a different value", async () => {
+    const cached = await primed();
+    expect(cached).toEqual([base]);
+    expect(appendCachedPoint(id, { time: base.time, value: 1.6 })).toBe(false);
+    expect(appendCachedPoint(id, { time: base.time - 1, value: 1.6 })).toBe(false);
+    expect(appendCachedPoint(id, { time: base.time + 1, value: base.value })).toBe(false);
+    expect(getCachedHistory(id)).toEqual([base]);
+    const next = { time: base.time + 1, value: 1.6 };
+    expect(appendCachedPoint(id, next)).toBe(true);
+    expect(getCachedHistory(id)).toEqual([base, next]);
+    // The cached array is replaced, not mutated, so a card holding the
+    // old one is not changed under its feet.
+    expect(cached).toEqual([base]);
   });
 });
