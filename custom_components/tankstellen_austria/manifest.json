@@ -2,6 +2,7 @@
   "domain": "tankstellen_austria",
   "name": "Tankstellen Austria",
   "after_dependencies": ["frontend", "http", "lovelace", "recorder"],
+  "categories": ["local_services"],
   "codeowners": ["@rolandzeiner"],
   "config_flow": true,
   "dependencies": [],

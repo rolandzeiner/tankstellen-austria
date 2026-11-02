@@ -15,6 +15,39 @@
 target-version = "py314"
 line-length = 88
 
+# The portfolio's Python lint baseline (spanish-breakfast/references/
+# python-baseline.md). ruff's defaults are E4, E7, E9 and F; everything
+# that finds a bug in HA code is opt-in.
+[tool.ruff.lint]
+select = [
+    "E4", "E7", "E9", "F",  # ruff's default set, kept explicit
+    "I",                    # isort
+    "UP",                   # pyupgrade — safe ONLY while target-version is
+                            # the support floor; see the note above it
+    "B",                    # flake8-bugbear
+    "C4",                   # flake8-comprehensions
+    "RET",                  # flake8-return
+    "PTH",                  # flake8-use-pathlib
+    "SIM",                  # flake8-simplify
+    "LOG", "G",             # logging correctness + logging-format
+    "T20",                  # no stray print()
+    "ASYNC",                # flake8-async
+    "DTZ",                  # naive datetimes
+    "TID",                  # tidy imports
+    "ISC",                  # implicit str concat
+    "PIE", "RSE", "FURB", "PERF",
+    "BLE",                  # broad excepts, each a reasoned noqa
+    "SLF",                  # private-member access across class boundaries
+    "RUF",                  # ruff-specific, incl. RUF100 dead-noqa
+]
+allowed-confusables = ["×", "–"]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests reach into private members on purpose, and may block the test
+# loop on purpose (reading files, polling a task).
+"tests/*" = ["SLF", "ASYNC110", "ASYNC240"]
+"scripts/*" = ["T201"]
+
 [tool.mypy]
 strict = true
 ignore_missing_imports = true

@@ -7,18 +7,18 @@ const DAY_MS = 86_400_000;
 const CHEAP = 1.5;
 const EXPENSIVE = 1.6;
 
-// Anchor the synthetic `now` to the most recent past Monday at midnight
-// local time. With a 28-day fixture window this guarantees the data spans
-// exactly four ISO weeks (Mon→Sun ×4) with no partial weeks at either
-// edge — so MIN_WEEK_MS = 3 days never trims fixture data and the test
-// produces the same buckets regardless of the day-of-week the suite runs.
+// Anchor the synthetic `now` to a fixed Monday at midnight local time.
+// With a 28-day fixture window this guarantees the data spans exactly four
+// ISO weeks (Mon→Sun ×4) with no partial weeks at either edge — so
+// MIN_WEEK_MS = 3 days never trims fixture data. A fixed date rather than
+// "the most recent Monday": the fixtures place the hike at local-time
+// offsets from midnight, so a window that straddles a DST change puts the
+// transition into a different hour for part of the data and the envelope
+// band widens where the test expects a point (seen on 2026-11-02, with
+// the 2026-10-25 change inside the window). 1 June 2026 is a Monday with
+// no DST change in the 28 days before it.
 function deterministicNow(): number {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  const dow = d.getDay(); // 0=Sun, 1=Mon
-  const daysBackToMonday = dow === 0 ? 6 : dow - 1;
-  d.setDate(d.getDate() - daysBackToMonday);
-  return d.getTime();
+  return new Date(2026, 5, 1, 0, 0, 0, 0).getTime();
 }
 
 // Pin Date.now() to the fixture anchor for the whole file. analyzeBestRefuel
