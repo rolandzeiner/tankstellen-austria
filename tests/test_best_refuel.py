@@ -11,7 +11,7 @@ from __future__ import annotations
 import ast
 import json
 import math
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -19,6 +19,8 @@ import pytest
 
 from custom_components.tankstellen_austria import best_refuel
 from custom_components.tankstellen_austria.best_refuel import (
+    DAY_MS,
+    HOUR_MS,
     analyze_best_refuel,
     in_window,
     next_window_start,
@@ -53,18 +55,29 @@ def test_matches_the_card(name: str) -> None:
     if not expected["hasEnoughData"]:
         assert result.confidence is None
         return
-    assert (result.hour, result.hour_end, result.weekday) == (
+    assert (
+        result.hour,
+        result.hour_end,
+        result.alt_hour,
+        result.alt_hour_end,
+        result.weekday,
+    ) == (
         expected["hour"],
         expected["hour_end"],
+        expected["alt_hour"],
+        expected["alt_hour_end"],
         expected["weekday"],
     )
     conf = expected["confidence"]
+    if conf is None:
+        assert result.confidence is None
+        return
     assert result.confidence is not None
     assert result.confidence.level == conf["level"]
     assert result.confidence.score == pytest.approx(conf["score"], abs=1e-9)
     assert result.confidence.span_days == conf["span_days"]
-    assert result.confidence.coverage_pct == conf["coverage_pct"]
     assert result.confidence.gap_cents == pytest.approx(conf["gap_cents"])
+    assert result.confidence.consistency_pct == conf["consistency_pct"]
 
 
 def test_the_fixture_covers_both_dst_switches() -> None:
@@ -155,3 +168,81 @@ def test_module_stays_free_of_home_assistant() -> None:
         for alias in node.names
     }
     assert not any(m.startswith(("homeassistant", ".")) for m in imported)
+
+
+def test_the_fixture_covers_the_new_cases() -> None:
+    """The snapshot must exercise a flat series and two tied clusters."""
+    assert EXPECTED["flat price"]["hour"] is None
+    assert EXPECTED["two cheap clusters"]["alt_hour"] is not None
+
+
+def test_mulberry32_matches_the_card() -> None:
+    """The first values of the card's PRNG for the shared seed.
+
+    Taken from Node: `mulberry32(0x5eed)` called three times.
+    """
+    rnd = best_refuel._mulberry32(best_refuel.WEEKDAY_SEED)
+    assert [rnd() for _ in range(3)] == pytest.approx(
+        [0.7100320369936526, 0.286336648510769, 0.9519026265479624], abs=1e-15
+    )
+
+
+def _days(
+    now: float, days: int, pattern: list[tuple[int, float]]
+) -> list[tuple[float, float]]:
+    points = []
+    first = datetime.fromtimestamp(now / 1000, TZ) - timedelta(days=days)
+    first = first.replace(hour=0, minute=0, second=0, microsecond=0)
+    for d in range(days):
+        day = first + timedelta(days=d)
+        for hour, price in pattern:
+            points.append(((day + timedelta(hours=hour)).timestamp() * 1000, price))
+    return points
+
+
+def test_flat_history_has_no_window() -> None:
+    now = datetime(2026, 6, 1, tzinfo=TZ).timestamp() * 1000
+    result = analyze_best_refuel(_days(now, 28, [(0, 1.5), (12, 1.5)]), now, TZ)
+    assert result == best_refuel.BestRefuelResult(has_enough_data=True)
+
+
+def test_two_tied_clusters_cap_the_level_at_medium() -> None:
+    now = datetime(2026, 6, 1, tzinfo=TZ).timestamp() * 1000
+    pattern = [(0, 1.6), (3, 1.5), (6, 1.6), (21, 1.5), (23, 1.6)]
+    result = analyze_best_refuel(_days(now, 28, pattern), now, TZ)
+    assert result is not None and result.confidence is not None
+    assert (result.hour, result.hour_end) == (3, 6)
+    assert (result.alt_hour, result.alt_hour_end) == (21, 23)
+    assert result.confidence.level == "medium"
+
+
+def test_window_gap_is_measured_against_the_hours_outside() -> None:
+    """A 13-hour cheap run used to read a gap of zero."""
+    now = datetime(2026, 6, 1, tzinfo=TZ).timestamp() * 1000
+    result = analyze_best_refuel(
+        _days(now, 28, [(0, 1.5), (12, 1.6), (23, 1.5)]), now, TZ
+    )
+    assert result is not None and result.confidence is not None
+    assert window_length(result.hour, result.hour_end) == 13  # type: ignore[arg-type]
+    assert result.confidence.gap_cents == pytest.approx(10, abs=0.5)
+    assert result.confidence.level == "high"
+
+
+def test_next_window_start_takes_the_earlier_of_two_windows() -> None:
+    now = datetime(2026, 10, 26, 8, 30, tzinfo=TZ)
+    assert next_window_start(now, 22, 20) == datetime(2026, 10, 26, 20, tzinfo=TZ)
+    assert next_window_start(now, 3, 20) == datetime(2026, 10, 26, 20, tzinfo=TZ)
+    assert next_window_start(now, 3, 7) == datetime(2026, 10, 27, 3, tzinfo=TZ)
+
+
+def test_constants_are_in_use() -> None:
+    assert DAY_MS == 24 * HOUR_MS
+
+
+def test_gap_helpers_need_two_sides() -> None:
+    one = best_refuel._Pick(medians=[0.0] + [math.nan] * 6, best_idx=0, min_val=0.0)
+    assert best_refuel._weekday_gap_cents(one) is None
+    assert best_refuel._window_gap_cents([0.0] * 24, [True] * 24) is None
+    assert best_refuel._window_gap_cents(
+        [0.0] * 12 + [0.02] * 12, [True] * 12 + [False] * 12
+    ) == pytest.approx(2)

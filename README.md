@@ -125,14 +125,15 @@ Two more entities per fuel type carry the card's refuel tip, so an automation ca
 | `binary_sensor.<entry name>_<fuel type>_cheap_window` | `on` during the cheapest hours of the day |
 | `sensor.<entry name>_<fuel type>_next_cheap_window` | When the window opens next (timestamp) |
 
-Both are `unknown` until there are 7 days of history, and `unavailable` when the recorder isn't running. Neither exists in dynamic mode, where the card hides its tip too. The binary sensor's attributes:
+Both are `unknown` until there are 7 days of history, and also when no time of day is cheaper than the rest, as with CNG prices that never move. They are `unavailable` when the recorder isn't running. Neither exists in dynamic mode, where the card hides its tip too. The binary sensor's attributes:
 
 | Attribute | Description |
 |---|---|
 | `start_hour`, `end_hour` | The window in local hours. `end_hour` is exclusive and can be smaller than `start_hour` when the window crosses midnight. |
-| `weekday` | The cheapest weekday (`monday` … `sunday`) when it stands out, otherwise `null` |
+| `alt_start_hour`, `alt_end_hour` | A second run of hours about as cheap as the window, otherwise `null`. The binary sensor is `on` in both. |
+| `weekday` | The cheapest weekday (`monday` … `sunday`) when its lead is statistically significant, otherwise `null` |
 | `confidence` | `high`, `medium` or `low`, as on the card's badge |
-| `confidence_score`, `span_days`, `coverage_pct`, `gap_cents` | What the confidence is made of (see *How the window is computed*). Not stored in the recorder history. |
+| `confidence_score`, `span_days`, `gap_cents`, `consistency_pct` | What the confidence is made of (see *How the window is computed*). Not stored in the recorder history. |
 
 ### Long-term statistics
 
@@ -227,9 +228,9 @@ Older cards keep working: the card reads the flat options of v1 (`max_stations`,
 
 ### Best refuel time
 
-The card, and the integration for the *Cheap window* entities, read up to four weeks of the sensor's history (again every 30 minutes) and look for the run of hours that is cheapest compared with the rest of each week. The window is as long as the data says: one hour when one hour stands out, most of the day when prices only jump at noon. It is drawn as a green band on the chart, a weekday is added when that signal is strong too, and a High, Medium or Low confidence badge explains itself on hover.
+The card, and the integration for the *Cheap window* entities, read up to four weeks of the sensor's history (again every 30 minutes) and look for the run of hours that is cheapest compared with the rest of each week. The window is as long as the data says: one hour when one hour stands out, most of the day when prices only jump at noon. When a price never moves, the card says so instead of naming a window. It is drawn as a green band on the chart, a second band and "also …" appear when another time of day is about as cheap, a cheapest weekday is added only when it passes a significance test, and a High, Medium or Low confidence badge explains itself on hover.
 
-Home Assistant keeps 10 days of history by default, so confidence stays low until you keep more, or turn on *Long-term statistics* (the hourly averages fill the purged days):
+Home Assistant keeps 10 days of history by default, which caps the confidence at Medium. Keep more, or turn on *Long-term statistics* (the hourly averages fill the purged days):
 
 ```yaml
 # configuration.yaml
@@ -249,9 +250,11 @@ Austrian law lets stations raise prices once a day at 12:00 and lower them at an
 3. **Weekly normalisation.** Each chunk becomes its price minus that week's mean, so the weekly low wins whatever the price level.
 4. **Separate buckets.** The differences go into 24 hour-of-day and 7 weekday buckets, kept apart.
 5. **Weighted median per bucket.** Weights are duration times recency, with a half-life of 14 days.
-6. **Window growth.** Starting from the bucket with the lowest median, the window takes in every neighbouring hour within about 0.5 cent per litre of it, with no length cap.
+6. **Window growth.** Starting from the bucket with the lowest median, the window takes in every neighbouring hour within about 0.5 cent per litre of it, with no length cap. If that reaches all 24 hours there is no window. A second run of hours within the same tolerance becomes the second window.
 
-Confidence averages three parts: how much of the 28 days is covered, whether each hour has at least three chunks, and how far the cheapest bucket sits below the others, against a 1.5 cent reference. The High, Medium and Low thresholds were tuned on real Austrian price histories.
+Confidence is the average of two parts, scaled by a third. The parts are how much of the 28 days the history spans, and the window's lead: the median of the hours outside the window minus the median inside, against a 1.5 cent reference. The scale is how reliably the window beat its own day, the share of window time at or below that day's median price. Noise with no daily pattern sits near 50 % there and scores Low whatever its lead looks like; a pattern that holds every day sits near 100 %. High needs a score of 0.75, Medium 0.5. A second window caps the badge at Medium, since a day of history can swap which run is named first.
+
+The weekday is named when the cheapest weekday's lead over the typical weekday is at least 0.5 cent and a permutation test, which shuffles the weekday labels of the days 200 times, finds a lead that large in at most 5 % of shuffles. With four weeks every weekday rests on about four days, so only a clear effect gets through.
 
 </details>
 
@@ -329,7 +332,7 @@ The same works without YAML: go to **Settings → Devices & services → Helpers
 
 - Stations in Austria only.
 - At most five stations per fuel type, and only stations that report a price.
-- The refuel tip needs at least 7 days of history and gets better up to 28. It works in whole hours and doesn't treat public holidays separately.
+- The refuel tip needs at least 7 days of history and gets better up to 28. It works in whole hours and doesn't treat public holidays separately. With four weeks of history a weekday effect under about 3 cents is usually not detected.
 - Long-term statistics record whatever the entry watches. In dynamic mode that area moves with you, so the series mixes places.
 
 ## Troubleshooting

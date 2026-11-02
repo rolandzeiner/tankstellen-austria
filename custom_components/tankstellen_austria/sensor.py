@@ -268,8 +268,11 @@ class NextCheapWindowSensor(BestRefuelEntity, SensorEntity):
 
     @property
     def native_value(self) -> datetime | None:
-        """The next opening of the window, in local time; unknown without one."""
+        """The next opening of a window, in local time; unknown without one."""
         result = self.result
         if result is None or result.hour is None:
             return None
-        return next_window_start(dt_util.now(), result.hour)
+        starts = [result.hour]
+        if result.alt_hour is not None:
+            starts.append(result.alt_hour)
+        return next_window_start(dt_util.now(), *starts)

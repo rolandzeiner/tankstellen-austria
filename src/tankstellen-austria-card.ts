@@ -857,26 +857,31 @@ export class TankstellenAustriaCard extends LitElement {
     analysis: BestRefuelResult | null,
   ): TemplateResult | typeof nothing {
     if (!analysis) return nothing;
-    if (!analysis.hasEnoughData) {
-      return html`
-        <div class="refuel-hint">
-          <ha-icon icon="mdi:information-outline" class="refuel-icon" aria-hidden="true"></ha-icon>
-          ${this._t("not_enough_data_hint")}
-        </div>
-      `;
-    }
-    const hour = analysis.hour ?? 0;
-    const hourEnd = analysis.hour_end ?? (hour + 1) % 24;
-    const h1 = String(hour).padStart(2, "0");
-    const h2 = String(hourEnd).padStart(2, "0");
+    const hint = (key: string): TemplateResult => html`
+      <div class="refuel-hint">
+        <ha-icon icon="mdi:information-outline" class="refuel-icon" aria-hidden="true"></ha-icon>
+        ${this._t(key)}
+      </div>
+    `;
+    if (!analysis.hasEnoughData) return hint("not_enough_data_hint");
+    // Enough history, but no hour of the day cheaper than the rest.
+    if (analysis.hour == null) return hint("no_pattern_hint");
 
-    let text: string;
+    const hh = (h: number): string => String(h).padStart(2, "0");
+    const hour = analysis.hour;
+    const hourEnd = analysis.hour_end ?? (hour + 1) % 24;
+    let text = this._t("best_refuel_hour", { h1: hh(hour), h2: hh(hourEnd) });
+    if (analysis.alt_hour != null && analysis.alt_hour_end != null) {
+      text += `, ${this._t("best_refuel_alt", {
+        a1: hh(analysis.alt_hour),
+        a2: hh(analysis.alt_hour_end),
+      })}`;
+    }
+    // The weekday is a statement about whole days, kept apart from the
+    // window: a window that crosses midnight has no single weekday.
     if (analysis.weekday != null) {
-      const weekdays = getWeekdays(this._ctx());
-      const day = weekdays[analysis.weekday] ?? "";
-      text = this._t("best_refuel_hour_weekday", { h1, h2, day });
-    } else {
-      text = this._t("best_refuel_hour", { h1, h2 });
+      const day = getWeekdays(this._ctx())[analysis.weekday] ?? "";
+      text += `. ${this._t("best_refuel_weekday", { day })}`;
     }
 
     const c = analysis.confidence;
@@ -897,9 +902,12 @@ export class TankstellenAustriaCard extends LitElement {
     const breakdownParts: string[] = [
       `${this._t("confidence_title")}: ${levelLabel}`,
       `${this._t("confidence_span")}: ${c.span_days} ${this._t("confidence_days")}`,
-      `${this._t("confidence_coverage")}: ${c.coverage_pct}%`,
       `${this._t("confidence_gap")}: ${c.gap_cents.toFixed(1)} ${this._t("confidence_cents")}`,
+      `${this._t("confidence_consistency")}: ${c.consistency_pct}%`,
     ];
+    if (analysis.alt_hour != null) {
+      breakdownParts.push(this._t("confidence_tied_hint"));
+    }
     if (c.span_days < 14) {
       breakdownParts.push(this._t("confidence_short_history_hint"));
     }

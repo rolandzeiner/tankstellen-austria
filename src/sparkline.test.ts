@@ -105,10 +105,12 @@ describe("computeSparkline", () => {
     const analysis: BestRefuelResult = { hasEnoughData: true, hour: 10, hour_end: 12 };
     const m = computeSparkline({ ...base, points: dailyNoonChanges(), analysis })!;
     // Today's 10:00–12:00 CET has started: the band ends at the right edge.
-    expect(m.band).toEqual({
-      x1: +(((7 * DAY_MS - 2 * HOUR_MS) / (7 * DAY_MS)) * WIDTH).toFixed(1),
-      x2: WIDTH,
-    });
+    expect(m.bands).toEqual([
+      {
+        x1: +(((7 * DAY_MS - 2 * HOUR_MS) / (7 * DAY_MS)) * WIDTH).toFixed(1),
+        x2: WIDTH,
+      },
+    ]);
     // Before 10:00 the latest occurrence was yesterday's.
     const early = computeSparkline({
       ...base,
@@ -116,18 +118,34 @@ describe("computeSparkline", () => {
       analysis,
       now: NOW - 3 * HOUR_MS,
     })!;
-    expect(early.band!.x2).toBeLessThan(WIDTH - 20);
-    // A weekday recommendation for last Tuesday.
+    expect(early.bands[0]!.x2).toBeLessThan(WIDTH - 20);
+    // The weekday is a statement about whole days and does not move the band.
     const tue = computeSparkline({
       ...base,
       points: dailyNoonChanges(),
       analysis: { ...analysis, weekday: 2 },
     })!;
-    expect(tue.band!.x1).toBeCloseTo(((4 * DAY_MS - 2 * HOUR_MS) / (7 * DAY_MS)) * WIDTH, 0);
+    expect(tue.bands).toEqual(m.bands);
+    // A second window gets its own band.
+    const two = computeSparkline({
+      ...base,
+      points: dailyNoonChanges(),
+      analysis: { ...analysis, alt_hour: 20, alt_hour_end: 23 },
+    })!;
+    expect(two.bands).toHaveLength(2);
+    expect(two.bands[1]!.x2).toBeLessThan(two.bands[0]!.x1);
     expect(
       computeSparkline({ ...base, points: dailyNoonChanges(), analysis: { hasEnoughData: false } })!
-        .band,
-    ).toBeNull();
+        .bands,
+    ).toEqual([]);
+    // Enough data but no window: nothing to draw.
+    expect(
+      computeSparkline({
+        ...base,
+        points: dailyNoonChanges(),
+        analysis: { hasEnoughData: true, hour: null },
+      })!.bands,
+    ).toEqual([]);
   });
 
   it("hover resolves to the price in force at x", () => {

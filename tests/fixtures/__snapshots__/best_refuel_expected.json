@@ -3,52 +3,60 @@
     "hasEnoughData": true,
     "hour": 23,
     "hour_end": 12,
+    "alt_hour": null,
+    "alt_hour_end": null,
     "weekday": null,
     "confidence": {
-      "level": "medium",
-      "score": 0.6666666666666666,
+      "level": "high",
+      "score": 1,
       "span_days": 28,
-      "coverage_pct": 100,
-      "gap_cents": 0
+      "gap_cents": 10,
+      "consistency_pct": 100
     }
   },
   "cheap 11-14": {
     "hasEnoughData": true,
     "hour": 11,
     "hour_end": 14,
+    "alt_hour": null,
+    "alt_hour_end": null,
     "weekday": null,
     "confidence": {
       "level": "high",
       "score": 1,
       "span_days": 28,
-      "coverage_pct": 100,
-      "gap_cents": 10
+      "gap_cents": 10,
+      "consistency_pct": 100
     }
   },
   "two cheap clusters": {
     "hasEnoughData": true,
     "hour": 3,
     "hour_end": 6,
+    "alt_hour": 21,
+    "alt_hour_end": 23,
     "weekday": null,
     "confidence": {
-      "level": "high",
+      "level": "medium",
       "score": 1,
       "span_days": 28,
-      "coverage_pct": 100,
-      "gap_cents": 10
+      "gap_cents": 10,
+      "consistency_pct": 100
     }
   },
   "wraps midnight": {
     "hasEnoughData": true,
     "hour": 22,
     "hour_end": 4,
+    "alt_hour": null,
+    "alt_hour_end": null,
     "weekday": null,
     "confidence": {
       "level": "high",
       "score": 1,
       "span_days": 28,
-      "coverage_pct": 100,
-      "gap_cents": 10
+      "gap_cents": 10,
+      "consistency_pct": 100
     }
   },
   "three days only": {
@@ -57,67 +65,71 @@
   "one point": null,
   "flat price": {
     "hasEnoughData": true,
-    "hour": 1,
-    "hour_end": 0,
+    "hour": null,
+    "hour_end": null,
+    "alt_hour": null,
+    "alt_hour_end": null,
     "weekday": null,
-    "confidence": {
-      "level": "medium",
-      "score": 0.5004960317460317,
-      "span_days": 14,
-      "coverage_pct": 100,
-      "gap_cents": 0
-    }
+    "confidence": null
   },
   "noisy, cheap tuesdays": {
     "hasEnoughData": true,
     "hour": 21,
     "hour_end": 7,
+    "alt_hour": null,
+    "alt_hour_end": null,
     "weekday": 2,
     "confidence": {
       "level": "high",
-      "score": 0.9555555555555583,
+      "score": 1,
       "span_days": 36,
-      "coverage_pct": 100,
-      "gap_cents": 1.3
+      "gap_cents": 3,
+      "consistency_pct": 98
     }
   },
   "noisy across autumn DST": {
     "hasEnoughData": true,
     "hour": 21,
     "hour_end": 7,
-    "weekday": 4,
+    "alt_hour": null,
+    "alt_hour_end": null,
+    "weekday": null,
     "confidence": {
       "level": "high",
       "score": 1,
       "span_days": 28,
-      "coverage_pct": 100,
-      "gap_cents": 1.7
+      "gap_cents": 3,
+      "consistency_pct": 97
     }
   },
   "noisy across spring DST": {
     "hasEnoughData": true,
     "hour": 21,
     "hour_end": 7,
+    "alt_hour": null,
+    "alt_hour_end": null,
     "weekday": 0,
     "confidence": {
       "level": "high",
       "score": 1,
       "span_days": 31,
-      "coverage_pct": 100,
-      "gap_cents": 1.7
+      "gap_cents": 3,
+      "consistency_pct": 98
     }
   },
   "noisy, ten days": {
     "hasEnoughData": true,
     "hour": 22,
     "hour_end": 7,
-    "weekday": 5,
+    "alt_hour": null,
+    "alt_hour_end": null,
+    "weekday": null,
     "confidence": {
-      "level": "high",
-      "score": 0.7886864803791888,
+      "level": "medium",
+      "score": 0.6830297205687831,
       "span_days": 10,
-      "coverage_pct": 100,
-      "gap_cents": 1.7
+      "gap_cents": 3.1,
+      "consistency_pct": 100
     }
   }
 }

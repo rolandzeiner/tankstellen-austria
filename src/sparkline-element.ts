@@ -190,12 +190,10 @@ export class TankstellenAustriaSparkline extends LitElement {
               : nothing
           }
           <path d=${m.areaPath} fill="url(#${this._gradId})" />
-          ${
-            m.band
-              ? svg`<rect x=${m.band.x1} y="0" width=${+(m.band.x2 - m.band.x1).toFixed(1)}
-                  height=${height} fill="var(--success-color)" fill-opacity="0.10" stroke="none"/>`
-              : nothing
-          }
+          ${m.bands.map(
+            (b) => svg`<rect x=${b.x1} y="0" width=${+(b.x2 - b.x1).toFixed(1)}
+                  height=${height} fill="var(--success-color)" fill-opacity="0.10" stroke="none"/>`,
+          )}
           ${
             m.medianY != null
               ? svg`<line x1="0" y1=${m.medianY} x2=${width} y2=${m.medianY}

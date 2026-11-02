@@ -82,6 +82,12 @@
           "end_hour": {
             "name": "Window end"
           },
+          "alt_start_hour": {
+            "name": "Second window start"
+          },
+          "alt_end_hour": {
+            "name": "Second window end"
+          },
           "weekday": {
             "name": "Cheapest weekday",
             "state": {
@@ -108,11 +114,11 @@
           "span_days": {
             "name": "History (days)"
           },
-          "coverage_pct": {
-            "name": "Hours covered (%)"
+          "consistency_pct": {
+            "name": "Window time below day median (%)"
           },
           "gap_cents": {
-            "name": "Saving (cents/l)"
+            "name": "Lead over the rest of the day (cents/l)"
           }
         }
       }

@@ -43,20 +43,29 @@ class CheapWindowSensor(BestRefuelEntity, BinarySensorEntity):
 
     # These move with every re-analysis and say nothing worth a history row.
     _unrecorded_attributes = frozenset(
-        {"confidence_score", "span_days", "coverage_pct", "gap_cents"}
+        {"confidence_score", "span_days", "gap_cents", "consistency_pct"}
     )
 
     @property
     def is_on(self) -> bool | None:
-        """Whether the local clock hour is inside the window; unknown without one."""
+        """Whether the local clock hour is inside a window; unknown without one.
+
+        The second window, when the analysis names one, counts too: it is
+        about as cheap, and an automation should not miss it.
+        """
         result = self.result
         if result is None or result.hour is None or result.hour_end is None:
             return None
-        return in_window(dt_util.now().hour, result.hour, result.hour_end)
+        hour = dt_util.now().hour
+        if in_window(hour, result.hour, result.hour_end):
+            return True
+        if result.alt_hour is not None and result.alt_hour_end is not None:
+            return in_window(hour, result.alt_hour, result.alt_hour_end)
+        return False
 
     @property
     def extra_state_attributes(self) -> dict[str, Any] | None:
-        """The window, the cheapest weekday when it stands out, and the confidence."""
+        """The windows, the cheapest weekday when it is significant, and the confidence."""
         result = self.result
         if result is None or result.confidence is None:
             return None
@@ -64,12 +73,14 @@ class CheapWindowSensor(BestRefuelEntity, BinarySensorEntity):
         return {
             "start_hour": result.hour,
             "end_hour": result.hour_end,
+            "alt_start_hour": result.alt_hour,
+            "alt_end_hour": result.alt_hour_end,
             "weekday": None
             if result.weekday is None
             else WEEKDAY_NAMES[result.weekday],
             "confidence": conf.level,
             "confidence_score": round(conf.score, 2),
             "span_days": conf.span_days,
-            "coverage_pct": conf.coverage_pct,
             "gap_cents": conf.gap_cents,
+            "consistency_pct": conf.consistency_pct,
         }

@@ -44,6 +44,20 @@ def _cheap_nights(now: datetime, days: int = 28) -> list[tuple[float, float]]:
     return points
 
 
+def _two_clusters(now: datetime, days: int = 28) -> list[tuple[float, float]]:
+    """Cheap 03:00-06:00 and 21:00-23:00, local, expensive in between."""
+    points: list[tuple[float, float]] = []
+    first = (now - timedelta(days=days)).date()
+    pattern = ((0, EXPENSIVE), (3, CHEAP), (6, EXPENSIVE), (21, CHEAP), (23, EXPENSIVE))
+    for d in range(days + 1):
+        day = first + timedelta(days=d)
+        for hour, price in pattern:
+            t = datetime(day.year, day.month, day.day, hour, tzinfo=VIENNA)
+            if t < now:
+                points.append((t.timestamp() * 1000, price))
+    return points
+
+
 class _Recorder:
     """Stands in for the recorder instance: runs the job in HA's executor."""
 
@@ -103,9 +117,12 @@ async def test_on_inside_the_window_off_outside(
     assert state.attributes["friendly_name"] == "Test Diesel cheap window"
     assert state.attributes["start_hour"] == 22
     assert state.attributes["end_hour"] == 4
+    assert state.attributes["alt_start_hour"] is None
+    assert state.attributes["alt_end_hour"] is None
     assert state.attributes["weekday"] is None
     assert state.attributes["confidence"] == "high"
-    assert state.attributes["coverage_pct"] == 100
+    assert state.attributes["consistency_pct"] == 100
+    assert state.attributes["gap_cents"] == 10
     nxt = hass.states.get(NEXT)
     assert nxt is not None
     assert dt_util.parse_datetime(nxt.state) == datetime(
@@ -118,6 +135,47 @@ async def test_on_inside_the_window_off_outside(
     async_fire_time_changed(hass, four)
     await hass.async_block_till_done()
     assert hass.states.get(BINARY).state == "off"
+
+
+async def test_on_in_the_second_window_too(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory, history: MagicMock
+) -> None:
+    """Two runs about as cheap: the sensor is on in both, the badge is Medium."""
+    now = datetime(2026, 10, 26, 21, 30, tzinfo=VIENNA)
+    freezer.move_to(now)
+    history.return_value = _two_clusters(now)
+    await _setup(hass)
+
+    state = hass.states.get(BINARY)
+    assert state is not None
+    assert state.state == "on"
+    assert state.attributes["start_hour"] == 3
+    assert state.attributes["end_hour"] == 6
+    assert state.attributes["alt_start_hour"] == 21
+    assert state.attributes["alt_end_hour"] == 23
+    assert state.attributes["confidence"] == "medium"
+    # The next opening is the earlier of the two windows: 03:00 tomorrow.
+    nxt = hass.states.get(NEXT)
+    assert nxt is not None
+    assert dt_util.parse_datetime(nxt.state) == datetime(2026, 10, 27, 3, tzinfo=VIENNA)
+
+    noon = datetime(2026, 10, 27, 12, 0, tzinfo=VIENNA)
+    freezer.move_to(noon)
+    async_fire_time_changed(hass, noon)
+    await hass.async_block_till_done()
+    assert hass.states.get(BINARY).state == "off"
+
+
+async def test_unknown_when_no_hour_is_cheaper(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory, history: MagicMock
+) -> None:
+    now = datetime(2026, 10, 26, 1, 30, tzinfo=VIENNA)
+    freezer.move_to(now)
+    flat = [(p[0], CHEAP) for p in _cheap_nights(now)]
+    history.return_value = flat
+    await _setup(hass)
+    assert hass.states.get(BINARY).state == "unknown"
+    assert hass.states.get(NEXT).state == "unknown"
 
 
 async def test_unknown_with_too_little_history(

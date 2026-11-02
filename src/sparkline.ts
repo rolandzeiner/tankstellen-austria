@@ -13,7 +13,7 @@
 import type { BestRefuelResult, HourlyEnvelope } from "./analytics/best-refuel";
 import type { HistoryPoint } from "./history";
 import { monotoneRibbonPath, type Point } from "./utils/math";
-import { DAY_MS, HOUR_MS, zonedClock } from "./utils/tz";
+import { DAY_MS, HOUR_MS, zonedClock, type ZonedClock } from "./utils/tz";
 
 export interface MedianDelta {
   key: "median_delta_below" | "median_delta_above" | "median_delta_equal";
@@ -53,7 +53,7 @@ export interface SparklineModel {
   envelopePath: string | null;
   noonXs: number[];
   medianY: number | null;
-  band: { x1: number; x2: number } | null;
+  bands: Array<{ x1: number; x2: number }>;
   hoverPoints: HoverPoint[];
   // The drawn 7-day line's own figures; the labels describe these even when
   // the envelope band widened the y axis.
@@ -121,31 +121,40 @@ function stepPath(pts: readonly Point[]): string {
   return d;
 }
 
-// The most recent past occurrence of the recommended window, in the chart's
-// zone. Today's window counts once it has started; before that, the one a
-// day (or a week, when the recommendation names a weekday) earlier.
-function recommendationWindow(
+// The most recent past occurrence of a window starting at `hour`, in the
+// chart's zone. Today's window counts once it has started; before that,
+// yesterday's. The weekday is a statement about whole days and does not
+// move the band.
+function lastOccurrence(
+  hour: number,
+  hourEnd: number | null | undefined,
+  now: number,
+  clock: ZonedClock,
+): { startMs: number; endMs: number } {
+  const at = clock.parts(now);
+  const day = at.hour < hour ? clock.shiftDays(now, 1) : now;
+  const startMs = clock.atHour(day, hour);
+  // hour_end is the exclusive end of the window (0-23). Defaults to a
+  // single-hour window when older results without hour_end show up.
+  const end = hourEnd ?? (hour + 1) % 24;
+  const spanHours = (end - hour + 24) % 24 || 1;
+  return { startMs, endMs: startMs + spanHours * HOUR_MS };
+}
+
+// The recommended window and, when the analysis names one, the second run
+// of hours that is about as cheap.
+function recommendationWindows(
   analysis: BestRefuelResult | null | undefined,
   now: number,
   timeZone: string,
-): { startMs: number; endMs: number } | null {
-  if (!analysis?.hasEnoughData || analysis.hour == null) return null;
+): Array<{ startMs: number; endMs: number }> {
+  if (!analysis?.hasEnoughData || analysis.hour == null) return [];
   const clock = zonedClock(timeZone);
-  const at = clock.parts(now);
-  let daysBack = 0;
-  if (analysis.weekday != null) {
-    daysBack = (at.weekday - analysis.weekday + 7) % 7;
-    if (daysBack === 0 && at.hour < analysis.hour) daysBack = 7;
-  } else if (at.hour < analysis.hour) {
-    daysBack = 1;
+  const out = [lastOccurrence(analysis.hour, analysis.hour_end, now, clock)];
+  if (analysis.alt_hour != null) {
+    out.push(lastOccurrence(analysis.alt_hour, analysis.alt_hour_end, now, clock));
   }
-  const day = daysBack ? clock.shiftDays(now, daysBack) : now;
-  const startMs = clock.atHour(day, analysis.hour);
-  // hour_end is the exclusive end of the window (0-23). Defaults to a
-  // single-hour window when older results without hour_end show up.
-  const hourEnd = analysis.hour_end ?? (analysis.hour + 1) % 24;
-  const spanHours = (hourEnd - analysis.hour + 24) % 24 || 1;
-  return { startMs, endMs: startMs + spanHours * HOUR_MS };
+  return out;
 }
 
 export function computeSparkline(input: SparklineInput): SparklineModel | null {
@@ -231,12 +240,11 @@ export function computeSparkline(input: SparklineInput): SparklineModel | null {
     }
   }
 
-  let band: SparklineModel["band"] = null;
-  const window = recommendationWindow(input.analysis, now, input.timeZone);
-  if (window) {
+  const bands: SparklineModel["bands"] = [];
+  for (const window of recommendationWindows(input.analysis, now, input.timeZone)) {
     const x1 = clampX(xForTime(window.startMs));
     const x2 = clampX(xForTime(window.endMs));
-    if (x2 > x1) band = { x1: +x1.toFixed(1), x2: +x2.toFixed(1) };
+    if (x2 > x1) bands.push({ x1: +x1.toFixed(1), x2: +x2.toFixed(1) });
   }
 
   return {
@@ -247,7 +255,7 @@ export function computeSparkline(input: SparklineInput): SparklineModel | null {
     envelopePath,
     noonXs,
     medianY: input.showMedianLine ? +priceToY(med).toFixed(1) : null,
-    band,
+    bands,
     hoverPoints,
     min: dataMin,
     max: dataMax,

@@ -82,6 +82,12 @@
           "end_hour": {
             "name": "Ende"
           },
+          "alt_start_hour": {
+            "name": "Zweites Fenster Beginn"
+          },
+          "alt_end_hour": {
+            "name": "Zweites Fenster Ende"
+          },
           "weekday": {
             "name": "Günstigster Wochentag",
             "state": {
@@ -108,11 +114,11 @@
           "span_days": {
             "name": "Verlauf (Tage)"
           },
-          "coverage_pct": {
-            "name": "Abgedeckte Stunden (%)"
+          "consistency_pct": {
+            "name": "Fensterzeit unter Tagesmedian (%)"
           },
           "gap_cents": {
-            "name": "Ersparnis (Cent/l)"
+            "name": "Vorsprung zum Rest des Tages (Cent/l)"
           }
         }
       }
