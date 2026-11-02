@@ -592,7 +592,13 @@ export const cardStyles = css`
   .hours dd {
     margin: 0;
   }
+  /* Takes the width left beside the hours and wraps its chips inside it;
+     only under 180 px of room does the whole block drop below. Without a
+     basis its natural width is all chips in one line, and a station with
+     many cards pushed the block under the hours. */
   .pay {
+    flex: 1 1 180px;
+    min-width: 0;
     display: flex;
     flex-wrap: wrap;
     align-content: flex-start;
