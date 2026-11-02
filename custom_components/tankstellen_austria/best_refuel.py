@@ -59,7 +59,8 @@ GAP_REF_CENTS = 1.5
 CONSISTENCY_CHANCE = 0.5
 CONSISTENCY_FULL = 0.9
 
-# A day counts for the consistency check once this much of it was observed.
+# A day enters the consistency check and the day facts once this much of it
+# was observed; see _observed_days().
 MIN_DAY_MS = 20 * HOUR_MS
 
 # Weekday: the cheapest weekday is named when its lead over the typical
@@ -293,6 +294,21 @@ def _window_gap_cents(medians: list[float], inside: list[bool]) -> float | None:
     return (_lower_median(outside) - _lower_median(within)) * 100
 
 
+def _observed_days(chunks: list[_Chunk]) -> list[list[_Chunk]]:
+    """The days with at least MIN_DAY_MS observed.
+
+    A day the recorder saw only part of would skew its median or its range.
+    """
+    days: dict[int, list[_Chunk]] = {}
+    for c in chunks:
+        days.setdefault(c.day_key, []).append(c)
+    return [
+        day_chunks
+        for day_chunks in days.values()
+        if sum(c.duration_ms for c in day_chunks) >= MIN_DAY_MS
+    ]
+
+
 def _consistency(chunks: list[_Chunk], inside: list[bool]) -> float | None:
     """Share of window time at or below its day's duration-weighted median.
 
@@ -300,17 +316,9 @@ def _consistency(chunks: list[_Chunk], inside: list[bool]) -> float | None:
     time-of-day pattern lands near 0.5, a pattern that holds every day
     near 1. Raw prices, so a week with an odd level counts like any other.
     """
-    days: dict[int, list[_Chunk]] = {}
-    for c in chunks:
-        days.setdefault(c.day_key, []).append(c)
     below = 0.0
     total = 0.0
-    for day_chunks in days.values():
-        observed = 0.0
-        for c in day_chunks:
-            observed += c.duration_ms
-        if observed < MIN_DAY_MS:
-            continue
+    for day_chunks in _observed_days(chunks):
         day_median = weighted_percentile(
             [(c.price, c.duration_ms) for c in day_chunks], 0.5
         )
@@ -324,19 +332,11 @@ def _consistency(chunks: list[_Chunk], inside: list[bool]) -> float | None:
 
 def _day_facts(chunks: list[_Chunk], current: float) -> DayFacts:
     """Measure the four-week facts; see DayFacts."""
-    days: dict[int, list[_Chunk]] = {}
-    for c in chunks:
-        days.setdefault(c.day_key, []).append(c)
     ranges: list[float] = []
     noon_days = 0
     rise_days = 0
     rise_sum = 0.0
-    for day_chunks in days.values():
-        observed = 0.0
-        for c in day_chunks:
-            observed += c.duration_ms
-        if observed < MIN_DAY_MS:
-            continue
+    for day_chunks in _observed_days(chunks):
         ranges.append(
             max(c.price for c in day_chunks) - min(c.price for c in day_chunks)
         )

@@ -82,7 +82,8 @@ const GAP_REF_CENTS = 1.5;
 const CONSISTENCY_CHANCE = 0.5;
 const CONSISTENCY_FULL = 0.9;
 
-// A day counts for the consistency check once this much of it was observed.
+// A day enters the consistency check and the day facts once this much of it
+// was observed; see observedDays().
 const MIN_DAY_MS = 20 * HOUR_MS;
 
 // Weekday: the cheapest weekday is named when its lead over the typical
