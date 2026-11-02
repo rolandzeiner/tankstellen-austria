@@ -8,6 +8,11 @@ import type { HomeAssistant } from "../types";
 export const HOUR_MS = 3_600_000;
 export const DAY_MS = 86_400_000;
 
+/** A clock field as two digits: 7 -> "07". */
+export function pad2(n: number): string {
+  return String(n).padStart(2, "0");
+}
+
 export interface ZonedParts {
   year: number;
   month: number; // 1-12
@@ -18,7 +23,7 @@ export interface ZonedParts {
   weekday: number; // 0-6, Sunday = 0, as Date.getDay()
 }
 
-export function browserTimeZone(): string {
+function browserTimeZone(): string {
   try {
     return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
   } catch {

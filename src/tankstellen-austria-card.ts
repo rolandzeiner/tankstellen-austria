@@ -53,7 +53,7 @@ import { appendCachedPoint, fetchHistory, getCachedHistory, type HistoryPoint } 
 import { hasSparklineData } from "./sparkline";
 import type { SparklineTranslations } from "./sparkline-element";
 import "./sparkline-element";
-import { resolveTimeZone, useAmPm } from "./utils/tz";
+import { pad2, resolveTimeZone, useAmPm } from "./utils/tz";
 import {
   analyzeBestRefuel,
   buildHourlyEnvelope,
@@ -724,7 +724,7 @@ export class TankstellenAustriaCard extends LitElement {
     const countdownText = cooling
       ? (() => {
           const s = Math.ceil(remainingMs / 1000);
-          return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+          return `${Math.floor(s / 60)}:${pad2(s % 60)}`;
         })()
       : "";
 
@@ -857,7 +857,6 @@ export class TankstellenAustriaCard extends LitElement {
     }
 
     const rows: TemplateResult[] = [];
-    const hh = (h: number): string => String(h).padStart(2, "0");
     if (analysis.hour == null) {
       // Enough history, but no hour of the day cheaper than the rest.
       rows.push(
@@ -871,13 +870,13 @@ export class TankstellenAustriaCard extends LitElement {
     } else {
       const hour = analysis.hour;
       let text = this._t("best_refuel_hour", {
-        h1: hh(hour),
-        h2: hh(analysis.hour_end ?? (hour + 1) % 24),
+        h1: pad2(hour),
+        h2: pad2(analysis.hour_end ?? (hour + 1) % 24),
       });
       if (analysis.alt_hour != null && analysis.alt_hour_end != null) {
         text += `, ${this._t("best_refuel_alt", {
-          a1: hh(analysis.alt_hour),
-          a2: hh(analysis.alt_hour_end),
+          a1: pad2(analysis.alt_hour),
+          a2: pad2(analysis.alt_hour_end),
         })}`;
       }
       // The weekday is a statement about whole days, kept apart from the

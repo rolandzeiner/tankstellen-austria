@@ -59,7 +59,7 @@ const HALF_LIFE_MS = 14 * DAY_MS;
 // The hour window, the day facts and today's rank read the last four weeks.
 // Older history, when the caller has it (long-term statistics), only feeds
 // the weekday test, where four observations per weekday are too few.
-export const WINDOW_DAYS = 28;
+const WINDOW_DAYS = 28;
 const WINDOW_MS = WINDOW_DAYS * DAY_MS;
 
 // A price change at noon smaller than this is float noise, not a rise.
@@ -196,6 +196,18 @@ function groupBy(chunks: Chunk[], key: (c: Chunk) => number): Map<number, Chunk[
   return groups;
 }
 
+// The days with at least MIN_DAY_MS observed. A day the recorder saw only
+// part of would skew its median or its range.
+function observedDays(chunks: Chunk[]): Chunk[][] {
+  const days: Chunk[][] = [];
+  for (const dayChunks of groupBy(chunks, (c) => c.dayKey).values()) {
+    let observed = 0;
+    for (const c of dayChunks) observed += c.durationMs;
+    if (observed >= MIN_DAY_MS) days.push(dayChunks);
+  }
+  return days;
+}
+
 interface WinsorisedWeek {
   weekChunks: Chunk[];
   totalMs: number; // observed time in the week, already >= MIN_WEEK_MS
@@ -280,10 +292,7 @@ function windowGapCents(medians: number[], inside: boolean[]): number | null {
 function consistency(chunks: Chunk[], inside: boolean[]): number | null {
   let below = 0;
   let total = 0;
-  for (const dayChunks of groupBy(chunks, (c) => c.dayKey).values()) {
-    let observed = 0;
-    for (const c of dayChunks) observed += c.durationMs;
-    if (observed < MIN_DAY_MS) continue;
+  for (const dayChunks of observedDays(chunks)) {
     const dayMedian = weightedPercentile(
       dayChunks.map((c) => ({ value: c.price, weight: c.durationMs })),
       0.5,
@@ -303,10 +312,7 @@ function dayFacts(chunks: Chunk[], current: number): DayFacts {
   let noonDays = 0;
   let riseDays = 0;
   let riseSum = 0;
-  for (const dayChunks of groupBy(chunks, (c) => c.dayKey).values()) {
-    let observed = 0;
-    for (const c of dayChunks) observed += c.durationMs;
-    if (observed < MIN_DAY_MS) continue;
+  for (const dayChunks of observedDays(chunks)) {
     let lo = Infinity;
     let hi = -Infinity;
     for (const c of dayChunks) {

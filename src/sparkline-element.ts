@@ -13,6 +13,7 @@ import type { BestRefuelResult, HourlyEnvelope } from "./analytics/best-refuel";
 import type { HistoryPoint } from "./history";
 import { computeSparkline, hoverPointAt, type HoverPoint, type SparklineModel } from "./sparkline";
 import { formatPrice, formatPriceShort } from "./utils/price";
+import { pad2 } from "./utils/tz";
 
 export interface SparklineTranslations {
   min_label: string;
@@ -150,12 +151,11 @@ export class TankstellenAustriaSparkline extends LitElement {
     const delta = m.medianDelta;
     const deltaText = delta ? this._t(delta.key).replace("{c}", delta.cents) : "";
     const a = this.analysis;
-    const hh = (h: number): string => String(h).padStart(2, "0");
     const windowText =
       m.bands.length && a?.hour != null
         ? this._t("window_label")
-            .replace("{h1}", hh(a.hour))
-            .replace("{h2}", hh(a.hour_end ?? (a.hour + 1) % 24))
+            .replace("{h1}", pad2(a.hour))
+            .replace("{h2}", pad2(a.hour_end ?? (a.hour + 1) % 24))
         : "";
 
     // Strokes carry vector-effect="non-scaling-stroke": the viewBox is

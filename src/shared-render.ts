@@ -73,7 +73,7 @@ export interface VersionBannerOpts {
    *  ``version_reload_stuck``, ``version_dismiss``. */
   t: (key: string, repl?: Record<string, string>) => string;
   /** Click handler for the reload button (active state). */
-  onReload: () => void;
+  onReload: () => void | Promise<void>;
   /** Click handler for the dismiss button (stuck state). */
   onDismiss: () => void;
 }

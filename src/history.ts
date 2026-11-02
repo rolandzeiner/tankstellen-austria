@@ -30,8 +30,8 @@ export interface HistoryFetchOptions {
   days?: number;
 }
 
-export const HISTORY_DAYS = 28;
-export const STATISTICS_DAYS = 84;
+const HISTORY_DAYS = 28;
+const STATISTICS_DAYS = 84;
 
 // In-memory cache shared across all card instances on the page. Keyed by
 // entity_id — refresh interval is 30 min so a second card for the same

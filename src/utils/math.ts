@@ -9,7 +9,7 @@ export interface Point {
 // local extrema not present in the data. Safe for price visualisation.
 //
 // `pts` must be sorted by x, strictly increasing x.
-export function monotoneCubicPath(pts: readonly Point[]): string {
+function monotoneCubicPath(pts: readonly Point[]): string {
   const n = pts.length;
   if (n === 0) return "";
   if (n === 1) return `M ${pts[0]!.x.toFixed(2)} ${pts[0]!.y.toFixed(2)}`;

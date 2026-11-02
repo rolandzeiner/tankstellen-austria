@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { DAY_MS, HOUR_MS, ZonedClock, resolveTimeZone, useAmPm } from "./tz";
+import { DAY_MS, HOUR_MS, ZonedClock, pad2, resolveTimeZone, useAmPm } from "./tz";
 
 const vienna = new ZonedClock("Europe/Vienna");
 
@@ -73,5 +73,13 @@ describe("useAmPm", () => {
     expect(useAmPm({ time_format: "language" }, "de")).toBe(false);
     expect(useAmPm({ time_format: "language" }, "en-US")).toBe(true);
     expect(useAmPm(undefined, "de")).toBe(false);
+  });
+});
+
+describe("pad2", () => {
+  it("pads a clock field to two digits", () => {
+    expect(pad2(7)).toBe("07");
+    expect(pad2(23)).toBe("23");
+    expect(pad2(0)).toBe("00");
   });
 });

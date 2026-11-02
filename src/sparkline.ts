@@ -75,7 +75,7 @@ const f = (n: number): string => n.toFixed(2);
 // the cutoff, so a price that last changed before the window still shows
 // as in force from the first pixel. Both the window and the axis span
 // exactly the 7 days before `now`.
-export function sliceLast7Days(all: HistoryPoint[], now: number): HistoryPoint[] {
+function sliceLast7Days(all: HistoryPoint[], now: number): HistoryPoint[] {
   const cutoff = now - SEVEN_DAYS_MS;
   const inside = all.filter((d) => d.time >= cutoff && d.time <= now);
   let lastKnown: HistoryPoint | null = null;
