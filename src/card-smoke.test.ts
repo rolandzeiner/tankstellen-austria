@@ -99,6 +99,19 @@ function hass(overrides: Partial<HomeAssistant> = {}): HomeAssistant {
   } as unknown as HomeAssistant;
 }
 
+/** The shadow root's markup without Lit's comment markers: a clone with
+ *  the comment nodes removed, not a regex over the HTML string (CodeQL
+ *  reads that as incomplete sanitisation; ladestellen does it this way). */
+function markup(root: ShadowRoot): string {
+  const host = document.createElement("div");
+  for (const child of root.childNodes) host.append(child.cloneNode(true));
+  const walker = document.createTreeWalker(host, NodeFilter.SHOW_COMMENT);
+  const comments: Node[] = [];
+  while (walker.nextNode()) comments.push(walker.currentNode);
+  for (const c of comments) c.parentNode?.removeChild(c);
+  return host.innerHTML;
+}
+
 async function mount<T extends LitElement>(tag: string, setup: (el: T) => void): Promise<T> {
   const el = document.createElement(tag) as T;
   setup(el);
@@ -380,9 +393,11 @@ describe("tankstellen-austria-card", () => {
       // Lit's markers differ per mount.
       const chart = el.shadowRoot!.querySelector<LitElement>("tankstellen-austria-sparkline");
       await chart?.updateComplete;
-      const html = `${el.shadowRoot!.innerHTML}${chart?.shadowRoot?.innerHTML ?? ""}`
-        .replaceAll(/<!--[^>]*-->/g, "")
-        .replaceAll(/spark-grad-\w+/g, "spark-grad");
+      const html =
+        `${markup(el.shadowRoot!)}${chart?.shadowRoot ? markup(chart.shadowRoot) : ""}`.replaceAll(
+          /spark-grad-\w+/g,
+          "spark-grad",
+        );
       el.remove();
       return html;
     };
