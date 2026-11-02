@@ -44,6 +44,14 @@ export interface HomeAssistant {
   language?: string;
   themes?: { darkMode?: boolean } & Record<string, unknown>;
   config?: { time_zone?: string } & Record<string, unknown>;
+  // The profile's locale: `time_zone` is "local" or "server", `time_format`
+  // "12", "24", "language" or "system", as HA's FrontendLocaleData.
+  locale?: {
+    language?: string;
+    time_zone?: string;
+    time_format?: string;
+    number_format?: string;
+  } & Record<string, unknown>;
   localize?: (key: string, ...args: unknown[]) => string;
   callWS<T = unknown>(msg: { type: string; [key: string]: unknown }): Promise<T>;
   callService(

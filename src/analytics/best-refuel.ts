@@ -1,13 +1,12 @@
 // Best-refuel-time analytics — bucketed by hour-of-day and weekday.
 //
-// Locality assumption: ``Date.getHours()`` and ``Date.getDay()`` return
-// values in the *browser's* local timezone, not UTC. The recommendation
-// is therefore framed in the user's clock ("Tuesday morning is typically
-// cheapest"), which matches the UX intent for an Austrian fuel-price
-// integration where every user is on Europe/Vienna in practice. A
-// dashboard viewed from another timezone will see the analysis re-bucket
-// to that timezone's clock — do NOT cache results across sessions or
-// share them between users without re-running the analysis.
+// Clock: hours and weekdays are read in the zone the caller passes (the
+// card resolves it the way HA does: the profile's "local" is the browser's
+// zone, otherwise the server's), falling back to the browser's zone. The
+// recommendation is framed in that clock ("Tuesday morning is typically
+// cheapest"), so a dashboard viewed from another zone with the "server"
+// setting still speaks Vienna time. Do NOT cache results across sessions
+// or share them between users without re-running the analysis.
 //
 // DST: chunks are split at UTC hour boundaries and labelled with the
 // local clock-hour at the chunk start. Vienna's offset is always integer
@@ -46,9 +45,9 @@
 // recommendation as statements about any individual station's pricing.
 
 import type { HistoryPoint } from "../history";
-import type { HourlyEnvelope } from "../sparkline";
 import type { WeightedEntry } from "../utils/math";
 import { clamp, weightedPercentile } from "../utils/math";
+import { zonedClock, type ZonedClock } from "../utils/tz";
 
 const HOUR_MS = 3_600_000;
 const DAY_MS = 86_400_000;
@@ -60,6 +59,12 @@ const HALF_LIFE_MS = 14 * DAY_MS;
 // and weekMean become unstable enough to contaminate every bucket entry
 // derived from that week.
 const MIN_WEEK_MS = 3 * DAY_MS;
+
+export interface HourlyEnvelope {
+  // Per hour-of-day (0-23). null when that hour has no samples.
+  minByHour: Array<number | null>;
+  maxByHour: Array<number | null>;
+}
 
 export type Confidence = "high" | "medium" | "low";
 
@@ -86,15 +91,6 @@ interface Chunk {
   durationMs: number;
 }
 
-// Monday-aligned week key (midnight on the Monday of the week containing t).
-function mondayKey(t: number): number {
-  const d = new Date(t);
-  d.setHours(0, 0, 0, 0);
-  const day = d.getDay();
-  d.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
-  return d.getTime();
-}
-
 // Walk every step-function price interval and emit one chunk per hour the
 // interval crosses. The chunk's hour/weekday are determined by its *start*
 // — since we always split at hour boundaries, that uniquely identifies the
@@ -105,7 +101,7 @@ function mondayKey(t: number): number {
 // a brief integration glitch) would poison the per-week mean for the entire
 // week it landed in. Skip the chunk silently — a missed segment is far less
 // damaging than a NaN-poisoned weekMean.
-function walkChunks(data: HistoryPoint[], now: number): Chunk[] {
+function walkChunks(data: HistoryPoint[], now: number, clock: ZonedClock): Chunk[] {
   const out: Chunk[] = [];
   const emit = (price: number, start: number, end: number): void => {
     if (end <= start) return;
@@ -114,13 +110,13 @@ function walkChunks(data: HistoryPoint[], now: number): Chunk[] {
     while (cursor < end) {
       const nextHour = Math.floor(cursor / HOUR_MS) * HOUR_MS + HOUR_MS;
       const chunkEnd = Math.min(end, nextHour);
-      const dt = new Date(cursor);
+      const at = clock.parts(cursor);
       out.push({
         price,
         t: cursor,
-        hour: dt.getHours(),
-        weekday: dt.getDay(),
-        weekKey: mondayKey(cursor),
+        hour: at.hour,
+        weekday: at.weekday,
+        weekKey: clock.mondayKey(cursor),
         durationMs: chunkEnd - cursor,
       });
       cursor = chunkEnd;
@@ -276,14 +272,17 @@ function scoreSeparation(pick: BestPick, refCents: number): number {
   return clamp(gapCents / refCents, 0, 1);
 }
 
-export function analyzeBestRefuel(data: HistoryPoint[]): BestRefuelResult | null {
+export function analyzeBestRefuel(
+  data: HistoryPoint[],
+  timeZone?: string,
+): BestRefuelResult | null {
   if (!data || data.length < 2) return null;
 
   const now = Date.now();
   const span = now - data[0]!.time;
   if (span < 7 * DAY_MS) return { hasEnoughData: false };
 
-  const chunks = walkChunks(data, now);
+  const chunks = walkChunks(data, now, zonedClock(timeZone));
   if (chunks.length === 0) return { hasEnoughData: false };
 
   // Per-week duration-weighted winsorise (p05/p95) → normalise as
@@ -367,13 +366,16 @@ export function analyzeBestRefuel(data: HistoryPoint[]): BestRefuelResult | null
 // p10/p90 bounds per hour-of-day, suitable for drawing a band behind the
 // 7-day sparkline. null when too sparse. Uses the same duration-weighted
 // chunk walker as the recommendation so the band stays consistent with it.
-export function buildHourlyEnvelope(allData: HistoryPoint[]): HourlyEnvelope | null {
+export function buildHourlyEnvelope(
+  allData: HistoryPoint[],
+  timeZone?: string,
+): HourlyEnvelope | null {
   if (!allData || allData.length < 2) return null;
 
   const now = Date.now();
   if (now - allData[0]!.time < 7 * DAY_MS) return null;
 
-  const chunks = walkChunks(allData, now);
+  const chunks = walkChunks(allData, now, zonedClock(timeZone));
   if (chunks.length === 0) return null;
 
   const byHour: WeightedEntry[][] = Array.from({ length: 24 }, () => []);

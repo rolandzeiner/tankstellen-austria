@@ -145,3 +145,16 @@ export async function fetchHistory(
 export function getCachedHistory(entityId: string): HistoryPoint[] {
   return cache.get(entityId) ?? [];
 }
+
+/** Add a state the card saw land live, so the chart shows it before the
+ *  next refetch and a card mounted later starts with it. Kept only when it
+ *  is newer than, and differs from, the last cached point: the recorder
+ *  stores significant changes, and so does this. */
+export function appendCachedPoint(entityId: string, point: HistoryPoint): boolean {
+  const points = cache.get(entityId);
+  if (!points?.length) return false;
+  const last = points[points.length - 1]!;
+  if (!(point.time > last.time) || point.value === last.value) return false;
+  cache.set(entityId, [...points, point]);
+  return true;
+}

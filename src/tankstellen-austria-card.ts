@@ -49,12 +49,16 @@ import {
   translate,
   type TranslateContext,
 } from "./localize/localize";
-import { fetchHistory, getCachedHistory, type HistoryPoint } from "./history";
-import { attachSparklineHover, buildSparkline, type HourlyEnvelope } from "./sparkline";
+import { appendCachedPoint, fetchHistory, getCachedHistory, type HistoryPoint } from "./history";
+import { hasSparklineData } from "./sparkline";
+import type { SparklineTranslations } from "./sparkline-element";
+import "./sparkline-element";
+import { resolveTimeZone, useAmPm } from "./utils/tz";
 import {
   analyzeBestRefuel,
   buildHourlyEnvelope,
   type BestRefuelResult,
+  type HourlyEnvelope,
 } from "./analytics/best-refuel";
 import { cardStyles } from "./styles";
 import { checkCardVersionWS, renderVersionBanner, reloadAfterCacheWipe } from "./shared-render";
@@ -172,7 +176,17 @@ export class TankstellenAustriaCard extends LitElement {
   // a detached element and writes to a now-unobserved reactive prop.
   private _postRefreshTimeout: number | undefined;
   private _cooldownTimeout: number | undefined;
-  private _sparklineCleanup: (() => void) | undefined;
+  // The 28-day analytics behind the chart, computed once per history
+  // array and zone; every other re-render reuses them.
+  private _analysisMemo:
+    | {
+        points: HistoryPoint[];
+        timeZone: string;
+        envelope?: HourlyEnvelope | null;
+        analysis?: BestRefuelResult | null;
+      }
+    | undefined;
+  private _sparklineI18n: { lang: string; strings: SparklineTranslations } | undefined;
   private _apiStatusInterval: number | undefined;
 
   public setConfig(config: TankstellenCardYaml): void {
@@ -343,10 +357,6 @@ export class TankstellenAustriaCard extends LitElement {
       clearTimeout(this._cooldownTimeout);
       this._cooldownTimeout = undefined;
     }
-    if (this._sparklineCleanup) {
-      this._sparklineCleanup();
-      this._sparklineCleanup = undefined;
-    }
     // Let updated() re-start the history interval on reconnect. Matters
     // during dashboard edit mode which rapidly disconnects/reconnects the
     // card.
@@ -357,7 +367,37 @@ export class TankstellenAustriaCard extends LitElement {
     // shouldUpdate only lets a hass change through when a tracked entity's
     // state moved, which is when availability can have flipped, or when the
     // language changed, where the re-check is a cheap no-op.
-    if (changed.has("hass")) this._syncApiStatus();
+    if (changed.has("hass")) {
+      this._syncApiStatus();
+      this._appendLiveStates(changed.get("hass") as HomeAssistant | undefined);
+    }
+  }
+
+  /**
+   * A new sensor state is also the newest history point. Append it as it
+   * lands, so the chart shows a price change within seconds rather than
+   * at the next 30-minute refetch; the refetch then reconciles. Only a
+   * changed value counts, as in the recorder's significant changes.
+   */
+  private _appendLiveStates(prev: HomeAssistant | undefined): void {
+    if (!prev) return;
+    let next: Record<string, HistoryPoint[]> | undefined;
+    for (const eid of this._trackedEntityIds()) {
+      const cur = this.hass.states[eid];
+      if (!cur || cur === prev.states[eid]) continue;
+      const points = this._history[eid];
+      if (!points?.length) continue;
+      const value = Number(cur.state);
+      const time = new Date(cur.last_changed ?? cur.last_updated).getTime();
+      if (!Number.isFinite(value) || !Number.isFinite(time)) continue;
+      const last = points[points.length - 1]!;
+      if (!(time > last.time) || value === last.value) continue;
+      const point = { time, value };
+      appendCachedPoint(eid, point);
+      next ??= { ...this._history };
+      next[eid] = [...points, point];
+    }
+    if (next) this._history = next;
   }
 
   /**
@@ -403,9 +443,6 @@ export class TankstellenAustriaCard extends LitElement {
       }, HISTORY_REFRESH_MS);
       void this._checkCardVersion();
     }
-    // Re-wire sparkline hover after every render (cheap; entity may have
-    // changed with a tab click).
-    this._reattachSparklineHover();
   }
 
   private async _fetchAllHistory(): Promise<void> {
@@ -431,34 +468,6 @@ export class TankstellenAustriaCard extends LitElement {
       CARD_VERSION,
     );
     if (mismatch) this._versionMismatch = mismatch;
-  }
-
-  private _reattachSparklineHover(): void {
-    if (this._sparklineCleanup) {
-      this._sparklineCleanup();
-      this._sparklineCleanup = undefined;
-    }
-    const container = this.shadowRoot?.querySelector<HTMLElement>(
-      ".sparkline-container[data-entity]",
-    );
-    if (!container) return;
-    const weekdays = getWeekdays(this._ctx());
-    const lang = resolveLang(this._ctx());
-    const formatTime = (ts: number): string => {
-      const d = new Date(ts);
-      const wd = weekdays[d.getDay()]?.slice(0, 2) ?? "";
-      const date =
-        lang === "de"
-          ? `${d.getDate()}.${d.getMonth() + 1}.`
-          : `${d.getMonth() + 1}/${d.getDate()}`;
-      const hh = String(d.getHours()).padStart(2, "0");
-      const mm = String(d.getMinutes()).padStart(2, "0");
-      return `${wd} ${date} ${hh}:${mm}`;
-    };
-    this._sparklineCleanup = attachSparklineHover(container, {
-      formatTime,
-      formatPrice,
-    });
   }
 
   // --- Render ---
@@ -758,37 +767,18 @@ export class TankstellenAustriaCard extends LitElement {
   private _renderSparkline(active: TankstellenEntity): TemplateResult | typeof nothing {
     const entityId = active.entity_id;
     const points = this._history[entityId] ?? [];
-    if (points.length < 2) return nothing;
+    if (!hasSparklineData(points)) return nothing;
 
     const showMedianLine = this._config.show_median_line === true;
     const showHourEnvelope = this._config.show_hour_envelope === true;
     const showNoonMarkers = this._config.show_noon_markers === true;
     const showMinMax = this._config.show_minmax !== false;
-    const envelope: HourlyEnvelope | null = showHourEnvelope ? buildHourlyEnvelope(points) : null;
-
     const showBestRefuel = this._config.show_best_refuel !== false;
-    const analysis = showBestRefuel ? analyzeBestRefuel(points) : null;
 
-    const result = buildSparkline({
-      points,
-      showMedianLine,
-      showHourEnvelope,
-      showNoonMarkers,
-      showMinMax,
-      hourEnvelope: envelope,
-      analysis,
-      translations: {
-        min_label: this._t("min_label"),
-        max_label: this._t("max_label"),
-        last_7_days: this._t("last_7_days"),
-        median_delta_below: this._t("median_delta_below"),
-        median_delta_above: this._t("median_delta_above"),
-        median_delta_equal: this._t("median_delta_equal"),
-        sparkline_aria_summary: this._t("sparkline_aria_summary"),
-        sparkline_aria_simple: this._t("sparkline_aria_simple"),
-      },
-    });
-    if (result.template === nothing) return nothing;
+    const timeZone = resolveTimeZone(this.hass);
+    const envelope = showHourEnvelope ? this._envelope(points, timeZone) : null;
+    const analysis = showBestRefuel ? this._analysis(points, timeZone) : null;
+    const lang = resolveLang(this._ctx()).replace("_", "-");
 
     return html`
       <div
@@ -805,10 +795,62 @@ export class TankstellenAustriaCard extends LitElement {
           }
         }}
       >
-        ${result.template}
+        <tankstellen-austria-sparkline
+          .points=${points}
+          .envelope=${envelope}
+          .analysis=${analysis}
+          .showMedianLine=${showMedianLine}
+          .showHourEnvelope=${showHourEnvelope}
+          .showNoonMarkers=${showNoonMarkers}
+          .showMinMax=${showMinMax}
+          .timeZone=${timeZone}
+          .language=${lang}
+          .hour12=${useAmPm(this.hass.locale, lang)}
+          .translations=${this._sparklineTranslations(lang)}
+        ></tankstellen-austria-sparkline>
         ${this._renderRecommendation(analysis)}
       </div>
     `;
+  }
+
+  private _analysisFor(
+    points: HistoryPoint[],
+    timeZone: string,
+  ): NonNullable<TankstellenAustriaCard["_analysisMemo"]> {
+    const memo = this._analysisMemo;
+    if (memo && memo.points === points && memo.timeZone === timeZone) return memo;
+    this._analysisMemo = { points, timeZone };
+    return this._analysisMemo;
+  }
+
+  private _envelope(points: HistoryPoint[], timeZone: string): HourlyEnvelope | null {
+    const memo = this._analysisFor(points, timeZone);
+    memo.envelope ??= buildHourlyEnvelope(points, timeZone);
+    return memo.envelope;
+  }
+
+  private _analysis(points: HistoryPoint[], timeZone: string): BestRefuelResult | null {
+    const memo = this._analysisFor(points, timeZone);
+    memo.analysis ??= analyzeBestRefuel(points, timeZone);
+    return memo.analysis;
+  }
+
+  // One strings object per language: a fresh literal on every render would
+  // make the chart element recompute its geometry each time.
+  private _sparklineTranslations(lang: string): SparklineTranslations {
+    if (this._sparklineI18n?.lang === lang) return this._sparklineI18n.strings;
+    const strings: SparklineTranslations = {
+      min_label: this._t("min_label"),
+      max_label: this._t("max_label"),
+      last_7_days: this._t("last_7_days"),
+      median_delta_below: this._t("median_delta_below"),
+      median_delta_above: this._t("median_delta_above"),
+      median_delta_equal: this._t("median_delta_equal"),
+      sparkline_aria_summary: this._t("sparkline_aria_summary"),
+      sparkline_aria_simple: this._t("sparkline_aria_simple"),
+    };
+    this._sparklineI18n = { lang, strings };
+    return strings;
   }
 
   private _renderRecommendation(

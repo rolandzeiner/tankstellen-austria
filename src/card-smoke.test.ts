@@ -286,7 +286,9 @@ describe("tankstellen-austria-card", () => {
     expect(callWS).toHaveBeenCalledWith(
       expect.objectContaining({ type: "history/history_during_period" }),
     );
-    expect(el.shadowRoot?.querySelector("svg.sparkline path")).not.toBeNull();
+    const chart = el.shadowRoot?.querySelector<LitElement>("tankstellen-austria-sparkline");
+    await chart?.updateComplete;
+    expect(chart?.shadowRoot?.querySelector("svg.sparkline path")).not.toBeNull();
   });
 
   it("shows brand initials in the rank tile with stations.brand", async () => {
@@ -371,9 +373,12 @@ describe("tankstellen-austria-card", () => {
       });
       await new Promise((resolve) => setTimeout(resolve, 0));
       await el.updateComplete;
-      // Lit's markers and the sparkline's random gradient id differ per mount.
-      const html = el
-        .shadowRoot!.innerHTML.replaceAll(/<!--[^>]*-->/g, "")
+      // The chart renders in its own shadow root; its gradient id and
+      // Lit's markers differ per mount.
+      const chart = el.shadowRoot!.querySelector<LitElement>("tankstellen-austria-sparkline");
+      await chart?.updateComplete;
+      const html = `${el.shadowRoot!.innerHTML}${chart?.shadowRoot?.innerHTML ?? ""}`
+        .replaceAll(/<!--[^>]*-->/g, "")
         .replaceAll(/spark-grad-\w+/g, "spark-grad");
       el.remove();
       return html;
