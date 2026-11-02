@@ -1173,7 +1173,7 @@ export class TankstellenAustriaCard extends LitElement {
     return html`
       <li class=${classMap({ st: true, "pm-highlight": highlighted })}>
         <button
-          class=${classMap({ "st-row": true, "no-map": !mapUrl })}
+          class=${classMap({ "st-row": true, "no-map": !mapUrl, "no-tile": !showIndex })}
           type="button"
           aria-expanded=${hasDetail ? (isExpanded ? "true" : "false") : nothing}
           aria-controls=${detailId ?? nothing}

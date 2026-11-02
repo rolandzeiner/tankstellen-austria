@@ -428,6 +428,16 @@ export const cardStyles = css`
   .st-row.no-map {
     padding-inline-end: var(--tankst-pad);
   }
+  /* Rank and brand both off: no tile column, the text starts at the pad. */
+  .st-row.no-tile {
+    grid-template-columns: 1fr auto 20px;
+    grid-template-areas:
+      "name price chev"
+      "addr dist  chev";
+  }
+  .st-row.no-tile ~ .st-detail > div {
+    padding-left: var(--tankst-pad);
+  }
   .st-row:not([aria-expanded]) {
     cursor: default;
   }

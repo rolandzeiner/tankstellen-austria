@@ -630,6 +630,16 @@ if(super(e),e.type!==Re.ATTRIBUTE||e.name!==`style`||e.strings?.length>2)throw E
   .st-row.no-map {
     padding-inline-end: var(--tankst-pad);
   }
+  /* Rank and brand both off: no tile column, the text starts at the pad. */
+  .st-row.no-tile {
+    grid-template-columns: 1fr auto 20px;
+    grid-template-areas:
+      "name price chev"
+      "addr dist  chev";
+  }
+  .st-row.no-tile ~ .st-detail > div {
+    padding-left: var(--tankst-pad);
+  }
   .st-row:not([aria-expanded]) {
     cursor: default;
   }
@@ -1427,7 +1437,7 @@ if(super(e),e.type!==Re.ATTRIBUTE||e.name!==`style`||e.strings?.length>2)throw E
     </span>`}_renderStation(e,t,n,r,i){let a=this._config.show_index!==!1||this._config.show_brand===!0,o=this._config.show_map_links!==!1,s=this._config.show_distance===!0,c=this._config.show_opening_hours!==!1,l=this._config.show_payment_methods!==!1,u=e.location??{},d=`${n}|${e.name??``}|${u.address??``}`,f=this._expandedStations.has(d),p=e.open===!1,ee=!p&&wt(e),m=i&&r.length>0&&St(e,r),h=m?Ct(e,r,{cash:this._t(`cash`),debit_card:this._t(`debit_card`),credit_card:this._t(`credit_card`)}):[],g=c&&!!e.opening_hours?.length,_=l&&bt(e.payment_methods),v=g||_,y=v?`tsa-station-detail-${n}-${t}`:void 0,b=[u.postalCode,u.city].filter(e=>e!=null&&e!==``).join(` `),x=u.address??``,S=b?O`<span lang="de">${b}</span>`:j,te=x?O`<span lang="de">${x}</span>`:j,C=S!==j&&te!==j?`, `:``,w=``;if(o){let t=yr(this._config.map_provider??`auto`,vr(navigator.userAgent,navigator.maxTouchPoints));w=_r(Dt(u,e.name??``,t))}return O`
       <li class=${L({st:!0,"pm-highlight":m})}>
         <button
-          class=${L({"st-row":!0,"no-map":!w})}
+          class=${L({"st-row":!0,"no-map":!w,"no-tile":!a})}
           type="button"
           aria-expanded=${v?f?`true`:`false`:j}
           aria-controls=${y??j}
