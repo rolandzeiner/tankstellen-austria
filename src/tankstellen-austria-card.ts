@@ -40,7 +40,7 @@ import { fromGrouped, normaliseConfig, toGrouped } from "./utils/config";
 import { findTankstellenEntities, fuelTypeOf } from "./utils/entities";
 import { hasPaymentMethods, matchesPaymentFilter, matchingPaymentMethods } from "./utils/payment";
 import { isClosingSoon } from "./utils/station";
-import { formatDistance, formatPrice, mapsUrl } from "./utils/price";
+import { formatDistance, formatPrice, formatPriceShort, mapsUrl } from "./utils/price";
 import { API_STATUS_RECHECK_MS, fetchApiMaintenance } from "./utils/api-status";
 import {
   getFuelName,
@@ -505,7 +505,7 @@ export class TankstellenAustriaCard extends LitElement {
     return html`
       <ha-card>
         ${this._renderTabs(entities, activeTab)}
-        <div class="wrap">
+        <div class="body">
           ${this._renderVersionBanner()}
           ${
             this._apiMaintenance && active.state === "unavailable"
@@ -521,15 +521,9 @@ export class TankstellenAustriaCard extends LitElement {
               </ha-alert>`
               : nothing
           }
-          <section
-            class="station-section"
-            style="--tankst-accent: var(--primary-color);"
-          >
-            ${this._renderHeader(active)}
-            ${this._renderHero(active)}
-            ${this._renderSparklineBlock(active)}
-            ${this._renderCars(active)}
-          </section>
+          ${this._renderHead(active)}
+          ${this._renderSparklineBlock(active)}
+          ${this._renderCars(active)}
           ${this._renderStationList(active, activeTab)}
         </div>
         ${this._renderFooter(attribution)}
@@ -635,30 +629,57 @@ export class TankstellenAustriaCard extends LitElement {
     `;
   }
 
-  private _renderHeader(active: TankstellenEntity): TemplateResult | typeof nothing {
-    if (this._config?.hide_header === true) return nothing;
+  // Tile, fuel name and the big cheapest price as one block: the number
+  // sits on the rail under the name. hide_header drops the tile and the
+  // name, hide_header_price the number; the grid keeps whichever is left.
+  private _renderHead(active: TankstellenEntity): TemplateResult | typeof nothing {
+    const showTitle = this._config.hide_header !== true;
+    const isDynamic = active.attributes.dynamic_mode === true;
+    const stations: Station[] = active.attributes.stations ?? [];
+    const cheapest = stations[0]?.price;
+    const showPrice = !isDynamic && this._config.hide_header_price !== true && cheapest != null;
+    if (!showTitle && !showPrice && !isDynamic) return nothing;
+
     const fuelType = fuelTypeOf(this.hass, active.entity_id, active.attributes);
     const fuelTypeName = active.attributes.fuel_type_name || getFuelName(fuelType, this._ctx());
-    const isDynamic = active.attributes.dynamic_mode === true;
-
-    let subtitle: string | null = null;
-    if (isDynamic) {
-      subtitle = active.attributes.dynamic_tracker_label ?? null;
-    }
+    const subtitle = isDynamic ? (active.attributes.dynamic_tracker_label ?? null) : null;
+    const avgPrice = active.attributes.average_price;
 
     return html`
-      <header class="header">
-        <div class="icon-tile" aria-hidden="true">
-          <ha-icon icon="mdi:gas-station"></ha-icon>
-        </div>
-        <div class="header-text">
-          <h2 class="title">${fuelTypeName}</h2>
-          ${subtitle ? html`<p class="subtitle">${subtitle}</p>` : nothing}
-        </div>
+      <header class=${classMap({ head: true, "no-title": !showTitle })}>
+        ${
+          showTitle
+            ? html`
+              <div class="tile" aria-hidden="true">
+                <ha-icon icon="mdi:gas-station"></ha-icon>
+              </div>
+              <h2 class="title">
+                ${fuelTypeName}
+                ${subtitle ? html`<span class="subtitle">${subtitle}</span>` : nothing}
+              </h2>
+            `
+            : nothing
+        }
+        ${
+          showPrice
+            ? html`
+              <p class="price-line">
+                <span class="price-big">${formatPrice(cheapest)}</span>
+                <span class="price-ctx">
+                  ${this._t("cheapest")}${
+                    avgPrice != null
+                      ? html` · ${this._t("average")} <b>${formatPriceShort(avgPrice)}</b>`
+                      : nothing
+                  }
+                </span>
+              </p>
+            `
+            : nothing
+        }
         ${
           isDynamic
             ? html`
-              <div class="header-actions">
+              <div class="head-actions">
                 ${this._renderRefreshButton()}
                 ${this._renderDynamicChips(active)}
               </div>
@@ -676,7 +697,7 @@ export class TankstellenAustriaCard extends LitElement {
       <div class="chip-row" aria-live="polite">
         ${
           hasLastUpdated
-            ? html`<span class="chip muted">
+            ? html`<span class="chip">
               <ha-icon icon="mdi:clock-outline" aria-hidden="true"></ha-icon>
               <ha-relative-time
                 .hass=${this.hass}
@@ -721,43 +742,6 @@ export class TankstellenAustriaCard extends LitElement {
     `;
   }
 
-  private _renderHero(active: TankstellenEntity): TemplateResult | typeof nothing {
-    const stations: Station[] = active.attributes.stations ?? [];
-    if (!stations.length) return nothing;
-
-    const isDynamic = active.attributes.dynamic_mode === true;
-    const cheapest = stations[0]?.price;
-    const avgPrice = active.attributes.average_price;
-
-    // Dynamic mode: no hero metric (last-updated + no_new_data chips
-    // live next to the refresh button in the header).
-    if (isDynamic) return nothing;
-
-    // User-suppressed hero (hide_header_price toggle).
-    if (this._config.hide_header_price === true) return nothing;
-
-    // Static-mode hero: stacked metric (cheapest large, "/ avg" small,
-    // UPPERCASE label below).
-    if (cheapest == null) return nothing;
-    return html`
-      <div class="hero">
-        <div class="metric">
-          <div class="metric-value">
-            <span class="metric-num">${formatPrice(cheapest)}</span>
-            ${
-              avgPrice != null
-                ? html`<span class="metric-of"
-                  >/ ${formatPrice(avgPrice)} ${this._t("average")}</span
-                >`
-                : nothing
-            }
-          </div>
-          <div class="metric-label">${this._t("cheapest")}</div>
-        </div>
-      </div>
-    `;
-  }
-
   private _renderSparklineBlock(active: TankstellenEntity): TemplateResult | typeof nothing {
     const isDynamic = active.attributes.dynamic_mode === true;
     if (isDynamic) return nothing;
@@ -782,19 +766,12 @@ export class TankstellenAustriaCard extends LitElement {
     const lang = resolveLang(this._ctx()).replace("_", "-");
 
     return html`
-      <div
-        class="sparkline-container"
+      <button
+        class="chart"
+        type="button"
         data-entity=${entityId}
-        role="button"
-        tabindex="0"
         aria-label=${this._t("sparkline_open_more_info")}
         @click=${() => this._onSparklineClick(entityId)}
-        @keydown=${(ev: KeyboardEvent) => {
-          if (ev.key === "Enter" || ev.key === " ") {
-            ev.preventDefault();
-            this._onSparklineClick(entityId);
-          }
-        }}
       >
         <tankstellen-austria-sparkline
           .points=${points}
@@ -809,8 +786,8 @@ export class TankstellenAustriaCard extends LitElement {
           .hour12=${useAmPm(this.hass.locale, lang)}
           .translations=${this._sparklineTranslations(lang)}
         ></tankstellen-austria-sparkline>
-        ${this._renderRecommendation(analysis)}
-      </div>
+      </button>
+      ${this._renderFacts(analysis)}
     `;
   }
 
@@ -844,6 +821,7 @@ export class TankstellenAustriaCard extends LitElement {
       min_label: this._t("min_label"),
       max_label: this._t("max_label"),
       last_7_days: this._t("last_7_days"),
+      window_label: this._t("window_label"),
       median_delta_below: this._t("median_delta_below"),
       median_delta_above: this._t("median_delta_above"),
       median_delta_equal: this._t("median_delta_equal"),
@@ -854,125 +832,122 @@ export class TankstellenAustriaCard extends LitElement {
     return strings;
   }
 
-  private _renderRecommendation(
-    analysis: BestRefuelResult | null,
-  ): TemplateResult | typeof nothing {
+  // The tip and the two counted facts as one list: the window with its
+  // confidence, the noon rise with the days it rests on, and where today's
+  // price sits in the last four weeks. One line each, the icon column on
+  // the pad and the text on the rail.
+  private _renderFacts(analysis: BestRefuelResult | null): TemplateResult | typeof nothing {
     if (!analysis) return nothing;
-    const hint = (key: string): TemplateResult => html`
-      <div class="refuel-hint">
-        <ha-icon icon="mdi:information-outline" class="refuel-icon" aria-hidden="true"></ha-icon>
-        ${this._t(key)}
-      </div>
+    const row = (
+      icon: string,
+      text: string,
+      cls = "",
+      badge: TemplateResult | typeof nothing = nothing,
+    ): TemplateResult => html`
+      <li class=${cls}>
+        <ha-icon icon=${icon} aria-hidden="true"></ha-icon>
+        <span>${text}</span>
+        ${badge}
+      </li>
     `;
-    if (!analysis.hasEnoughData) return hint("not_enough_data_hint");
-    const facts = this._renderFacts(analysis.facts);
-    // Enough history, but no hour of the day cheaper than the rest: say so
-    // with the number that shows it, and what the day still tells.
-    if (analysis.hour == null) {
-      return html`
-        <div class="refuel-hint">
-          <ha-icon icon="mdi:information-outline" class="refuel-icon" aria-hidden="true"></ha-icon>
-          ${this._t("no_pattern_hint", {
-            range: (analysis.facts?.daily_range_cents ?? 0).toFixed(1),
-          })}
-        </div>
-        ${facts}
-      `;
+    if (!analysis.hasEnoughData) {
+      return html`<ul class="facts">
+        ${row("mdi:information-outline", this._t("not_enough_data_hint"))}
+      </ul>`;
     }
 
+    const rows: TemplateResult[] = [];
     const hh = (h: number): string => String(h).padStart(2, "0");
-    const hour = analysis.hour;
-    const hourEnd = analysis.hour_end ?? (hour + 1) % 24;
-    let text = this._t("best_refuel_hour", { h1: hh(hour), h2: hh(hourEnd) });
-    if (analysis.alt_hour != null && analysis.alt_hour_end != null) {
-      text += `, ${this._t("best_refuel_alt", {
-        a1: hh(analysis.alt_hour),
-        a2: hh(analysis.alt_hour_end),
-      })}`;
+    if (analysis.hour == null) {
+      // Enough history, but no hour of the day cheaper than the rest.
+      rows.push(
+        row(
+          "mdi:information-outline",
+          this._t("no_pattern_hint", {
+            range: (analysis.facts?.daily_range_cents ?? 0).toFixed(1),
+          }),
+        ),
+      );
+    } else {
+      const hour = analysis.hour;
+      let text = this._t("best_refuel_hour", {
+        h1: hh(hour),
+        h2: hh(analysis.hour_end ?? (hour + 1) % 24),
+      });
+      if (analysis.alt_hour != null && analysis.alt_hour_end != null) {
+        text += `, ${this._t("best_refuel_alt", {
+          a1: hh(analysis.alt_hour),
+          a2: hh(analysis.alt_hour_end),
+        })}`;
+      }
+      // The weekday is a statement about whole days, kept apart from the
+      // window: a window that crosses midnight has no single weekday.
+      if (analysis.weekday != null) {
+        text += ` · ${getWeekdays(this._ctx())[analysis.weekday] ?? ""}`;
+      }
+      rows.push(row("mdi:lightbulb-outline", text, "lead", this._renderConfidence(analysis)));
     }
-    // The weekday is a statement about whole days, kept apart from the
-    // window: a window that crosses midnight has no single weekday.
-    if (analysis.weekday != null) {
-      const day = getWeekdays(this._ctx())[analysis.weekday] ?? "";
-      text += `. ${this._t("best_refuel_weekday", { day })}`;
-    }
+    rows.push(...this._factRows(analysis.facts));
+    return html`<ul class="facts">${rows}</ul>`;
+  }
 
+  // The confidence pill. One breakdown string drives both `title` (hover)
+  // and `aria-label` (screen-reader name); the title attribute collapses
+  // newlines, so ". " separates the parts.
+  private _renderConfidence(analysis: BestRefuelResult): TemplateResult | typeof nothing {
     const c = analysis.confidence;
-    if (!c) {
-      return html`
-        <div class="refuel-recommendation">
-          <ha-icon icon="mdi:lightbulb-outline" class="refuel-icon" aria-hidden="true"></ha-icon>
-          <span class="refuel-text">${text}</span>
-        </div>
-        ${facts}
-      `;
-    }
-
+    if (!c) return nothing;
     const levelLabel = this._t(`confidence_${c.level}`);
-    // One breakdown string drives both `title` (desktop hover tooltip) and
-    // `aria-label` (screen-reader name). The HTML title attribute collapses
-    // newlines to spaces, so we use ". " as the visual separator and rely
-    // on the browser's own line-wrapping for the tooltip.
-    const breakdownParts: string[] = [
+    const parts: string[] = [
       `${this._t("confidence_title")}: ${levelLabel}`,
       `${this._t("confidence_span")}: ${c.span_days} ${this._t("confidence_days")}`,
       `${this._t("confidence_gap")}: ${c.gap_cents.toFixed(1)} ${this._t("confidence_cents")}`,
       `${this._t("confidence_consistency")}: ${c.consistency_pct}%`,
     ];
-    if (analysis.alt_hour != null) {
-      breakdownParts.push(this._t("confidence_tied_hint"));
-    }
-    if (c.span_days < 14) {
-      breakdownParts.push(this._t("confidence_short_history_hint"));
-    }
-    const breakdown = breakdownParts.join(". ");
-    const badgeClass = `refuel-confidence refuel-confidence-${c.level}`;
-
-    return html`
-      <div class="refuel-recommendation">
-        <ha-icon icon="mdi:lightbulb-outline" class="refuel-icon" aria-hidden="true"></ha-icon>
-        <span class="refuel-text">${text}</span>
-        <span
-          class=${badgeClass}
-          title=${breakdown}
-          aria-label=${breakdown}
-        >${levelLabel}</span>
-      </div>
-      ${facts}
-    `;
+    if (analysis.alt_hour != null) parts.push(this._t("confidence_tied_hint"));
+    if (c.span_days < 14) parts.push(this._t("confidence_short_history_hint"));
+    const breakdown = parts.join(". ");
+    return html`<span
+      class="conf conf-${c.level}"
+      title=${breakdown}
+      aria-label=${breakdown}
+    >${levelLabel}</span>`;
   }
 
-  // Two counted facts under the tip: the noon rise, with the days it rests
-  // on, and where today's price sits in the last four weeks. Both are
-  // descriptions of the history, not forecasts, so they are shown whatever
-  // the confidence in the window.
-  private _renderFacts(facts: DayFacts | null | undefined): TemplateResult | typeof nothing {
-    if (!facts) return nothing;
-    const lines: string[] = [];
+  // Two descriptions of the history, not forecasts, so they are shown
+  // whatever the confidence in the window.
+  private _factRows(facts: DayFacts | null | undefined): TemplateResult[] {
+    if (!facts) return [];
+    const rows: TemplateResult[] = [];
+    const fact = (icon: string, text: string): TemplateResult => html`
+      <li>
+        <ha-icon icon=${icon} aria-hidden="true"></ha-icon>
+        <span>${text}</span>
+      </li>
+    `;
     if (facts.noon_days >= 7) {
       const vars = {
         n: String(facts.noon_rise_days),
         d: String(facts.noon_days),
         c: facts.noon_rise_cents.toFixed(1),
       };
-      if (facts.noon_rise_days === 0) lines.push(this._t("noon_none", vars));
-      else if (facts.noon_rise_days * 2 >= facts.noon_days)
-        lines.push(this._t("noon_before", vars));
-      else lines.push(this._t("noon_some", vars));
+      if (facts.noon_rise_days === 0) {
+        rows.push(fact("mdi:trending-neutral", this._t("noon_none", vars)));
+      } else if (facts.noon_rise_days * 2 >= facts.noon_days) {
+        rows.push(fact("mdi:trending-up", this._t("noon_before", vars)));
+      } else {
+        rows.push(fact("mdi:trending-up", this._t("noon_some", vars)));
+      }
     }
     const { cheaper_than_pct: cheaper, dearer_than_pct: dearer } = facts;
     if (cheaper >= dearer && cheaper >= 25) {
-      lines.push(this._t("now_cheaper", { pct: String(cheaper) }));
+      rows.push(fact("mdi:arrow-down-thin", this._t("now_cheaper", { pct: String(cheaper) })));
     } else if (dearer > cheaper && dearer >= 25) {
-      lines.push(this._t("now_dearer", { pct: String(dearer) }));
+      rows.push(fact("mdi:arrow-up-thin", this._t("now_dearer", { pct: String(dearer) })));
     } else {
-      lines.push(this._t("now_usual"));
+      rows.push(fact("mdi:approximately-equal", this._t("now_usual")));
     }
-    return html`
-      <div class="refuel-facts">
-        ${lines.map((line) => html`<div class="refuel-fact">${line}</div>`)}
-      </div>
-    `;
+    return rows;
   }
 
   private _renderCars(active: TankstellenEntity): TemplateResult | typeof nothing {
@@ -995,77 +970,51 @@ export class TankstellenAustriaCard extends LitElement {
     const cars = showCarFillup ? rawCars : rawCars.filter((c) => Number(c.consumption) > 0);
     if (!cars.length) return nothing;
 
-    // In filter mode use cheapest visible station (post-filter). In
-    // highlight mode all stations are visible, so use overall cheapest.
+    // In filter mode use the cheapest visible station (post-filter). In
+    // highlight mode all stations are visible, so use the overall cheapest.
     const filteredStations = highlightMode
       ? stations
       : stations.filter((s) => matchesPaymentFilter(s, paymentFilter));
-    const effectiveCheapest = highlightMode ? stations[0]?.price : filteredStations[0]?.price;
+    const cheapest = highlightMode ? stations[0]?.price : filteredStations[0]?.price;
 
     return html`
-      <div class="cars-fillup">
-        ${cars.map((car) =>
-          this._renderCarRow(car, effectiveCheapest, showCarFillup, showCarConsumption),
-        )}
-      </div>
+      <ul class="cars">
+        ${cars.map((car) => this._renderCar(car, cheapest, showCarFillup, showCarConsumption))}
+      </ul>
     `;
   }
 
-  private _renderCarRow(
+  // One line per car: name, then its litres and consumption small; the
+  // fill-up cost as the number, the cost per 100 km small beside it. With
+  // the fill-up off, the per-100-km figure is the number.
+  private _renderCar(
     car: CarConfig,
     cheapest: number | undefined,
     showCarFillup: boolean,
     showCarConsumption: boolean,
   ): TemplateResult {
     const consumption = Number(car.consumption);
-    const consumptionStr =
-      Number.isFinite(consumption) && consumption > 0
-        ? consumption.toFixed(1).replace(".", ",")
-        : "";
+    const hasConsumption = Number.isFinite(consumption) && consumption > 0;
+    const euro = (n: number): string => `€ ${n.toFixed(2).replace(".", ",")}`;
+    const consumptionStr = hasConsumption
+      ? `${consumption.toFixed(1).replace(".", ",")} l/100 km`
+      : "";
+    const fillup = cheapest != null ? euro(cheapest * Number(car.tank_size)) : "–";
+    const per100 = cheapest != null && hasConsumption ? euro(cheapest * consumption) : "–";
+    const showPer100 = showCarConsumption && hasConsumption;
 
-    if (showCarFillup) {
-      const costStr =
-        cheapest != null
-          ? `€ ${(cheapest * Number(car.tank_size)).toFixed(2).replace(".", ",")}`
-          : "–";
-      const per100Str =
-        cheapest != null && consumption > 0
-          ? `€ ${(cheapest * consumption).toFixed(2).replace(".", ",")}`
-          : "–";
-      return html`
-        <div class="car-fillup-row">
-          <span class="car-fillup-name">
-            <ha-icon icon=${car.icon || "mdi:car"} class="car-icon" aria-hidden="true"></ha-icon>
-            ${car.name}
-            <span class="car-fillup-liters">${car.tank_size} L</span>
-          </span>
-          <span class="car-fillup-cost">${costStr}</span>
-        </div>
-        ${
-          showCarConsumption && consumption > 0
-            ? html`
-              <div class="car-per100-row">
-                <span class="car-per100-label">${consumptionStr} l/100 km</span>
-                <span class="car-per100-cost">${per100Str} / 100 km</span>
-              </div>
-            `
-            : nothing
-        }
-      `;
-    }
-
-    // consumption-only mode — reuses .car-fillup-row styling
-    const per100Str =
-      cheapest != null ? `€ ${(cheapest * consumption).toFixed(2).replace(".", ",")}` : "–";
+    const meta = [showCarFillup ? `${car.tank_size} l` : "", consumptionStr]
+      .filter(Boolean)
+      .join(" · ");
+    const num = showCarFillup
+      ? html`${fillup}${showPer100 ? html` <small>· ${per100} / 100 km</small>` : nothing}`
+      : html`${per100} <small>/ 100 km</small>`;
     return html`
-      <div class="car-fillup-row">
-        <span class="car-fillup-name">
-          <ha-icon icon=${car.icon || "mdi:car"} class="car-icon" aria-hidden="true"></ha-icon>
-          ${car.name}
-          <span class="car-fillup-liters">${consumptionStr} l/100 km</span>
-        </span>
-        <span class="car-fillup-cost">${per100Str} / 100 km</span>
-      </div>
+      <li>
+        <ha-icon icon=${car.icon || "mdi:car"} aria-hidden="true"></ha-icon>
+        <span>${car.name}${meta ? html` <small>${meta}</small>` : nothing}</span>
+        <span class="num">${num}</span>
+      </li>
     `;
   }
 
@@ -1125,11 +1074,11 @@ export class TankstellenAustriaCard extends LitElement {
 
     const display = ordered.slice(0, maxStations);
     return html`
-      <div class="stations">
+      <ol class="stations">
         ${display.map((s, idx) =>
           this._renderStation(s, idx, activeTab, paymentFilter, highlightMode),
         )}
-      </div>
+      </ol>
     `;
   }
 
@@ -1138,23 +1087,26 @@ export class TankstellenAustriaCard extends LitElement {
   private _renderIndexTile(s: Station, idx: number): TemplateResult {
     const circle = this._config.tile_shape === "circle";
     if (this._config.show_brand !== true) {
-      return html`<div class=${classMap({ "index-tile": true, circle })} aria-hidden="true">
+      return html`<span class=${classMap({ "st-tile": true, circle })} aria-hidden="true">
         ${idx + 1}
-      </div>`;
+      </span>`;
     }
     const tile = brandTile(s.name);
     const colours = tile.bg
       ? { "--tankst-tile-bg": tile.bg, "--tankst-tile-fg": tile.fg ?? "" }
       : {};
-    return html`<div
-      class=${classMap({ "index-tile": true, brand: true, "brand-known": !!tile.bg, circle })}
+    return html`<span
+      class=${classMap({ "st-tile": true, brand: true, "brand-known": !!tile.bg, circle })}
       style=${styleMap(colours)}
       aria-hidden="true"
     >
       ${tile.initials}
-    </div>`;
+    </span>`;
   }
 
+  // One <li> per station: the row is a real <button> (so Enter and Space
+  // come for free), the map link sits beside it as a sibling rather than
+  // inside it, and the detail panel spans both.
   private _renderStation(
     s: Station,
     idx: number,
@@ -1165,23 +1117,16 @@ export class TankstellenAustriaCard extends LitElement {
     // The tile shows the rank or the brand; either one draws it.
     const showIndex = this._config.show_index !== false || this._config.show_brand === true;
     const showMapLinks = this._config.show_map_links !== false;
-    // Opt-in: render only when explicitly enabled. An existing card config
-    // predating this feature has no `show_distance` key, so it stays hidden
-    // (and the editor toggle, which reads absent as off, agrees). New cards
-    // get `show_distance: true` from getStubConfig, so the feature shows by
-    // default there while toggle and behaviour stay consistent.
+    // Opt-in: an existing config predating the feature has no key, so the
+    // caption stays hidden; getStubConfig turns it on for new cards.
     const showDistance = this._config.show_distance === true;
     const showHours = this._config.show_opening_hours !== false;
     const showPayment = this._config.show_payment_methods !== false;
     const loc = s.location ?? {};
 
-    // Key the expanded-state on station identity, not list position.
-    // Stations are sorted cheapest-first by the integration, so position
-    // shifts whenever prices update — keying on `${activeTab}-${idx}` would
-    // leave the detail panel attached to whichever station now occupies the
-    // old slot. `name|address` is the stable identifier the API exposes; the
-    // tab prefix keeps state per-fuel-type even though `_onTabClick` already
-    // clears the set on tab switch (belt-and-braces).
+    // Expanded state is keyed on station identity, not list position:
+    // positions shift whenever prices update. The tab prefix keeps state
+    // per fuel type even though _onTabClick already clears the set.
     const key = `${activeTab}|${s.name ?? ""}|${loc.address ?? ""}`;
     const isExpanded = this._expandedStations.has(key);
     const isClosed = s.open === false;
@@ -1200,219 +1145,131 @@ export class TankstellenAustriaCard extends LitElement {
     const hasHoursBlock = showHours && !!s.opening_hours?.length;
     const hasPaymentBlock = showPayment && hasPaymentMethods(s.payment_methods);
     const hasDetail = hasHoursBlock || hasPaymentBlock;
-
-    const rowLabel = [s.name || "–", loc.city ?? "", formatPrice(s.price)]
-      .filter(Boolean)
-      .join(", ");
     const detailId = hasDetail ? `tsa-station-detail-${activeTab}-${idx}` : undefined;
-    const hasName = !!s.name;
-    const cityText = loc.city ?? "";
-    const addressText = loc.address ?? "";
-    // Build the address row from whichever parts the API supplied. Rural
-    // stations often have only a postal code (no city, no street); the
-    // previous template emitted a literal comma + space regardless, which
-    // rendered as e.g. "4310 ," for those. Locality (PLZ + city) and street
-    // each get their own `<span lang="de">` for screen-reader pronunciation
-    // and join with ", " only when both are present.
-    const localityText = [loc.postalCode, cityText]
+
+    // Locality (PLZ + city) and street each get their own lang span and
+    // join with ", " only when both are present: rural stations often
+    // carry only a postal code.
+    const localityText = [loc.postalCode, loc.city]
       .filter((p): p is string | number => p != null && p !== "")
       .join(" ");
+    const addressText = loc.address ?? "";
     const localityTpl = localityText ? html`<span lang="de">${localityText}</span>` : nothing;
     const addressTpl = addressText ? html`<span lang="de">${addressText}</span>` : nothing;
     const addressSeparator = localityTpl !== nothing && addressTpl !== nothing ? ", " : "";
+
+    // Map link, or nothing: mapsUrl returns null without a name or any
+    // location field, safeNavUri "" outside its allowlist. geo: URIs open
+    // in-tab so the OS intercepts them as an intent.
+    let mapUrl = "";
+    if (showMapLinks) {
+      const linkKind = resolveMapLinkKind(
+        this._config.map_provider ?? "auto",
+        detectNavPlatform(navigator.userAgent, navigator.maxTouchPoints),
+      );
+      mapUrl = safeNavUri(mapsUrl(loc, s.name ?? "", linkKind));
+    }
+
     return html`
-      <div class=${classMap({ station: true, "pm-highlight": highlighted })}>
-        <div
-          class="station-main"
-          role=${hasDetail ? "button" : "group"}
-          tabindex=${hasDetail ? "0" : "-1"}
+      <li class=${classMap({ st: true, "pm-highlight": highlighted })}>
+        <button
+          class=${classMap({ "st-row": true, "no-map": !mapUrl })}
+          type="button"
           aria-expanded=${hasDetail ? (isExpanded ? "true" : "false") : nothing}
           aria-controls=${detailId ?? nothing}
-          aria-label=${rowLabel}
+          ?disabled=${!hasDetail}
           @click=${() => this._onStationClick(key)}
-          @keydown=${(ev: KeyboardEvent) => this._onStationKeydown(ev, key, hasDetail)}
         >
           ${showIndex ? this._renderIndexTile(s, idx) : nothing}
-          <div class="info">
-            <div class="name">
-              ${hasName ? html`<span lang="de">${s.name}</span>` : "–"}
-              ${
-                isClosed
-                  ? html`<span class="flag closed">${this._t("closed")}</span>`
-                  : isClosingSoonFlag
-                    ? html`<span class="flag closing-soon"
-                      >${this._t("closing_soon")}</span
-                    >`
-                    : nothing
-              }
-              ${matchChips.map((m) => html`<span class="chip match">${m}</span>`)}
-            </div>
-            <div class="address">
-              ${localityTpl}${addressSeparator}${addressTpl}
-            </div>
-          </div>
-          <div class="price">${formatPrice(s.price)}</div>
-          ${(() => {
-            // Map-pin link to Google Maps, with the Luftlinie distance as a
-            // caption beneath it. Both are optional and independently toggled.
-            let pin: TemplateResult | typeof nothing = nothing;
-            if (showMapLinks) {
-              const linkKind = resolveMapLinkKind(
-                this._config.map_provider ?? "auto",
-                detectNavPlatform(navigator.userAgent, navigator.maxTouchPoints),
-              );
-              const url = safeNavUri(mapsUrl(loc, s.name ?? "", linkKind));
-              // mapsUrl returns null when neither a station name nor any
-              // location field is available — and safeNavUri returns ""
-              // for URIs outside its allowlist. Either way, skip the <a>
-              // rather than emit an empty href that would reload the page
-              // on click. geo: URIs must navigate in-tab (`_self`) so the
-              // OS intercepts them as an intent; a new tab would be left
-              // blank even when the chooser opens.
-              if (url) {
-                pin = html`
-                  <a
-                    class="icon-action map"
-                    href=${url}
-                    target=${url.startsWith("geo:") ? "_self" : "_blank"}
-                    rel="noopener noreferrer"
-                    aria-label=${`${this._t("map")}: ${s.name ?? ""}`}
-                    title=${this._t("map")}
-                    @click=${this._onMapLinkClick}
-                  >
-                    <ha-icon
-                      icon=${/\d/.test(loc.address ?? "") ? "mdi:map-marker" : "mdi:magnify"}
-                      aria-hidden="true"
-                    ></ha-icon>
-                  </a>
-                `;
-              }
+          <span class="st-name">
+            ${s.name ? html`<span lang="de">${s.name}</span>` : "–"}
+            ${
+              isClosed
+                ? html`<span class="flag closed">${this._t("closed")}</span>`
+                : isClosingSoonFlag
+                  ? html`<span class="flag">${this._t("closing_soon")}</span>`
+                  : nothing
             }
-
-            const distance =
-              showDistance && s.distance_m != null
-                ? html`<span class="distance" lang="de"
-                    >${formatDistance(s.distance_m)}</span
-                  >`
-                : nothing;
-
-            if (pin === nothing && distance === nothing) return nothing;
-            return html`<div
-              class=${classMap({
-                "map-action": true,
-                "has-distance": distance !== nothing,
-              })}
-            >
-              ${pin}${distance}
-            </div>`;
-          })()}
+            ${matchChips.map((m) => html`<span class="chip match">${m}</span>`)}
+          </span>
+          <span class="st-addr">${localityTpl}${addressSeparator}${addressTpl}</span>
+          <span class="st-price">${formatPrice(s.price)}</span>
           ${
-            hasDetail
-              ? html`<ha-icon
-                class="expander-chevron"
-                icon="mdi:chevron-down"
-                aria-hidden="true"
-              ></ha-icon>`
+            showDistance && s.distance_m != null
+              ? html`<span class="st-dist" lang="de">${formatDistance(s.distance_m)}</span>`
               : nothing
           }
-        </div>
+          ${
+            hasDetail
+              ? html`<ha-icon class="chev" icon="mdi:chevron-down" aria-hidden="true"></ha-icon>`
+              : nothing
+          }
+        </button>
+        ${
+          mapUrl
+            ? html`
+              <a
+                class="st-map"
+                href=${mapUrl}
+                target=${mapUrl.startsWith("geo:") ? "_self" : "_blank"}
+                rel="noopener noreferrer"
+                aria-label=${`${this._t("map")}: ${s.name ?? ""}`}
+                title=${this._t("map")}
+              >
+                <ha-icon
+                  icon=${/\d/.test(addressText) ? "mdi:map-marker" : "mdi:magnify"}
+                  aria-hidden="true"
+                ></ha-icon>
+              </a>
+            `
+            : nothing
+        }
         ${
           hasDetail
             ? html`
-              <div
-                id=${detailId!}
-                class=${classMap({ "station-detail": true, expanded: isExpanded })}
-              >
-                <div class="detail-cols">
-                  ${
-                    hasHoursBlock
-                      ? html`<div class="detail-col">${this._renderHours(s.opening_hours ?? [])}</div>`
-                      : nothing
-                  }
-                  ${
-                    hasPaymentBlock
-                      ? html`<div class="detail-col">${this._renderPaymentMethods(s.payment_methods)}</div>`
-                      : nothing
-                  }
+              <div id=${detailId!} class=${classMap({ "st-detail": true, expanded: isExpanded })}>
+                <div>
+                  ${hasHoursBlock ? this._renderHours(s.opening_hours ?? []) : nothing}
+                  ${hasPaymentBlock ? this._renderPaymentMethods(s.payment_methods) : nothing}
                 </div>
               </div>
             `
             : nothing
         }
-      </div>
+      </li>
     `;
   }
 
   private _renderHours(hours: OpeningHours[]): TemplateResult {
     // E-Control groups Mon-Fri under "MO". Fall back to positional indexing
     // when the day code isn't set (old feed shape).
-    const mo = hours.find((h) => h.day === "MO") ?? hours[0];
-    const sa = hours.find((h) => h.day === "SA") ?? hours[5];
-    const so = hours.find((h) => h.day === "SO") ?? hours[6];
-    const fe = hours.find((h) => h.day === "FE");
+    const rows: Array<[string, OpeningHours | undefined]> = [
+      [this._t("mon_fri"), hours.find((h) => h.day === "MO") ?? hours[0]],
+      [this._t("sat"), hours.find((h) => h.day === "SA") ?? hours[5]],
+      [this._t("sun"), hours.find((h) => h.day === "SO") ?? hours[6]],
+      [this._t("holiday"), hours.find((h) => h.day === "FE")],
+    ];
     return html`
-      <div class="hours-grid">
-        ${
-          mo
-            ? html`<span class="day">${this._t("mon_fri")}</span><span>${mo.from} – ${mo.to}</span>`
-            : nothing
-        }
-        ${
-          sa
-            ? html`<span class="day">${this._t("sat")}</span><span>${sa.from} – ${sa.to}</span>`
-            : nothing
-        }
-        ${
-          so
-            ? html`<span class="day">${this._t("sun")}</span><span>${so.from} – ${so.to}</span>`
-            : nothing
-        }
-        ${
-          fe
-            ? html`<span class="day">${this._t("holiday")}</span><span>${fe.from} – ${fe.to}</span>`
-            : nothing
-        }
-      </div>
+      <dl class="hours">
+        ${rows.map(([label, h]) =>
+          h ? html`<dt>${label}</dt><dd>${h.from} – ${h.to}</dd>` : nothing,
+        )}
+      </dl>
     `;
   }
 
   private _renderPaymentMethods(pm: PaymentMethods | undefined): TemplateResult | typeof nothing {
     if (!pm) return nothing;
-    const badges: TemplateResult[] = [];
-    if (pm.cash) {
-      badges.push(html`
-        <span class="pm-badge">
-          <ha-icon icon="mdi:cash" class="pm-icon" aria-hidden="true"></ha-icon>
-          ${this._t("cash")}
-        </span>
-      `);
-    }
-    if (pm.debit_card) {
-      badges.push(html`
-        <span class="pm-badge">
-          <ha-icon icon="mdi:credit-card" class="pm-icon" aria-hidden="true"></ha-icon>
-          ${this._t("debit_card")}
-        </span>
-      `);
-    }
-    if (pm.credit_card) {
-      badges.push(html`
-        <span class="pm-badge">
-          <ha-icon icon="mdi:credit-card" class="pm-icon" aria-hidden="true"></ha-icon>
-          ${this._t("credit_card")}
-        </span>
-      `);
-    }
-    for (const other of pm.others ?? []) {
-      badges.push(html`<span class="pm-badge pm-other">${other}</span>`);
-    }
-    if (!badges.length) return nothing;
-    return html`
-      <div class="pm-section">
-        <div class="pm-label">${this._t("payment")}</div>
-        <div class="pm-badges">${badges}</div>
-      </div>
+    const chips: TemplateResult[] = [];
+    const chip = (icon: string, label: string): TemplateResult => html`
+      <span><ha-icon icon=${icon} aria-hidden="true"></ha-icon>${label}</span>
     `;
+    if (pm.cash) chips.push(chip("mdi:cash", this._t("cash")));
+    if (pm.debit_card) chips.push(chip("mdi:credit-card", this._t("debit_card")));
+    if (pm.credit_card) chips.push(chip("mdi:credit-card", this._t("credit_card")));
+    for (const other of pm.others ?? []) chips.push(html`<span class="pm-other">${other}</span>`);
+    if (!chips.length) return nothing;
+    return html`<div class="pay">${chips}</div>`;
   }
 
   // --- Event handlers ---
@@ -1459,17 +1316,6 @@ export class TankstellenAustriaCard extends LitElement {
     else next.add(key);
     this._expandedStations = next;
   }
-
-  private _onStationKeydown(ev: KeyboardEvent, key: string, hasDetail: boolean): void {
-    if (!hasDetail) return;
-    if (ev.key !== "Enter" && ev.key !== " ") return;
-    ev.preventDefault();
-    this._onStationClick(key);
-  }
-
-  private _onMapLinkClick = (e: Event): void => {
-    e.stopPropagation();
-  };
 
   private _onSparklineClick(entityId: string): void {
     // Same behaviour as clicking a sensor in HA — open the more-info dialog.

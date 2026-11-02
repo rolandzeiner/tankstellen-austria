@@ -198,7 +198,7 @@ cars:
 | `tile_shape` | `square` | The rank tile's shape: `square` (rounded corners) or `circle`; applies to the rank and the brand alike |
 | `map_links` | `true` | Navigation link per station |
 | `map_provider` | `auto` | `auto` (Apple Maps on iOS, the app chooser on Android, Google Maps elsewhere), `google` or `apple` |
-| `distance` | `false` | Distance under each station's map pin |
+| `distance` | `false` | Distance under each station's price |
 | `sort` | `price` | `price` lists the cheapest first, `distance` the nearest |
 | `opening_hours` | `true` | Opening hours in the station details |
 | `payment_methods` | `true` | Payment methods in the station details |

@@ -155,8 +155,8 @@ describe("tankstellen-austria-card", () => {
       e.setConfig({ type: "x" });
       e.hass = hass();
     });
-    // 173 + 99 + 53 (tip and its two fact lines) + 2 × 65 = 455 px.
-    expect(el.getCardSize()).toBe(10);
+    // 137 + 80 + 83 (the three fact rows) + 2 × 62 = 424 px.
+    expect(el.getCardSize()).toBe(9);
   });
 
   it("reflects the layout HA sets, so the grid-cell rules can match", () => {
@@ -302,7 +302,7 @@ describe("tankstellen-austria-card", () => {
         e.setConfig({ type: "x", ...config });
         e.hass = h;
       });
-      const found = [...el.shadowRoot!.querySelectorAll<HTMLElement>(".index-tile")];
+      const found = [...el.shadowRoot!.querySelectorAll<HTMLElement>(".st-tile")];
       el.remove();
       return found.map((t) => [
         t.textContent?.trim(),
@@ -332,7 +332,7 @@ describe("tankstellen-austria-card", () => {
         e.setConfig({ type: "x", stations });
         e.hass = hass();
       });
-      const found = [...el.shadowRoot!.querySelectorAll(".index-tile")].map((t) =>
+      const found = [...el.shadowRoot!.querySelectorAll(".st-tile")].map((t) =>
         t.classList.contains("circle"),
       );
       el.remove();

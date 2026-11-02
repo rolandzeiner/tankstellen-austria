@@ -18,6 +18,8 @@ export interface SparklineTranslations {
   min_label: string;
   max_label: string;
   last_7_days: string;
+  // Caption on the best-refuel band, `{h1}` and `{h2}` as two-digit hours.
+  window_label: string;
   // Delta-vs-median label templates with `{c}` placeholder.
   median_delta_below: string;
   median_delta_above: string;
@@ -146,11 +148,15 @@ export class TankstellenAustriaSparkline extends LitElement {
       : "";
 
     const delta = m.medianDelta;
-    const deltaTmpl = delta
-      ? html`<span class="median-delta ${delta.cls}"
-          >${this._t(delta.key).replace("{c}", delta.cents)}</span
-        >`
-      : nothing;
+    const deltaText = delta ? this._t(delta.key).replace("{c}", delta.cents) : "";
+    const a = this.analysis;
+    const hh = (h: number): string => String(h).padStart(2, "0");
+    const windowText =
+      m.bands.length && a?.hour != null
+        ? this._t("window_label")
+            .replace("{h1}", hh(a.hour))
+            .replace("{h2}", hh(a.hour_end ?? (a.hour + 1) % 24))
+        : "";
 
     // Strokes carry vector-effect="non-scaling-stroke": the viewBox is
     // stretched to the card's width (preserveAspectRatio="none"), which
@@ -169,7 +175,7 @@ export class TankstellenAustriaSparkline extends LitElement {
           viewBox="0 0 ${width} ${height}"
           preserveAspectRatio="none"
           role="img"
-          aria-label=${ariaLabel}
+          aria-label=${deltaText ? `${ariaLabel}. ${deltaText}` : ariaLabel}
         >
           <title>${ariaLabel}</title>
           <defs>
@@ -237,27 +243,13 @@ export class TankstellenAustriaSparkline extends LitElement {
         <span class="sparkline-tooltip-time">${hoverTime}</span>
         <span class="sparkline-tooltip-price">${hover ? formatPrice(hover.value) : ""}</span>
       </div>
-      <div class="sparkline-labels">
-        ${
-          this.showMinMax
-            ? html`<span>
-                <span class="sparkline-minmax-label">${this._t("min_label")}</span>
-                ${formatPriceShort(m.min)}
-              </span>`
-            : nothing
-        }
-        <span class="sparkline-period">
-          ${this._t("last_7_days")}${delta ? html` · ${deltaTmpl}` : nothing}
-        </span>
-        ${
-          this.showMinMax
-            ? html`<span>
-                <span class="sparkline-minmax-label">${this._t("max_label")}</span>
-                ${formatPriceShort(m.max)}
-              </span>`
-            : nothing
-        }
-      </div>
+      ${
+        this.showMinMax
+          ? html`<span class="lab max" aria-hidden="true">${formatPriceShort(m.max)}</span>
+              <span class="lab min" aria-hidden="true">${formatPriceShort(m.min)}</span>`
+          : nothing
+      }
+      ${windowText ? html`<span class="lab win" aria-hidden="true">${windowText}</span>` : nothing}
     `;
   }
 
@@ -276,8 +268,37 @@ export class TankstellenAustriaSparkline extends LitElement {
     }
     .sparkline {
       width: 100%;
-      height: var(--ts-sparkline-height, clamp(40px, 8vw + 24px, 72px));
+      /* The card's one responsive dial: taller with the card, like HA's
+         sensor-card graph, never above 88 px. */
+      height: var(--ts-sparkline-height, clamp(56px, 10cqi + 24px, 88px));
       display: block;
+    }
+    /* Min and max at the left edge, the best window at the right, drawn
+       over the chart so the labels row under it is gone. */
+    .lab {
+      position: absolute;
+      left: var(--tankst-pad, 16px);
+      font-size: var(--ha-font-size-xs, 0.714rem);
+      line-height: 1;
+      color: var(--secondary-text-color);
+      font-variant-numeric: tabular-nums;
+      padding: 1px 4px;
+      border-radius: 3px;
+      background: color-mix(in srgb, var(--card-background-color) 80%, transparent);
+      pointer-events: none;
+    }
+    .lab.max {
+      top: 4px;
+    }
+    .lab.min {
+      bottom: 4px;
+    }
+    .lab.win {
+      left: auto;
+      right: var(--tankst-pad, 16px);
+      bottom: 4px;
+      color: var(--success-color, #4caf50);
+      font-weight: var(--ha-font-weight-medium, 500);
     }
     .sparkline-hover-dot {
       position: absolute;
@@ -303,7 +324,7 @@ export class TankstellenAustriaSparkline extends LitElement {
       padding: 3px 7px;
       background: var(--card-background-color);
       border: 1px solid var(--divider-color);
-      border-radius: var(--tankst-radius-sm);
+      border-radius: var(--ha-border-radius-sm, 4px);
       box-shadow: 0 2px 6px color-mix(in srgb, #000 12%, transparent);
       font-size: 0.75rem;
       white-space: nowrap;
@@ -319,35 +340,6 @@ export class TankstellenAustriaSparkline extends LitElement {
     .sparkline-tooltip-price {
       color: var(--primary-text-color);
       font-weight: 600;
-    }
-    .sparkline-labels {
-      display: flex;
-      justify-content: space-between;
-      font-size: 0.6875rem;
-      color: var(--secondary-text-color);
-      padding: 2px 0 0;
-    }
-    .sparkline-period {
-      font-size: 0.6875rem;
-      opacity: 0.6;
-    }
-    .sparkline-minmax-label {
-      opacity: 0.6;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-    }
-    .median-delta {
-      font-weight: 500;
-      opacity: 0.9;
-    }
-    .median-delta-good {
-      color: var(--tankst-rt);
-    }
-    .median-delta-bad {
-      color: var(--tankst-warning);
-    }
-    .median-delta-neutral {
-      color: var(--secondary-text-color);
     }
     @media (prefers-reduced-motion: reduce) {
       .sparkline-hover-dot {
