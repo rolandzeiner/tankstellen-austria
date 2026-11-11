@@ -22,6 +22,7 @@ from custom_components.tankstellen_austria.const import (
     DOMAIN_MAINTENANCE_KEY,
     DYNAMIC_COOLDOWN_MINUTES,
     MAINTENANCE_PROBE_MINUTES,
+    MAX_POLL_MINUTES,
 )
 from custom_components.tankstellen_austria.coordinator import (
     MaintenanceWindow,
@@ -133,11 +134,11 @@ async def test_consecutive_failures_apply_exponential_backoff(
 
     from custom_components.tankstellen_austria.const import BACKOFF_CAP_SECONDS
 
-    entry = _make_entry({CONF_SCAN_INTERVAL: 30})
+    entry = _make_entry({CONF_SCAN_INTERVAL: 10})
     entry.add_to_hass(hass)
     coordinator = TankstellenCoordinator(hass, entry)
     normal = coordinator._normal_interval
-    assert normal == timedelta(minutes=30)
+    assert normal == timedelta(minutes=10)
     assert coordinator.update_interval == normal
 
     with patch(
@@ -150,16 +151,16 @@ async def test_consecutive_failures_apply_exponential_backoff(
         assert coordinator._consecutive_failures == 1
         assert coordinator.update_interval == normal
 
-        # 2nd failure: 60 min (×2)
+        # 2nd failure: 20 min (×2)
         with pytest.raises(UpdateFailed):
             await coordinator._async_update_data()
         assert coordinator._consecutive_failures == 2
-        assert coordinator.update_interval == timedelta(minutes=60)
+        assert coordinator.update_interval == timedelta(minutes=20)
 
-        # 3rd failure: 120 min (×4)
+        # 3rd failure: 40 min (×4)
         with pytest.raises(UpdateFailed):
             await coordinator._async_update_data()
-        assert coordinator.update_interval == timedelta(minutes=120)
+        assert coordinator.update_interval == timedelta(minutes=40)
 
     # Recovery: a single success snaps back to normal
     with patch(
@@ -194,6 +195,34 @@ async def test_backoff_holds_the_cap_through_a_very_long_outage(
     for _ in range(3000):
         coordinator._note_failure()
     assert coordinator.update_interval == timedelta(seconds=BACKOFF_CAP_SECONDS)
+
+
+async def test_backoff_cap_is_one_hour(hass: HomeAssistant) -> None:
+    """At most an hour between tries, so prices return within an hour of E-Control.
+
+    The cap used to be 12 h, which kept the sensors unavailable for about as
+    long after E-Control recovered as the outage itself had lasted.
+    """
+    entry = _make_entry({CONF_SCAN_INTERVAL: 30})
+    entry.add_to_hass(hass)
+    coordinator = TankstellenCoordinator(hass, entry)
+
+    for _ in range(10):
+        coordinator._note_failure()
+    assert coordinator.update_interval == timedelta(hours=1)
+
+
+async def test_backoff_never_shortens_a_longer_configured_interval(
+    hass: HomeAssistant,
+) -> None:
+    """An interval above the cap stays as it is through an outage."""
+    entry = _make_entry({CONF_SCAN_INTERVAL: MAX_POLL_MINUTES})
+    entry.add_to_hass(hass)
+    coordinator = TankstellenCoordinator(hass, entry)
+
+    for _ in range(10):
+        coordinator._note_failure()
+    assert coordinator.update_interval == timedelta(minutes=MAX_POLL_MINUTES)
 
 
 async def test_fetch_rejects_non_list_payload(hass: HomeAssistant) -> None:

@@ -647,6 +647,10 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[Station]]]):
         update interval doubles each tick, capped at BACKOFF_CAP_SECONDS so a
         sustained outage settles into a slow poll instead of hammering the API
         every interval. The next successful tick resets it.
+
+        An interval configured above the cap (up to MAX_POLL_MINUTES, or the
+        dynamic-mode safety interval) stays as it is: backoff never makes a
+        failing API get asked more often than a working one.
         """
         self._consecutive_failures += 1
         if self._consecutive_failures < 2:
@@ -656,7 +660,9 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[Station]]]):
         # over within a few doublings, and from the 1025th failure in a
         # row `2 ** n` no longer converts to a float.
         doublings = min(self._consecutive_failures - 1, 32)
-        backoff_secs = min(normal_secs * 2**doublings, BACKOFF_CAP_SECONDS)
+        backoff_secs = min(
+            normal_secs * 2**doublings, max(BACKOFF_CAP_SECONDS, normal_secs)
+        )
         new_interval = timedelta(seconds=backoff_secs)
         if self.update_interval != new_interval:
             self.update_interval = new_interval
@@ -694,8 +700,8 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[Station]]]):
         Exponential backoff is for failures we can't explain. Maintenance is
         announced and temporary, and the shared window already limits the
         install to one probe per MAINTENANCE_PROBE_MINUTES, so backing off
-        further only delays recovery: at the 12 h cap an entry could stay
-        unavailable for half a day after E-Control is back. Clearing the
+        further only delays recovery: at the cap an entry could stay
+        unavailable for an hour after E-Control is back. Clearing the
         counter also restarts backoff from scratch for a later, unexplained
         failure.
         """

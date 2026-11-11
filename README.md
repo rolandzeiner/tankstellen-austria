@@ -270,7 +270,7 @@ A fixed entry polls E-Control at its **Update interval (minutes)**, every 30 min
 
 - **Around noon** (about 12:05 to 12:07 Vienna time) E-Control sometimes answers with no stations while it refreshes. The sensors keep their values and the integration tries once more after 10 minutes.
 - **When one fuel type fails**, the others update and the failed one keeps its last value. The entry goes unavailable only when every fuel type fails.
-- **When updates keep failing**, the interval doubles from the second failure in a row, up to 12 hours, and returns to normal after the next success. After at least two failures over 10 minutes or more, a Repairs issue says E-Control isn't sending prices, and it clears itself once prices return.
+- **When updates keep failing**, the interval doubles from the second failure in a row, up to an hour, and returns to normal after the next success. An interval you set longer than an hour stays as it is. After at least two failures over 10 minutes or more, a Repairs issue says E-Control isn't sending prices, and it clears itself once prices return.
 - **During E-Control maintenance** the entries go unavailable and the card says why. One check every 10 minutes serves all entries, and prices return with the next update once the service is back.
 
 ### Dynamic mode

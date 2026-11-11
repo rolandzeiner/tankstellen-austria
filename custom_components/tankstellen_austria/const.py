@@ -96,13 +96,19 @@ ATTRIBUTION: Final = "Datenquelle: E-Control"
 NO_DATA_RETRY_MINUTES = 10
 
 # Exponential-backoff cap for consecutive `_async_update_data` failures.
-# Bound to MAX_POLL_MINUTES (12 h) so a sustained E-Control outage settles
-# into a slow poll instead of hammering the API every 30 min × 24 = 48
-# retries/day. The first failure stays at the user-configured cadence
-# (transient hiccups shouldn't slow down the loop); from the second failure
-# onwards the interval doubles each tick, capped here, until the next
-# success resets it.
-BACKOFF_CAP_SECONDS: Final = MAX_POLL_MINUTES * 60
+# The first failure stays at the user-configured cadence (transient hiccups
+# shouldn't slow down the loop); from the second failure onwards the
+# interval doubles each tick, capped here, until the next success resets it.
+#
+# One hour: a sustained outage settles at one round of requests an hour,
+# half the default cadence, and prices come back within an hour of
+# E-Control. The cap used to be MAX_POLL_MINUTES (12 h). Because the
+# interval grows with the outage, the next try then landed about as long
+# after E-Control's recovery as the outage had lasted, so a few hours' outage
+# kept the sensors unavailable, and the Repairs issue up, for hours after
+# E-Control was back. An interval configured above the cap is never
+# shortened by backoff (see `_note_failure`).
+BACKOFF_CAP_SECONDS: Final = 60 * 60
 
 # While E-Control reports maintenance, every entry shares one probe per
 # window: a refresh inside it fails fast without a request. Pinned to the
