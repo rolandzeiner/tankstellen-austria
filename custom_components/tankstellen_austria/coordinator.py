@@ -21,6 +21,7 @@ from homeassistant.helpers.event import (
 )
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
+from homeassistant.util.hass_dict import HassKey
 from homeassistant.util.location import distance
 
 from .api import (
@@ -145,6 +146,15 @@ class MaintenanceWindow:
 
     since: datetime  # first probe that saw the maintenance page
     next_probe: datetime  # refreshes before this fail without a request
+
+
+# Entries whose outage is already in the log. It lives in hass.data, not on
+# the coordinator: a setup retry builds a fresh coordinator whose
+# `last_update_success` starts out True, so a flag on the instance let every
+# retry of an outage that began before setup warn again. On 2026-11-11 that
+# was about 14 warnings from four entries per retry, and HA keeps retrying
+# every 10 minutes for as long as the outage lasts.
+UNAVAILABLE_LOGGED: HassKey[set[str]] = HassKey(f"{DOMAIN}_unavailable_logged")
 
 
 def maintenance_window(hass: HomeAssistant) -> MaintenanceWindow | None:
@@ -452,7 +462,6 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[Station]]]):
                 translation_key="api_maintenance",
             )
 
-        was_available = self.last_update_success
         # Stamped before the requests go out, so the next maintenance probe is
         # timed from this attempt rather than from however long it took.
         probe_started = dt_util.utcnow()
@@ -477,12 +486,21 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[Station]]]):
                 raise outcome
             if isinstance(outcome, Exception):
                 errors[fuel_type] = outcome
-                # Maintenance gets one install-wide warning when the window
-                # opens, not one per fuel type on every probe.
-                if not _is_maintenance(outcome):
-                    _LOGGER.warning("Fetch failed: %s", _describe_error(outcome))
             else:
                 results[fuel_type] = outcome
+
+        # A fuel type failing beside others that answered keeps its warning:
+        # nothing else reports it. When every fuel type failed, the
+        # once-per-outage warning below carries the first error, so the
+        # per-type lines drop to debug. Maintenance gets one install-wide
+        # warning when the window opens, not one per fuel type on every probe.
+        for err in errors.values():
+            if not _is_maintenance(err):
+                _LOGGER.log(
+                    logging.WARNING if results else logging.DEBUG,
+                    "Fetch failed: %s",
+                    _describe_error(err),
+                )
 
         # One note per refresh that went out, maintenance probes included.
         # The in-window fast-fail above raised before any request, so it
@@ -508,10 +526,7 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[Station]]]):
                 raise maintenance_err
             # Report the first error for the UI; per-type errors were logged above.
             first_ft, first_err = next(iter(errors.items()))
-            if was_available:
-                _LOGGER.warning(
-                    "E-Control API unavailable: %s", _describe_error(first_err)
-                )
+            self._log_unavailable(first_err)
             self._note_failure()
             raise UpdateFailed(
                 translation_domain=DOMAIN,
@@ -531,8 +546,7 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[Station]]]):
                 if self.data.get(fuel_type):
                     results[fuel_type] = self.data[fuel_type]
 
-        if not was_available:
-            _LOGGER.info("E-Control API is back online")
+        self._log_available()
         self._note_success()
 
         if self._dynamic_entity:
@@ -600,6 +614,22 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[Station]]]):
             self.async_request_refresh(),
             name=f"{DOMAIN}_no_data_retry",
         )
+
+    def _log_unavailable(self, err: Exception) -> None:
+        """Warn once per outage of this entry, its setup retries included."""
+        logged = self.hass.data.setdefault(UNAVAILABLE_LOGGED, set())
+        if self._entry.entry_id in logged:
+            return
+        logged.add(self._entry.entry_id)
+        _LOGGER.warning("E-Control API unavailable: %s", _describe_error(err))
+
+    def _log_available(self) -> None:
+        """Say once that the API answers again, if its outage was logged."""
+        logged = self.hass.data.get(UNAVAILABLE_LOGGED)
+        if logged is None or self._entry.entry_id not in logged:
+            return
+        logged.discard(self._entry.entry_id)
+        _LOGGER.info("E-Control API is back online")
 
     def _note_success(self) -> None:
         """Reset the consecutive-failure counter and restore normal cadence."""

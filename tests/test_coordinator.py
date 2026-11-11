@@ -1,5 +1,6 @@
 """Tests for the Tankstellen Austria coordinator."""
 
+import logging
 from datetime import timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -1174,6 +1175,81 @@ async def test_failure_log_carries_http_status(
 
     assert coordinator.last_update_success is False
     assert "status=503" in caplog.text
+
+
+def _warnings(caplog: pytest.LogCaptureFixture, text: str) -> int:
+    """Count the WARNING-or-worse records whose message contains ``text``."""
+    return sum(
+        1
+        for record in caplog.records
+        if record.levelno >= logging.WARNING and text in record.getMessage()
+    )
+
+
+async def test_outage_warning_not_repeated_by_setup_retries(
+    hass: HomeAssistant, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A setup retry's fresh coordinator doesn't warn again for the same outage.
+
+    HA builds a new coordinator on every retry, and its `last_update_success`
+    starts out True, so during the 2026-11-11 outage every retry logged the
+    warning again, plus one "Fetch failed" line per fuel type.
+    """
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+
+    with patch.object(
+        TankstellenCoordinator, "_fetch", new_callable=AsyncMock
+    ) as fetch:
+        fetch.side_effect = _http_error("500")
+        for _ in range(3):
+            await TankstellenCoordinator(hass, entry).async_refresh()
+
+    assert _warnings(caplog, "E-Control API unavailable") == 1
+    assert _warnings(caplog, "Fetch failed") == 0
+
+
+async def test_outage_recovery_logged_once_and_next_outage_warns(
+    hass: HomeAssistant, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The first answer after an outage says so once; a later outage warns anew."""
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+    coordinator = TankstellenCoordinator(hass, entry)
+
+    with patch.object(
+        TankstellenCoordinator, "_fetch", new_callable=AsyncMock
+    ) as fetch:
+        fetch.side_effect = _http_error("500")
+        await coordinator.async_refresh()
+        fetch.side_effect = None
+        fetch.return_value = [MOCK_STATION]
+        await coordinator.async_refresh()
+        await coordinator.async_refresh()
+        fetch.side_effect = _http_error("500")
+        await coordinator.async_refresh()
+
+    assert caplog.text.count("E-Control API is back online") == 1
+    assert _warnings(caplog, "E-Control API unavailable") == 2
+
+
+async def test_partial_failure_still_warns_per_fuel_type(
+    hass: HomeAssistant, caplog: pytest.LogCaptureFixture
+) -> None:
+    """One fuel type failing beside one that answered keeps its warning."""
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+    coordinator = TankstellenCoordinator(hass, entry)
+
+    with patch.object(
+        TankstellenCoordinator, "_fetch", new_callable=AsyncMock
+    ) as fetch:
+        fetch.side_effect = [[MOCK_STATION], _http_error("500")]
+        await coordinator.async_refresh()
+
+    assert coordinator.last_update_success
+    assert _warnings(caplog, "Fetch failed") == 1
+    assert _warnings(caplog, "E-Control API unavailable") == 0
 
 
 # ---------------------------------------------------------------------------
