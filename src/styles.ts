@@ -230,7 +230,11 @@ export const cardStyles = css`
     gap: 6px;
   }
 
-  /* ── Chips (dynamic-mode status, payment match) ─────────────────── */
+  /* ── Chips (dynamic-mode status, payment match) ───────────────────
+     The state colour goes on the tint, the words stay in primary text:
+     as text, HA's state colours miss 4.5:1 (amber on its tint is 1.8:1
+     in the light theme). --tankst-tint carries the colour, so a plate can
+     put the same tint on an opaque ground. */
   .chip-row {
     display: inline-flex;
     flex-wrap: wrap;
@@ -246,18 +250,17 @@ export const cardStyles = css`
     font-size: var(--ha-font-size-s, 0.857rem);
     font-weight: 600;
     line-height: 1;
-    background: color-mix(in srgb, var(--secondary-text-color) 12%, transparent);
-    color: var(--secondary-text-color);
+    background: color-mix(in srgb, var(--tankst-tint) 16%, transparent);
+    color: var(--primary-text-color);
     font-variant-numeric: tabular-nums;
     --mdc-icon-size: 14px;
+    --tankst-tint: var(--secondary-text-color);
   }
   .chip.warn {
-    background: color-mix(in srgb, var(--tankst-warning) 16%, transparent);
-    color: var(--tankst-warning);
+    --tankst-tint: var(--tankst-warning);
   }
   .chip.match {
-    background: color-mix(in srgb, var(--tankst-good) 16%, transparent);
-    color: var(--tankst-good);
+    --tankst-tint: var(--tankst-good);
   }
 
   /* ── Filled CTA (dynamic-mode refresh) ──────────────────────────── */
@@ -546,12 +549,13 @@ export const cardStyles = css`
     border-radius: var(--ha-border-radius-pill, 999px);
     white-space: nowrap;
     flex-shrink: 0;
-    background: color-mix(in srgb, var(--tankst-warning) 16%, transparent);
-    color: var(--tankst-warning);
+    /* Words in primary text, colour on the tint: see Chips. */
+    --tankst-tint: var(--tankst-warning);
+    background: color-mix(in srgb, var(--tankst-tint) 18%, transparent);
+    color: var(--primary-text-color);
   }
   .flag.closed {
-    background: color-mix(in srgb, var(--tankst-error) 16%, transparent);
-    color: var(--tankst-error);
+    --tankst-tint: var(--tankst-error);
   }
   /* Detail drawer: 0fr ↔ 1fr animates to intrinsic height, so long content
      is never clipped. Hours and payment sit side by side when there is
