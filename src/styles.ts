@@ -629,6 +629,115 @@ export const cardStyles = css`
     font-style: italic;
   }
 
+  /* ── Plates (stations.row_style) ────────────────────────────────────
+     Each station on its own plate, inset from the card edge. The rail
+     stays put: a plate's pad is the card's minus the inset. Every text on
+     a coloured plate takes one colour with a known ratio to its ground:
+     the brand's own pair on the filled plate (brand.test.ts holds each to
+     4.5:1), the theme's primary text on the fading wash (brand.test.ts
+     holds the wash's strongest point to 4.5:1 in HA's light and dark
+     theme). The theme's secondary grey is never used there: on even a 4 %
+     wash of a dark brand it drops under 4.5:1 in the light theme. */
+  .stations.plates {
+    --tankst-inset: var(--ha-space-2, 8px);
+    --tankst-plate-pad: calc(var(--tankst-pad) - var(--tankst-inset));
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: var(--tankst-inset);
+  }
+  /* A station without a known brand: outlined on the card's own ground. */
+  .plates .st {
+    --tankst-pad: var(--tankst-plate-pad);
+    /* Where hover and payment-match rings sit, inside the plate edge. */
+    --tankst-ring-inset: -2px;
+    border-bottom: 0;
+    border-radius: var(--ha-border-radius-md, 8px);
+    overflow: hidden;
+    outline: 1px solid var(--divider-color);
+    outline-offset: -1px;
+  }
+  .st.plate-brand {
+    /* Rings take the plate's text colour, which can be the card's own:
+       a band of brand colour keeps them apart. */
+    --tankst-ring-inset: -5px;
+    outline-color: transparent;
+    background: var(--tankst-row-bg);
+    color: var(--tankst-row-fg);
+  }
+  /* The brand's full colour as a stripe on the left edge, then a wash
+     that is gone by the price. The stripe carries the brand: a dark
+     theme turns any strong yellow wash olive. The wash peaks at 24 %. */
+  .st.plate-fade {
+    outline-color: transparent;
+    background: linear-gradient(
+      to right,
+      var(--tankst-row-bg) 0 5px,
+      color-mix(in srgb, var(--tankst-row-bg) 24%, transparent) 5px,
+      transparent 90%
+    );
+  }
+  .plate-brand :is(.st-addr, .st-dist, .chev, .st-map, .st-map:hover, .hours, .hours dt) {
+    color: inherit;
+  }
+  .plate-fade :is(.st-addr, .st-dist, .chev, .st-map, .st-map:hover, .hours, .hours dt) {
+    color: var(--primary-text-color);
+  }
+  /* The tile on the filled plate turns inside out; on the wash it takes
+     the brand's pair, rank and initials alike. */
+  .plate-brand .st-tile {
+    background: var(--tankst-row-fg);
+    color: var(--tankst-row-bg);
+  }
+  .plate-fade .st-tile {
+    background: var(--tankst-row-bg);
+    color: var(--tankst-row-fg);
+  }
+  /* Flags and chips get a ground of their own, so their contrast never
+     depends on the plate: inverted on the filled plate, and on the wash
+     their usual tint over the card's own colour. */
+  .plate-brand :is(.flag, .chip.match) {
+    background: var(--tankst-row-fg);
+    color: var(--tankst-row-bg);
+  }
+  .plate-brand .pay span {
+    background: none;
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 55%, transparent);
+  }
+  .plate-fade :is(.flag, .chip.match) {
+    background:
+      linear-gradient(color-mix(in srgb, var(--tankst-tint) 18%, transparent) 0 0),
+      var(--ha-card-background, var(--card-background-color, #fff));
+  }
+  .plate-fade .pay span {
+    background: var(--ha-card-background, var(--card-background-color, #fff));
+  }
+  /* A payment match rings the plate; the list's edge bar would cover
+     the brand stripe. */
+  .plates .st.pm-highlight {
+    box-shadow: none;
+    background-color: transparent;
+    outline: 2px solid var(--tankst-good);
+    outline-offset: var(--tankst-ring-inset);
+  }
+  .plates .st.plate-brand.pm-highlight {
+    background-color: var(--tankst-row-bg);
+    outline-color: var(--tankst-row-fg);
+  }
+  /* Hover rings the plate instead of tinting it: a tint moves the ground
+     towards the text and eats into the contrast. */
+  .plates .st-row:hover,
+  .plates .st-map:hover {
+    background: none;
+  }
+  .plates .st:has(> :is(.st-row:not(:disabled), .st-map):hover) {
+    outline: 2px solid color-mix(in srgb, currentColor 45%, transparent);
+    outline-offset: var(--tankst-ring-inset);
+  }
+  .plate-brand :is(button, a):focus-visible {
+    outline-color: var(--tankst-row-fg);
+  }
+
   /* ── Footer: E-Control logo-link + attribution ──────────────────── */
   .footer {
     flex-shrink: 0;

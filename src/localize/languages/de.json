@@ -86,6 +86,9 @@
     "map_provider_apple": "Immer Apple Maps",
     "tile_shape_square": "Abgerundetes Quadrat",
     "tile_shape_circle": "Kreis",
+    "row_style_plain": "Ohne",
+    "row_style_brand": "Markenfarbe",
+    "row_style_gradient": "Markenfarbe mit Verlauf",
     "recorder_hint_intro": "Home Assistant speichert standardmäßig nur 10 Tage Verlauf. Für bessere Empfehlungen diesen Block in configuration.yaml ergänzen und neu starten:",
     "recorder_hint_docs": "Recorder-Dokumentation lesen",
     "copy": "Kopieren",
@@ -107,6 +110,7 @@
     "stations_index": "Platzierung anzeigen",
     "stations_brand": "Marke anzeigen",
     "stations_tile_shape": "Form der Kachel",
+    "stations_row_style": "Hintergrund der Tankstellen",
     "stations_map_links": "Navigations-Links anzeigen",
     "stations_map_provider": "Navigations-App",
     "stations_distance": "Luftlinie anzeigen",
@@ -159,6 +163,7 @@
     "car_unnamed": "Fahrzeug {n}",
     "car_move_up": "Nach oben",
     "car_move_down": "Nach unten",
-    "stations_brand_helper": "Ersetzt die Platzierung"
+    "stations_brand_helper": "Ersetzt die Platzierung",
+    "stations_row_style_helper": "Markenfarben gibt es nur für die großen Ketten"
   }
 }

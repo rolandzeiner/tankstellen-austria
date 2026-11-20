@@ -1073,7 +1073,7 @@ export class TankstellenAustriaCard extends LitElement {
 
     const display = ordered.slice(0, maxStations);
     return html`
-      <ol class="stations">
+      <ol class=${classMap({ stations: true, plates: this._rowStyle() !== "plain" })}>
         ${display.map((s, idx) =>
           this._renderStation(s, idx, activeTab, paymentFilter, highlightMode),
         )}
@@ -1101,6 +1101,12 @@ export class TankstellenAustriaCard extends LitElement {
     >
       ${tile.initials}
     </span>`;
+  }
+
+  // stations.row_style; anything unknown draws the plain list.
+  private _rowStyle(): "plain" | "brand" | "gradient" {
+    const style = this._config.row_style;
+    return style === "brand" || style === "gradient" ? style : "plain";
   }
 
   // One <li> per station: the row is a real <button> (so Enter and Space
@@ -1141,6 +1147,15 @@ export class TankstellenAustriaCard extends LitElement {
         })
       : [];
 
+    // The row on its brand's colour, as a plate. A station without a known
+    // brand gets a plain outlined plate, so it never passes for one.
+    const rowStyle = this._rowStyle();
+    const rowBrand = rowStyle === "plain" ? undefined : brandTile(s.name);
+    const plateColours =
+      rowBrand?.bg && rowBrand.fg
+        ? { "--tankst-row-bg": rowBrand.bg, "--tankst-row-fg": rowBrand.fg }
+        : {};
+
     const hasHoursBlock = showHours && !!s.opening_hours?.length;
     const hasPaymentBlock = showPayment && hasPaymentMethods(s.payment_methods);
     const hasDetail = hasHoursBlock || hasPaymentBlock;
@@ -1170,7 +1185,15 @@ export class TankstellenAustriaCard extends LitElement {
     }
 
     return html`
-      <li class=${classMap({ st: true, "pm-highlight": highlighted })}>
+      <li
+        class=${classMap({
+          st: true,
+          "pm-highlight": highlighted,
+          "plate-brand": rowStyle === "brand" && !!rowBrand?.bg,
+          "plate-fade": rowStyle === "gradient" && !!rowBrand?.bg,
+        })}
+        style=${styleMap(plateColours)}
+      >
         <button
           class=${classMap({ "st-row": true, "no-map": !mapUrl, "no-tile": !showIndex })}
           type="button"

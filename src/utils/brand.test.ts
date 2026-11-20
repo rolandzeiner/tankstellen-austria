@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 
+import { cardStyles } from "../styles";
 import { BRANDS, brandTile } from "./brand";
 
 // WCAG relative luminance and contrast ratio of two #rrggbb colours.
@@ -68,6 +69,37 @@ describe("brandTile", () => {
 
   it("keeps every brand's text readable", () => {
     const weak = BRANDS.filter((b) => contrast(b.bg, b.fg) < 4.5).map((b) => b.initials);
+    expect(weak).toEqual([]);
+  });
+
+  // stations.row_style: gradient lays the brand at this strength under
+  // the row's text, which then takes the theme's primary colour. Read from
+  // the shipped CSS, so raising the wash fails here first.
+  it("keeps primary text readable on every brand's wash", () => {
+    const peak = /\.st\.plate-fade\s*\{[^}]*?var\(--tankst-row-bg\) (\d+)%/.exec(
+      cardStyles.cssText,
+    );
+    expect(peak).not.toBeNull();
+    const share = Number(peak?.[1]) / 100;
+    const mix = (fg: string, bg: string): string =>
+      "#" +
+      [1, 3, 5]
+        .map((i) => {
+          const c = parseInt(fg.slice(i, i + 2), 16) * share;
+          return Math.round(c + parseInt(bg.slice(i, i + 2), 16) * (1 - share));
+        })
+        .map((c) => c.toString(16).padStart(2, "0"))
+        .join("");
+    // Home Assistant's default themes: card background and primary text.
+    const themes = [
+      ["#ffffff", "#212121"],
+      ["#1c1c1c", "#e1e1e1"],
+    ] as const;
+    const weak = BRANDS.flatMap((b) =>
+      themes
+        .filter(([card, text]) => contrast(text, mix(b.bg, card)) < 4.5)
+        .map(([card]) => `${b.initials} on ${card}`),
+    );
     expect(weak).toEqual([]);
   });
 });

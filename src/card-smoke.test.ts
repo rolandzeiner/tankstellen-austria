@@ -342,6 +342,55 @@ describe("tankstellen-austria-card", () => {
     expect(await tiles({ stations: { index: false } })).toEqual([]);
   });
 
+  it("puts each station on its brand's plate with stations.row_style", async () => {
+    const plates = async (row_style?: string) => {
+      const h = hass();
+      h.states["sensor.tankstellen_diesel"]!.attributes.stations = [
+        { name: "JET TANKSTELLE", price: 1.5, open: true },
+        { name: "Landforst Obdach", price: 1.6, open: true },
+      ];
+      const el = await mount<Card>("tankstellen-austria-card", (e) => {
+        e.setConfig({ type: "x", stations: row_style ? { row_style } : {} });
+        e.hass = h;
+      });
+      const list = el.shadowRoot!.querySelector(".stations")!;
+      const found = {
+        plates: list.classList.contains("plates"),
+        rows: [...list.querySelectorAll<HTMLElement>(".st")].map((li) => [
+          [...li.classList].filter((c) => c.startsWith("plate-")).join(" "),
+          li.style.getPropertyValue("--tankst-row-bg"),
+        ]),
+      };
+      el.remove();
+      return found;
+    };
+    const plain = {
+      plates: false,
+      rows: [
+        ["", ""],
+        ["", ""],
+      ],
+    };
+    expect(await plates()).toEqual(plain);
+    expect(await plates("plain")).toEqual(plain);
+    expect(await plates("sparkly")).toEqual(plain);
+    // An unknown brand gets a plate, but never a brand's colour.
+    expect(await plates("brand")).toEqual({
+      plates: true,
+      rows: [
+        ["plate-brand", "#ffb700"],
+        ["", ""],
+      ],
+    });
+    expect(await plates("gradient")).toEqual({
+      plates: true,
+      rows: [
+        ["plate-fade", "#ffb700"],
+        ["", ""],
+      ],
+    });
+  });
+
   it("draws round rank tiles with stations.tile_shape: circle", async () => {
     const circles = async (stations: Record<string, unknown>) => {
       const el = await mount<Card>("tankstellen-austria-card", (e) => {
