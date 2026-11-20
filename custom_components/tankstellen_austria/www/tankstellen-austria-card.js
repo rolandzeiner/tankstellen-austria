@@ -757,7 +757,8 @@ if(super(e),e.type!==Re.ATTRIBUTE||e.name!==`style`||e.strings?.length>2)throw E
   }
   /* Detail drawer: 0fr ↔ 1fr animates to intrinsic height, so long content
      is never clipped. Hours and payment sit side by side when there is
-     room, aligned to the row's name. */
+     room, aligned to the row's name and to the top: stretched, the hours
+     grid spreads its rows over the height of a long chip list. */
   .st-detail {
     grid-column: 1 / -1;
     display: grid;
@@ -769,6 +770,7 @@ if(super(e),e.type!==Re.ATTRIBUTE||e.name!==`style`||e.strings?.length>2)throw E
     min-height: 0;
     display: flex;
     flex-wrap: wrap;
+    align-items: flex-start;
     gap: 8px 28px;
     padding: 0 var(--tankst-pad) 0 calc(var(--tankst-pad) + 40px);
     font-size: var(--ha-font-size-s, 0.857rem);
@@ -776,11 +778,17 @@ if(super(e),e.type!==Re.ATTRIBUTE||e.name!==`style`||e.strings?.length>2)throw E
   .st-detail.expanded {
     grid-template-rows: 1fr;
   }
+  /* The top gap keeps the first line off the row's hover tint, which
+     ends where the drawer starts. */
   .st-detail.expanded > div {
+    padding-top: 6px;
     padding-bottom: 12px;
   }
+  /* Offset by the chips' vertical padding, so the first day sits on the
+     line of the first chip's text. */
   .hours {
     margin: 0;
+    padding-top: 3px;
     display: grid;
     grid-template-columns: auto auto;
     gap: 1px 12px;
