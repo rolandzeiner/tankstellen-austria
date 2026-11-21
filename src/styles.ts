@@ -407,7 +407,8 @@ export const cardStyles = css`
     background: color-mix(in srgb, var(--tankst-good) 6%, transparent);
   }
   /* Two lines on four columns: tile, name over address, price over
-     distance, chevron. Carries a narrow card without a second layout. */
+     distance, chevron. Under 300 px the container query further down
+     moves the price to a third line. */
   .st-row {
     grid-column: 1;
     display: grid;
@@ -773,7 +774,7 @@ export const cardStyles = css`
     letter-spacing: 0.03em;
   }
 
-  /* ── Density: two steps ─────────────────────────────────────────── */
+  /* ── Width steps ────────────────────────────────────────────────── */
   @container tscard (inline-size < 360px) {
     .price-big {
       font-size: 28px;
@@ -865,9 +866,9 @@ export const cardStyles = css`
   }
 `;
 
-// Editor-side styles. The editor is its own element with its own shadow
-// root, so none of the card's --tankst-* tokens reach it: it styles with
-// HA's variables directly.
+// Editor-side styles. The editor is a separate element, not inside the
+// card, so the --tankst-* tokens on the card's :host never reach it: it
+// styles with HA's variables directly.
 export const editorStyles = css`
   :host {
     /* No color-scheme here: the editor inherits HA's, and declaring

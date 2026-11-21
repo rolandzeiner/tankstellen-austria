@@ -536,8 +536,9 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[Station]]]):
                 )
 
         # One note per refresh that went out, maintenance probes included.
-        # The in-window fast-fail above raised before any request, so it
-        # never gets here and can't inflate the outage count.
+        # The fast-fails above (maintenance window, Retry-After wait) raised
+        # before any request, so they never get here and can't inflate the
+        # outage count.
         async_note_fault(self.hass, classify_refresh(bool(results), errors.values()))
 
         maintenance_err = next(
@@ -765,9 +766,11 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[Station]]]):
 
         HA takes `UpdateFailed(retry_after=)` as the next interval, once, so
         the entry comes back when the wait ends instead of at some later
-        tick. A shorter wait is left to the ordinary schedule, which already
-        waits longer than asked: a server answering `Retry-After: 1` to every
-        request must not turn the poll into one request a second.
+        tick. Not during setup: HA ignores it on the first refresh and
+        retries setup on its own schedule. A shorter wait is left to the
+        ordinary schedule, which already waits longer than asked: a server
+        answering `Retry-After: 1` to every request must not turn the poll
+        into one request a second.
         """
         if until is None:
             return None

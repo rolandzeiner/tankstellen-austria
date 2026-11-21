@@ -229,11 +229,10 @@ async def test_options_flow_syncs_unique_id_on_location_change(
 ) -> None:
     """Changing location via the options flow rewrites the entry's unique_id.
 
-    Regression guard: before this fix the options flow stored the new
-    location in entry.options but left the entry's unique_id pointing at
-    the old coordinates, so a subsequent ``async_step_user`` at the new
-    coordinates would not be recognised as duplicate. The reconfigure flow
-    has always kept this invariant; the options flow now mirrors it.
+    Otherwise the entry keeps the old coordinates' unique_id, and a later
+    ``async_step_user`` at the new coordinates is not recognised as a
+    duplicate. Reconfigure does the same
+    (test_reconfigure_moves_the_location).
     """
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": config_entries.SOURCE_USER}

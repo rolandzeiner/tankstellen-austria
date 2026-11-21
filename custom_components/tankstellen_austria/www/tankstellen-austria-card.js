@@ -609,7 +609,8 @@ if(super(e),e.type!==Le.ATTRIBUTE||e.name!==`style`||e.strings?.length>2)throw E
     background: color-mix(in srgb, var(--tankst-good) 6%, transparent);
   }
   /* Two lines on four columns: tile, name over address, price over
-     distance, chevron. Carries a narrow card without a second layout. */
+     distance, chevron. Under 300 px the container query further down
+     moves the price to a third line. */
   .st-row {
     grid-column: 1;
     display: grid;
@@ -975,7 +976,7 @@ if(super(e),e.type!==Le.ATTRIBUTE||e.name!==`style`||e.strings?.length>2)throw E
     letter-spacing: 0.03em;
   }
 
-  /* ── Density: two steps ─────────────────────────────────────────── */
+  /* ── Width steps ────────────────────────────────────────────────── */
   @container tscard (inline-size < 360px) {
     .price-big {
       font-size: 28px;

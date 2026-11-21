@@ -295,8 +295,8 @@ class TankstellenConfigFlow(ConfigFlow, domain=DOMAIN):
         """Handle reconfiguration of an existing entry.
 
         Lets the user change location/fuel types/dynamic tracker without
-        deleting the entry. Entity unique_ids stay the same; only the entry's
-        data and unique_id are rewritten.
+        deleting the entry. Entity unique_ids stay the same; the entry's data
+        and unique_id are rewritten and its options cleared.
         """
         entry = self._get_reconfigure_entry()
         errors: dict[str, str] = {}
@@ -359,11 +359,10 @@ class TankstellenOptionsFlow(OptionsFlow):
                 if not await _test_api_connection(self.hass, lat, lng, fuel_types[0]):
                     errors["base"] = "cannot_connect"
                 else:
-                    # Options-flow form lets the user change location and
-                    # dynamic_entity — both feed into `unique_id`. Reconfigure
-                    # already keeps unique_id in sync; mirror that here so the
-                    # two paths can't drift, otherwise a later "Add Entry" at
-                    # the new coordinates would not be recognised as duplicate.
+                    # Location and tracker both feed into `unique_id`, so it
+                    # is rewritten here as in reconfigure; otherwise a later
+                    # "Add Entry" at the new coordinates would not be
+                    # recognised as a duplicate.
                     dynamic_entity = user_input.get(CONF_DYNAMIC_ENTITY) or None
                     new_unique_id = _compute_unique_id(dynamic_entity, lat, lng)
                     options = _build_entry_data(user_input, lat, lng, fuel_types)

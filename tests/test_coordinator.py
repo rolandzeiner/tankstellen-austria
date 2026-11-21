@@ -1492,8 +1492,8 @@ async def test_other_error_after_maintenance_closes_window(
 async def test_maintenance_holds_normal_interval(hass: HomeAssistant) -> None:
     """Maintenance undoes earlier backoff and never escalates it.
 
-    At the 12 h backoff cap an entry would otherwise stay unavailable for up
-    to half a day after E-Control is back.
+    At the one-hour backoff cap an entry would otherwise stay unavailable
+    for up to an hour after E-Control is back.
     """
     entry = _make_entry({CONF_SCAN_INTERVAL: 30})
     entry.add_to_hass(hass)

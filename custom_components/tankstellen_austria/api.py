@@ -234,9 +234,10 @@ async def fetch_stations(
     except TimeoutError as err:
         raise EControlTimeoutError("request timed out") from err
     except aiohttp.ClientResponseError as err:
-        # 429 and 503 may say how long to stay away (RFC 9110). E-Control has
-        # sent neither so far; the maintenance page of 2026-09 carried no
-        # Retry-After. Read anyway, so a rate limit introduced later is kept.
+        # 429 (RFC 6585) and 503 (RFC 9110) may carry Retry-After. E-Control
+        # has sent neither status so far. Read anyway, so a rate limit
+        # introduced later is kept. The maintenance page raises above and
+        # never gets here.
         retry_after = (
             retry_after_seconds(err.headers) if err.status in (429, 503) else None
         )

@@ -28,7 +28,8 @@ export interface RegistryEntity {
 }
 
 /** Minimal HA shape — only the fields this card touches. `language` is
- *  the user-profile locale; `localize` is HA's own UI translation
+ *  the profile's language code, `locale` its time and number formats;
+ *  `localize` is HA's own UI translation
  *  lookup (the editor reuses it for built-in field names so we don't
  *  carry duplicates); `callWS` powers both the card-version probe and
  *  the history fetch; `callService` powers the manual-refresh button;
@@ -36,8 +37,7 @@ export interface RegistryEntity {
  *  `callWS` and `callService` are non-optional — the card requires
  *  both at runtime (history view + manual refresh would silently fail
  *  otherwise) and HA core has shipped both since well before the
- *  integration's HA floor. Anything beyond these lives untyped and
- *  is read with a cast at the call site. */
+ *  integration's HA floor. */
 export interface HomeAssistant {
   states: Record<string, HassEntity>;
   entities?: Record<string, RegistryEntity>;
