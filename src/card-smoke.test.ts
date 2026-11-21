@@ -621,6 +621,51 @@ describe("unreachable notice", () => {
   });
 });
 
+describe("profile switches that touch no sensor", () => {
+  // The history fetch started at mount updates _history, which would carry
+  // the switch through the re-render gate on its own; let it land first.
+  async function settled(h: HomeAssistant, config: Record<string, unknown> = {}): Promise<Card> {
+    const el = await mount<Card>("tankstellen-austria-card", (e) => {
+      e.setConfig({ type: "x", entities: ["sensor.tankstellen_diesel"], ...config });
+      e.hass = h;
+    });
+    await new Promise((r) => setTimeout(r, 0));
+    await el.updateComplete;
+    return el;
+  }
+
+  it("turns the adaptive logo with the theme", async () => {
+    // The silhouette is black on a light theme and white on a dark one. The
+    // gate used to skip a theme switch, which left it black on a dark card
+    // until the next price update.
+    const h = hass({ themes: { darkMode: false } });
+    const el = await settled(h, { footer: { adaptive_logo: true } });
+    const logo = (): string => el.shadowRoot!.querySelector(".brand-logo")!.className;
+    expect(logo()).toContain("adaptive-light");
+    el.hass = { ...h, themes: { darkMode: true } };
+    await el.updateComplete;
+    expect(logo()).toContain("adaptive-dark");
+  });
+
+  it("re-renders when the profile's time format changes", async () => {
+    const h = hass({ locale: { language: "en", time_format: "24" } });
+    const el = await settled(h);
+    const render = vi.spyOn(el as unknown as { render: () => unknown }, "render");
+    el.hass = { ...h, locale: { language: "en", time_format: "12" } };
+    await el.updateComplete;
+    expect(render).toHaveBeenCalledTimes(1);
+  });
+
+  it("still ignores a hass that changed nothing the card shows", async () => {
+    const h = hass({ themes: { darkMode: false }, locale: { language: "en" } });
+    const el = await settled(h);
+    const render = vi.spyOn(el as unknown as { render: () => unknown }, "render");
+    el.hass = { ...h, states: { ...h.states, "light.kitchen": { ...h.states["light.kitchen"]! } } };
+    await el.updateComplete;
+    expect(render).not.toHaveBeenCalled();
+  });
+});
+
 describe("tankstellen-austria-card-editor", () => {
   it("renders with a config and hass", async () => {
     const el = await mount<Editor>("tankstellen-austria-card-editor", (e) => {

@@ -262,8 +262,8 @@ export class TankstellenAustriaCard extends LitElement {
   // new `hass` for every state change anywhere in the install. Re-render
   // only on: config change, UI state change, history arrival, a history or
   // maintenance notice changing, version-mismatch discovery, cooldown tick,
-  // a layout or preview change from HA, or a new state object for an entity
-  // this card tracks.
+  // a layout or preview change from HA, a profile switch (language, theme,
+  // locale), or a new state object for an entity this card tracks.
   protected override shouldUpdate(changed: PropertyValues): boolean {
     if (!this._config) return false;
     if (
@@ -287,9 +287,12 @@ export class TankstellenAustriaCard extends LitElement {
     if (changed.has("layout") || changed.has("preview")) return true;
     const prev = changed.get("hass") as HomeAssistant | undefined;
     if (!prev) return true;
-    // A language switch changes no entity state; without this the card keeps
-    // the old language until its sensor next updates.
+    // A profile switch changes no entity state; without these the card
+    // keeps the old language, the adaptive logo its old theme's colour
+    // (black on a dark card) and the chart its old time format until the
+    // sensor next updates. HA replaces these objects only when they change.
     if (prev.language !== this.hass.language) return true;
+    if (prev.themes !== this.hass.themes || prev.locale !== this.hass.locale) return true;
     const eids = this._trackedEntityIds();
     return eids.some((eid) => prev.states[eid] !== this.hass.states[eid]);
   }
@@ -538,7 +541,7 @@ export class TankstellenAustriaCard extends LitElement {
   private _renderFooter(attribution: string | undefined): TemplateResult | typeof nothing {
     if (this._config?.hide_attribution === true) return nothing;
     const adaptive = this._config?.logo_adapt_to_theme === true;
-    const darkMode = Boolean((this.hass?.themes as { darkMode?: boolean } | undefined)?.darkMode);
+    const darkMode = this.hass?.themes?.darkMode === true;
     const logoClasses = adaptive
       ? `brand-logo adaptive ${darkMode ? "adaptive-dark" : "adaptive-light"}`
       : "brand-logo";

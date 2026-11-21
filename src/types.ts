@@ -17,17 +17,6 @@ export interface HassEntity {
   entity_id?: string;
 }
 
-/** Minimal HA shape — only the fields this card touches. `language` is
- *  the user-profile locale; `localize` is HA's own UI translation
- *  lookup (the editor reuses it for built-in field names so we don't
- *  carry duplicates); `callWS` powers both the card-version probe and
- *  the history fetch; `callService` powers the manual-refresh button;
- *  `themes.darkMode` is reserved for future adaptive logo work.
- *  `callWS` and `callService` are non-optional — the card requires
- *  both at runtime (history view + manual refresh would silently fail
- *  otherwise) and HA core has shipped both since well before our
- *  `requirements.txt` floor. Anything beyond these lives untyped and
- *  is read with a cast at the call site. */
 /** Minimal entity-registry shape. Both fields survive a sensor going
  *  unavailable, which its state attributes don't. `platform` gates the card
  *  picker's `getEntitySuggestion` and entity auto-discovery to this
@@ -38,6 +27,17 @@ export interface RegistryEntity {
   translation_key?: string;
 }
 
+/** Minimal HA shape — only the fields this card touches. `language` is
+ *  the user-profile locale; `localize` is HA's own UI translation
+ *  lookup (the editor reuses it for built-in field names so we don't
+ *  carry duplicates); `callWS` powers both the card-version probe and
+ *  the history fetch; `callService` powers the manual-refresh button;
+ *  `themes.darkMode` picks the adaptive footer logo's colour.
+ *  `callWS` and `callService` are non-optional — the card requires
+ *  both at runtime (history view + manual refresh would silently fail
+ *  otherwise) and HA core has shipped both since well before the
+ *  integration's HA floor. Anything beyond these lives untyped and
+ *  is read with a cast at the call site. */
 export interface HomeAssistant {
   states: Record<string, HassEntity>;
   entities?: Record<string, RegistryEntity>;
