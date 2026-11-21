@@ -14,6 +14,7 @@ from custom_components.tankstellen_austria.api import (
     EControlTimeoutError,
 )
 from custom_components.tankstellen_austria.const import (
+    CONF_DYNAMIC_ENTITY,
     CONF_FUEL_TYPES,
     CONF_INCLUDE_CLOSED,
     CONF_LATITUDE,
@@ -256,6 +257,10 @@ async def test_options_flow_syncs_unique_id_on_location_change(
     assert entry.unique_id != original_unique_id
     assert entry.unique_id == f"{round(new_lat, 3)}_{round(new_lng, 3)}"
     await hass.async_block_till_done()
+    # The reload the save set off searches around the new point. It used to
+    # start on the unique_id write, before the options were saved, and kept
+    # asking for the old one.
+    assert mock_fetch.call_args.args == ("DIE", new_lat, new_lng)
 
 
 async def test_options_flow_blocks_collision_with_other_entry(
@@ -549,3 +554,154 @@ async def test_connection_test_logs_each_failure_and_returns_false(
     ):
         assert await _test_api_connection(hass, 48.0, 16.0, "DIE") is False
     assert logged in caplog.text
+
+
+DYNAMIC_USER_INPUT = {**VALID_USER_INPUT, CONF_DYNAMIC_ENTITY: "device_tracker.phone"}
+# What the frontend sends once the tracker field is cleared: no key at all.
+FIXED_AGAIN_INPUT = {
+    "location": {"latitude": 48.1478, "longitude": 16.5147},
+    CONF_FUEL_TYPES: ["DIE", "SUP"],
+    CONF_INCLUDE_CLOSED: True,
+    CONF_SCAN_INTERVAL: 30,
+}
+
+
+async def test_options_flow_clears_dynamic_tracker(
+    hass: HomeAssistant, mock_fetch
+) -> None:
+    """Clearing the tracker in the options form puts the entry in fixed mode.
+
+    The form validates the input against its schema, so a tracker offered as
+    the field's `default` came straight back for the missing key.
+    """
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    await hass.config_entries.flow.async_configure(
+        result["flow_id"], DYNAMIC_USER_INPUT
+    )
+    entry = hass.config_entries.async_entries(DOMAIN)[0]
+    assert entry.unique_id == "dynamic_device_tracker.phone"
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], FIXED_AGAIN_INPUT
+    )
+    assert result["type"] == FlowResultType.CREATE_ENTRY
+    assert entry.options[CONF_DYNAMIC_ENTITY] is None
+    assert entry.unique_id == "48.148_16.515"
+    await hass.async_block_till_done()
+    assert entry.runtime_data.dynamic_mode is False
+
+
+async def test_reconfigure_clears_dynamic_tracker(
+    hass: HomeAssistant, mock_fetch
+) -> None:
+    """Clearing the tracker in the reconfigure form does the same."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    await hass.config_entries.flow.async_configure(
+        result["flow_id"], DYNAMIC_USER_INPUT
+    )
+    entry = hass.config_entries.async_entries(DOMAIN)[0]
+
+    flow = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={
+            "source": config_entries.SOURCE_RECONFIGURE,
+            "entry_id": entry.entry_id,
+        },
+    )
+    result = await hass.config_entries.flow.async_configure(
+        flow["flow_id"], FIXED_AGAIN_INPUT
+    )
+    assert result["type"] == FlowResultType.ABORT
+    assert result["reason"] == "reconfigure_successful"
+    assert entry.data[CONF_DYNAMIC_ENTITY] is None
+    assert entry.unique_id == "48.148_16.515"
+    await hass.async_block_till_done()
+
+
+async def test_forms_suggest_the_current_tracker(
+    hass: HomeAssistant, mock_fetch
+) -> None:
+    """Both forms still open with the entry's tracker filled in."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    await hass.config_entries.flow.async_configure(
+        result["flow_id"], DYNAMIC_USER_INPUT
+    )
+    entry = hass.config_entries.async_entries(DOMAIN)[0]
+
+    options = await hass.config_entries.options.async_init(entry.entry_id)
+    reconfigure = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={
+            "source": config_entries.SOURCE_RECONFIGURE,
+            "entry_id": entry.entry_id,
+        },
+    )
+    for form in (options, reconfigure):
+        key = next(k for k in form["data_schema"].schema if k == CONF_DYNAMIC_ENTITY)
+        assert key.description == {"suggested_value": "device_tracker.phone"}
+
+
+async def test_reconfigure_moves_the_location(hass: HomeAssistant, mock_fetch) -> None:
+    """A new location goes through reconfigure, and the unique_id follows it."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    await hass.config_entries.flow.async_configure(result["flow_id"], VALID_USER_INPUT)
+    entry = hass.config_entries.async_entries(DOMAIN)[0]
+
+    new_lat, new_lng = 47.0707, 15.4395  # Graz
+    flow = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={
+            "source": config_entries.SOURCE_RECONFIGURE,
+            "entry_id": entry.entry_id,
+        },
+    )
+    result = await hass.config_entries.flow.async_configure(
+        flow["flow_id"],
+        {**FIXED_AGAIN_INPUT, "location": {"latitude": new_lat, "longitude": new_lng}},
+    )
+    assert result["type"] == FlowResultType.ABORT
+    assert result["reason"] == "reconfigure_successful"
+    assert entry.unique_id == f"{round(new_lat, 3)}_{round(new_lng, 3)}"
+    assert entry.data[CONF_LATITUDE] == new_lat
+    await hass.async_block_till_done()
+    assert mock_fetch.call_args.args[1:] == (new_lat, new_lng)
+
+
+async def test_reconfigure_blocks_collision_with_other_entry(
+    hass: HomeAssistant, mock_fetch
+) -> None:
+    """Reconfigure onto another entry's location aborts and changes nothing."""
+    for user_input in (
+        VALID_USER_INPUT,
+        {**VALID_USER_INPUT, "location": {"latitude": 47.0707, "longitude": 15.4395}},
+    ):
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN, context={"source": config_entries.SOURCE_USER}
+        )
+        await hass.config_entries.flow.async_configure(result["flow_id"], user_input)
+    vienna, graz = hass.config_entries.async_entries(DOMAIN)
+
+    flow = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={
+            "source": config_entries.SOURCE_RECONFIGURE,
+            "entry_id": graz.entry_id,
+        },
+    )
+    result = await hass.config_entries.flow.async_configure(
+        flow["flow_id"], FIXED_AGAIN_INPUT
+    )
+    assert result["type"] == FlowResultType.ABORT
+    assert result["reason"] == "already_configured"
+    assert graz.unique_id == "47.071_15.44"
+    assert graz.data[CONF_LATITUDE] == 47.0707
+    assert vienna.unique_id == "48.148_16.515"
