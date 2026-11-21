@@ -78,7 +78,7 @@ Things in `vite.config.ts` that fail silently if you change them:
 - **`codeSplitting: false`.** The card is one file; a dashboard resource can't load a second chunk the bundler decided on. The editor's dynamic import is inlined by it.
 - **`emptyOutDir: false`.** Vite empties the output directory before each build by default, and `www/` sits inside the integration package.
 
-The `vite` override in `package.json` must name the same version as `vite-plus`. It keeps npm from installing upstream Vite next to Vite+'s core. Dependabot bumps `vite-plus` but not the override, and `src/toolchain.test.ts` fails until both match. Bump with `npx --package=vite-plus@<new> vp migrate --no-interactive`, which moves both; `npm install vite-plus@<new>` fails with ERESOLVE.
+The `vite` override in `package.json` must name the core that the installed `vite-plus` depends on (`dependencies.vite` in its `package.json`; since Vite+ 1.7.0 the core is versioned after the Vite it wraps, not after Vite+). It keeps npm from installing upstream Vite next to Vite+'s core. Dependabot bumps `vite-plus` but not the override, and `src/toolchain.test.ts` fails until both match. Bump with `npx --package=vite-plus@<new> vp migrate --no-interactive`, which moves both; `npm install vite-plus@<new>` fails with ERESOLVE.
 
 The build does not type-check. `vp check` is the only thing between a type error and a green build, which is why the gate runs it as its own step. It also catches a backtick inside a Lit `css` or `html` template, comments included, which ends the template early and fails the card at load while the build stays green.
 
@@ -163,7 +163,7 @@ npx vp test run --coverage --coverage.provider=v8 --coverage.reporter=text \
 |---|---|---|
 | `ruff`, `mypy` | exact, `requirements_test.txt` | CI runs nightly; a floating linter turns the build red with no code change. The `rev:` in `.pre-commit-config.yaml` must match; check both tools when bumping either. |
 | `pytest-homeassistant-custom-component` | `>=` floor with a `<` cap | it tracks HA core; pinning it would freeze the HA version tested against |
-| `vite-plus` | exact, `package.json` | it decides what the committed bundle looks like; the `vite` override names the same version |
+| `vite-plus` | exact, `package.json` | it decides what the committed bundle looks like; the `vite` override names the core it depends on |
 | `happy-dom` | exact | it decides what the DOM suites see; the siblings keep one version |
 | `lit` | caret | maintained, keeps semver |
 
