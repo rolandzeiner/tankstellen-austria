@@ -796,10 +796,6 @@ export const cardStyles = css`
     }
   }
   @container tscard (inline-size > 480px) {
-    :host {
-      --tankst-pad: var(--ha-space-5, 20px);
-      --tankst-tile: 44px;
-    }
     .price-big {
       font-size: 36px;
     }
@@ -847,23 +843,14 @@ export const cardStyles = css`
   }
 `;
 
-// Editor-side styles — separate shadow root from the card so tokens are
-// duplicated on `:host` rather than inherited (see :host comment below).
+// Editor-side styles. The editor is its own element with its own shadow
+// root, so none of the card's --tankst-* tokens reach it: it styles with
+// HA's variables directly.
 export const editorStyles = css`
   :host {
-    /* color-scheme enables light-dark() and steers forced-colors palette
-       selection. The editor is its own Lit element with its own shadow
-       root — CSS custom properties don't bleed across shadow boundaries,
-       so the semantic tokens below are duplicated from the cardStyles
-       :host. Keep both blocks in sync. See ha-portfolio-design § 4
-       "Multi-card integrations — every shadow scope needs the tokens". */
-    color-scheme: light dark;
+    /* No color-scheme here: the editor inherits HA's, and declaring
+       "light dark" would hand the choice to the OS setting. */
     display: block;
-
-    --tankst-rt:      var(--success-color, #4caf50);
-    --tankst-warning: var(--warning-color, #ffa000);
-    --tankst-error:   var(--error-color,   #db4437);
-    --tankst-info:    var(--info-color,    #1565c0);
   }
   .editor {
     padding: 16px;
@@ -987,7 +974,7 @@ export const editorStyles = css`
     cursor: pointer;
   }
   .car-toggle:focus-visible {
-    outline: 2px solid var(--tankst-accent, var(--primary-color));
+    outline: 2px solid var(--primary-color);
     outline-offset: -2px;
   }
   .car-toggle ha-icon {

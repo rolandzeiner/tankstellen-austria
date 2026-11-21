@@ -549,7 +549,7 @@ export class TankstellenAustriaCardEditor extends LitElement implements Lovelace
         <div class="recorder-hint-actions">
           <ha-button
             appearance="plain"
-            size="small"
+            size="s"
             aria-label=${this._et("copy_recorder_snippet")}
             @click=${() => this._onCopyRecorderSnippet(snippet)}
           >
