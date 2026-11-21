@@ -172,6 +172,9 @@
     "api_maintenance": {
       "message": "E-Control is down for maintenance. Prices return automatically when it's back."
     },
+    "api_retry_after": {
+      "message": "E-Control asked for a pause before the next request. Prices return automatically, in about {minutes} min."
+    },
     "api_all_failed": {
       "message": "All fuel types failed ({failed_count}/{total_count}); first error on {fuel_type}: {error}"
     },

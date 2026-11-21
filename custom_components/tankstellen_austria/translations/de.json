@@ -172,6 +172,9 @@
     "api_maintenance": {
       "message": "E-Control führt Wartungsarbeiten durch. Die Preise kommen automatisch zurück, sobald der Dienst wieder läuft."
     },
+    "api_retry_after": {
+      "message": "E-Control hat um eine Pause vor der nächsten Abfrage gebeten. Die Preise kommen automatisch zurück, in etwa {minutes} min."
+    },
     "api_all_failed": {
       "message": "Alle Kraftstoffarten fehlgeschlagen ({failed_count}/{total_count}); erster Fehler bei {fuel_type}: {error}"
     },

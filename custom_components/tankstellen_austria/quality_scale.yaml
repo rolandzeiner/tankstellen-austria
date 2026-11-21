@@ -81,7 +81,7 @@ rules:
     comment: One device is registered per config entry with manufacturer, model, and configuration URL; each sensor is attached via DeviceInfo.
   diagnostics:
     status: done
-    comment: diagnostics.py surfaces top-level attribution + coordinator block (last_update_success, last_exception via repr(), update_interval, dynamic_mode, fuel_types, station_counts). TO_REDACT covers latitude/longitude/api_key/password/token/dynamic_entity; sentinel-redaction grep test guards against new fields slipping through unredacted.
+    comment: diagnostics.py surfaces top-level attribution + coordinator block (last_update_success, last_exception via repr(), update_interval, dynamic_mode, fuel_types, station_counts, the maintenance window and a Retry-After wait). TO_REDACT covers latitude/longitude/api_key/password/token/dynamic_entity; sentinel-redaction grep test guards against new fields slipping through unredacted.
   discovery:
     status: exempt
     comment: E-Control is a fixed cloud API with no discoverable component on the local network.

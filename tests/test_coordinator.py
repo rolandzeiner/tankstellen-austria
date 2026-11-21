@@ -20,6 +20,7 @@ from custom_components.tankstellen_austria.const import (
     DOMAIN,
     DOMAIN_LAST_API_CALL_KEY,
     DOMAIN_MAINTENANCE_KEY,
+    DOMAIN_RETRY_AFTER_KEY,
     DYNAMIC_COOLDOWN_MINUTES,
     MAINTENANCE_PROBE_MINUTES,
     MAX_POLL_MINUTES,
@@ -30,6 +31,7 @@ from custom_components.tankstellen_austria.coordinator import (
     _describe_error,
     _update_failed,
     maintenance_window,
+    retry_after_until,
 )
 
 from .conftest import (
@@ -520,6 +522,45 @@ async def test_async_teardown_noop_for_fixed(hass: HomeAssistant) -> None:
     coordinator.async_setup()  # no-op for fixed
     coordinator.async_teardown()  # should not raise
     assert coordinator._unsubscribe_tracker is None
+
+
+# ---------------------------------------------------------------------------
+# Dynamic mode — a tracker move sets off a refresh
+# ---------------------------------------------------------------------------
+
+
+async def test_tracker_move_fetches_around_the_new_position(
+    hass: HomeAssistant, mock_fetch
+) -> None:
+    """A state change past the guards fetches from the tracker's position.
+
+    The next one, a moment later, is held back by the cooldown across
+    entries, which the first stamped before its refresh ran.
+    """
+    hass.states.async_set(
+        "device_tracker.phone", "home", {"latitude": 48.2, "longitude": 16.4}
+    )
+    entry = _make_entry({CONF_DYNAMIC_ENTITY: "device_tracker.phone"})
+    entry.add_to_hass(hass)
+    coordinator = TankstellenCoordinator(hass, entry)
+    coordinator.async_setup()
+
+    hass.states.async_set(
+        "device_tracker.phone", "not_home", {"latitude": 47.07, "longitude": 15.44}
+    )
+    await hass.async_block_till_done()
+
+    assert mock_fetch.call_count == 2  # one per fuel type
+    assert {call.args[1:] for call in mock_fetch.call_args_list} == {(47.07, 15.44)}
+    assert DOMAIN_LAST_API_CALL_KEY in hass.data[DOMAIN]
+
+    hass.states.async_set(
+        "device_tracker.phone", "not_home", {"latitude": 47.8, "longitude": 13.04}
+    )
+    await hass.async_block_till_done()
+
+    assert mock_fetch.call_count == 2
+    coordinator.async_teardown()
 
 
 # ---------------------------------------------------------------------------
@@ -1555,3 +1596,133 @@ def test_api_errors_keep_their_translation_contract(
     assert list((failed.translation_placeholders or {}).items()) == list(
         placeholders.items()
     )
+
+
+# ---------------------------------------------------------------------------
+# Retry-After: one install-wide wait, as with the maintenance window
+# ---------------------------------------------------------------------------
+
+
+def _stub_session_http_error(
+    coordinator: TankstellenCoordinator, status: int, retry_after: str | None
+) -> MagicMock:
+    """Stub coordinator._session.get with a JSON-typed HTTP error answer."""
+    resp = MagicMock()
+    resp.status = status
+    resp.content_type = "application/json"
+    resp.raise_for_status = MagicMock(
+        side_effect=aiohttp.ClientResponseError(
+            request_info=MagicMock(),
+            history=(),
+            status=status,
+            message="Too Many Requests",
+            headers={"Retry-After": retry_after} if retry_after else {},  # type: ignore[arg-type]
+        )
+    )
+    coordinator._session = MagicMock()
+    coordinator._session.get = MagicMock(return_value=make_response_cm(resp))
+    return coordinator._session.get
+
+
+async def test_retry_after_opens_one_wait_for_all_entries(
+    hass: HomeAssistant,
+) -> None:
+    """The entry that gets the header asks; the next one fails without asking."""
+    entry_a, entry_b = _make_entry(), _make_entry()
+    entry_a.add_to_hass(hass)
+    entry_b.add_to_hass(hass)
+    coord_a = TankstellenCoordinator(hass, entry_a)
+    coord_b = TankstellenCoordinator(hass, entry_b)
+    get_a = _stub_session_http_error(coord_a, 429, "7200")
+    _stub_session_returning(coord_b, [MOCK_STATION])
+
+    await coord_a.async_refresh()
+    await coord_b.async_refresh()
+    await coord_a.async_refresh()
+
+    assert get_a.call_count == 2  # one request per fuel type, once
+    coord_b._session.get.assert_not_called()
+    assert coord_a.last_exception.translation_key == "api_retry_after"
+    assert coord_b.last_exception.translation_key == "api_retry_after"
+    assert coord_b.last_exception.translation_placeholders == {"minutes": "120"}
+    until = retry_after_until(hass)
+    assert until is not None
+    assert timedelta(minutes=119) < until - dt_util.utcnow() <= timedelta(hours=2)
+
+
+async def test_retry_after_replaces_backoff_and_times_the_next_refresh(
+    hass: HomeAssistant,
+) -> None:
+    """The named wait is the next interval; nothing doubles on top of it."""
+    entry = _make_entry({CONF_SCAN_INTERVAL: 30})
+    entry.add_to_hass(hass)
+    coordinator = TankstellenCoordinator(hass, entry)
+    coordinator._consecutive_failures = 3
+    coordinator.update_interval = timedelta(hours=1)
+    _stub_session_http_error(coordinator, 503, "7200")
+
+    await coordinator.async_refresh()
+
+    err = coordinator.last_exception
+    assert err.translation_key == "api_all_failed"
+    assert 7190 < err.retry_after <= 7200
+    assert coordinator.update_interval == timedelta(minutes=30)
+    assert coordinator._consecutive_failures == 0
+
+
+async def test_short_retry_after_leaves_the_schedule_alone(
+    hass: HomeAssistant,
+) -> None:
+    """A wait shorter than the interval never makes the poll faster."""
+    entry = _make_entry({CONF_SCAN_INTERVAL: 30})
+    entry.add_to_hass(hass)
+    coordinator = TankstellenCoordinator(hass, entry)
+    get = _stub_session_http_error(coordinator, 429, "1")
+
+    await coordinator.async_refresh()
+
+    assert coordinator.last_exception.retry_after is None
+    assert get.call_count == 2
+
+
+async def test_http_error_without_retry_after_backs_off_as_before(
+    hass: HomeAssistant,
+) -> None:
+    entry = _make_entry({CONF_SCAN_INTERVAL: 30})
+    entry.add_to_hass(hass)
+    coordinator = TankstellenCoordinator(hass, entry)
+    get = _stub_session_http_error(coordinator, 503, None)
+
+    await coordinator.async_refresh()
+    await coordinator.async_refresh()
+
+    assert retry_after_until(hass) is None
+    assert get.call_count == 4
+    assert coordinator.update_interval == timedelta(minutes=60)
+
+
+async def test_requests_resume_once_the_wait_is_over(hass: HomeAssistant) -> None:
+    hass.data.setdefault(DOMAIN, {})[DOMAIN_RETRY_AFTER_KEY] = (
+        dt_util.utcnow() - timedelta(seconds=1)
+    )
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+    coordinator = TankstellenCoordinator(hass, entry)
+    _stub_session_returning(coordinator, [MOCK_STATION])
+
+    await coordinator.async_refresh()
+
+    assert coordinator.last_update_success
+    assert DOMAIN_RETRY_AFTER_KEY not in hass.data[DOMAIN]
+
+
+async def test_a_shorter_retry_after_never_cuts_an_open_wait(
+    hass: HomeAssistant,
+) -> None:
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+    coordinator = TankstellenCoordinator(hass, entry)
+    coordinator._note_retry_after(3600)
+    opened = retry_after_until(hass)
+    coordinator._note_retry_after(60)
+    assert retry_after_until(hass) == opened

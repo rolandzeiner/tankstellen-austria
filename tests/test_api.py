@@ -27,6 +27,7 @@ from custom_components.tankstellen_austria.api import (
     check_connection,
     fetch_stations,
     priced_stations,
+    retry_after_seconds,
 )
 
 from .conftest import MOCK_STATION, make_response_cm
@@ -216,3 +217,53 @@ async def test_check_connection_succeeds_and_always_includes_closed() -> None:
     assert kwargs["params"]["includeClosed"] == "true"
     assert kwargs["params"]["fuelType"] == "SUP"
     assert kwargs["timeout"].total == api.PROBE_TIMEOUT_SECONDS
+
+
+def _http_error_resp(status: int, headers: dict[str, str]) -> MagicMock:
+    resp = MagicMock()
+    resp.status = status
+    resp.content_type = "application/json"
+    resp.raise_for_status = MagicMock(
+        side_effect=aiohttp.ClientResponseError(
+            MagicMock(),
+            (),
+            status=status,
+            message="slow down",
+            headers=headers,  # type: ignore[arg-type]
+        )
+    )
+    return resp
+
+
+@pytest.mark.parametrize(
+    ("status", "retry_after"), [(429, 120.0), (503, 120.0), (500, None)]
+)
+async def test_http_error_carries_retry_after_on_429_and_503_only(
+    status: int, retry_after: float | None
+) -> None:
+    with pytest.raises(EControlHttpError) as exc:
+        await _fetch(_session(_http_error_resp(status, {"Retry-After": "120"})))
+    assert exc.value.retry_after == retry_after
+
+
+def test_retry_after_reads_seconds_and_dates_and_caps_both() -> None:
+    assert retry_after_seconds({"Retry-After": "90"}) == 90.0
+    assert retry_after_seconds({"Retry-After": " 0 "}) == 0.0
+    # An HTTP-date in the past is "now", one far ahead is capped.
+    assert retry_after_seconds({"Retry-After": "Wed, 21 Oct 2015 07:28:00 GMT"}) == 0.0
+    # No zone on the date: read as UTC.
+    assert retry_after_seconds({"Retry-After": "Wed, 21 Oct 2015 07:28:00"}) == 0.0
+    assert (
+        retry_after_seconds({"Retry-After": "Fri, 31 Dec 2100 23:59:59 GMT"})
+        == api.RETRY_AFTER_MAX_SECONDS
+    )
+    assert retry_after_seconds({"Retry-After": "999999999"}) == (
+        api.RETRY_AFTER_MAX_SECONDS
+    )
+
+
+@pytest.mark.parametrize("headers", [None, {}, {"Retry-After": "soon"}])
+def test_retry_after_is_none_without_a_usable_header(
+    headers: dict[str, str] | None,
+) -> None:
+    assert retry_after_seconds(headers) is None

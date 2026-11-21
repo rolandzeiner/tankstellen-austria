@@ -8,7 +8,11 @@ from homeassistant.components.diagnostics import async_redact_data
 from homeassistant.core import HomeAssistant
 
 from .const import ATTRIBUTION
-from .coordinator import TankstellenConfigEntry, maintenance_window
+from .coordinator import (
+    TankstellenConfigEntry,
+    maintenance_window,
+    retry_after_until,
+)
 
 # CONF_LATITUDE/CONF_LONGITUDE are equal to the literal strings, so the
 # set would collapse anyway — keeping just the literals for clarity.
@@ -54,6 +58,7 @@ async def async_get_config_entry_diagnostics(
     coordinator = entry.runtime_data
     data = coordinator.data or {}
     window = maintenance_window(hass)
+    stay_away = retry_after_until(hass)
     return {
         "attribution": ATTRIBUTION,
         "entry": {
@@ -82,6 +87,11 @@ async def async_get_config_entry_diagnostics(
                 }
                 if window is not None
                 else None
+            ),
+            # Install-wide too: until when E-Control asked for no requests
+            # (Retry-After on a 429 or 503).
+            "retry_after_until": (
+                stay_away.isoformat() if stay_away is not None else None
             ),
         },
     }

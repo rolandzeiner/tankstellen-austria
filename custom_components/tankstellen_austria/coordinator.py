@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -48,6 +49,7 @@ from .const import (
     DOMAIN,
     DOMAIN_LAST_API_CALL_KEY,
     DOMAIN_MAINTENANCE_KEY,
+    DOMAIN_RETRY_AFTER_KEY,
     DYNAMIC_COOLDOWN_MINUTES,
     DYNAMIC_DISTANCE_THRESHOLD_M,
     DYNAMIC_DOMAIN_COOLDOWN_MINUTES,
@@ -161,6 +163,23 @@ def maintenance_window(hass: HomeAssistant) -> MaintenanceWindow | None:
     """Return the open maintenance window, or None while E-Control is up."""
     window = hass.data.get(DOMAIN, {}).get(DOMAIN_MAINTENANCE_KEY)
     return window if isinstance(window, MaintenanceWindow) else None
+
+
+def retry_after_until(hass: HomeAssistant) -> datetime | None:
+    """Return when E-Control's Retry-After wait ends, or None outside one."""
+    store = hass.data.get(DOMAIN, {})
+    until = store.get(DOMAIN_RETRY_AFTER_KEY)
+    if not isinstance(until, datetime):
+        return None
+    if dt_util.utcnow() >= until:
+        store.pop(DOMAIN_RETRY_AFTER_KEY, None)
+        return None
+    return until
+
+
+def _minutes_until(until: datetime) -> int:
+    """Whole minutes from now to `until`, rounded up, at least one."""
+    return max(1, math.ceil((until - dt_util.utcnow()).total_seconds() / 60))
 
 
 def _is_maintenance(err: BaseException) -> bool:
@@ -456,10 +475,24 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[Station]]]):
         # probe per window serves every entry (see MAINTENANCE_PROBE_MINUTES).
         window = maintenance_window(self.hass)
         if window is not None and dt_util.utcnow() < window.next_probe:
-            self._note_maintenance()
+            self._hold_cadence()
             raise UpdateFailed(
                 translation_domain=DOMAIN,
                 translation_key="api_maintenance",
+            )
+
+        # The same for a Retry-After wait: E-Control named the time itself, so
+        # nothing asks before it, whichever entry got the header and whatever
+        # set this refresh off (the interval, a tracker, the card's refresh
+        # button, a setup retry).
+        until = retry_after_until(self.hass)
+        if until is not None:
+            self._hold_cadence()
+            raise UpdateFailed(
+                translation_domain=DOMAIN,
+                translation_key="api_retry_after",
+                translation_placeholders={"minutes": str(_minutes_until(until))},
+                retry_after=self._wait_beyond_interval(until),
             )
 
         # Stamped before the requests go out, so the next maintenance probe is
@@ -522,12 +555,18 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[Station]]]):
                 # the ConfigEntryNotReady reason during setup) instead of the
                 # generic all-failed message wrapping a bare translation key.
                 self._enter_maintenance(probe_started, maintenance_err)
-                self._note_maintenance()
+                self._hold_cadence()
                 raise maintenance_err
             # Report the first error for the UI; per-type errors were logged above.
             first_ft, first_err = next(iter(errors.items()))
             self._log_unavailable(first_err)
-            self._note_failure()
+            # A Retry-After from this refresh replaces backoff: E-Control
+            # named the wait, and doubling on top would only delay recovery.
+            until = retry_after_until(self.hass)
+            if until is None:
+                self._note_failure()
+            else:
+                self._hold_cadence()
             raise UpdateFailed(
                 translation_domain=DOMAIN,
                 translation_key="api_all_failed",
@@ -537,6 +576,7 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[Station]]]):
                     "fuel_type": first_ft,
                     "error": _describe_error(first_err),
                 },
+                retry_after=self._wait_beyond_interval(until),
             ) from first_err
 
         if errors and self.data:
@@ -694,20 +734,48 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[Station]]]):
         if store.pop(DOMAIN_MAINTENANCE_KEY, None) is not None:
             _LOGGER.info("E-Control maintenance is over")
 
-    def _note_maintenance(self) -> None:
-        """Hold the configured cadence while E-Control reports maintenance.
+    def _hold_cadence(self) -> None:
+        """Hold the configured cadence while E-Control says why it is away.
 
         Exponential backoff is for failures we can't explain. Maintenance is
         announced and temporary, and the shared window already limits the
         install to one probe per MAINTENANCE_PROBE_MINUTES, so backing off
         further only delays recovery: at the cap an entry could stay
-        unavailable for an hour after E-Control is back. Clearing the
-        counter also restarts backoff from scratch for a later, unexplained
-        failure.
+        unavailable for an hour after E-Control is back. A Retry-After wait
+        is the same case, with the time named. Clearing the counter also
+        restarts backoff from scratch for a later, unexplained failure.
         """
         self._consecutive_failures = 0
         if self.update_interval != self._normal_interval:
             self.update_interval = self._normal_interval
+
+    def _note_retry_after(self, seconds: float) -> None:
+        """Open, or extend, the install-wide Retry-After wait."""
+        until = dt_util.utcnow() + timedelta(seconds=seconds)
+        current = retry_after_until(self.hass)
+        if current is not None and current >= until:
+            return
+        self.hass.data.setdefault(DOMAIN, {})[DOMAIN_RETRY_AFTER_KEY] = until
+        _LOGGER.debug(
+            "E-Control asked to wait %.0f s; no requests until %s", seconds, until
+        )
+
+    def _wait_beyond_interval(self, until: datetime | None) -> float | None:
+        """Seconds to the end of a Retry-After wait that outlasts the interval.
+
+        HA takes `UpdateFailed(retry_after=)` as the next interval, once, so
+        the entry comes back when the wait ends instead of at some later
+        tick. A shorter wait is left to the ordinary schedule, which already
+        waits longer than asked: a server answering `Retry-After: 1` to every
+        request must not turn the poll into one request a second.
+        """
+        if until is None:
+            return None
+        seconds = (until - dt_util.utcnow()).total_seconds()
+        interval = self.update_interval
+        if interval is not None and seconds <= interval.total_seconds():
+            return None
+        return seconds
 
     async def _fetch(self, fuel_type: str, lat: float, lng: float) -> list[Station]:
         """Call the E-Control API for one fuel type.
@@ -726,6 +794,8 @@ class TankstellenCoordinator(DataUpdateCoordinator[dict[str, list[Station]]]):
                 user_agent=USER_AGENT,
             )
         except EControlError as err:
+            if isinstance(err, EControlHttpError) and err.retry_after:
+                self._note_retry_after(err.retry_after)
             raise _update_failed(err, fuel_type) from err
 
         # Stamp the as-the-crow-flies distance (Luftlinie) from the reference

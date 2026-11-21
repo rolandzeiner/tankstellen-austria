@@ -117,3 +117,9 @@ BACKOFF_CAP_SECONDS: Final = 60 * 60
 # retries a failed setup every 80 s).
 MAINTENANCE_PROBE_MINUTES: Final = MIN_POLL_MINUTES
 DOMAIN_MAINTENANCE_KEY = "maintenance"
+
+# Key inside hass.data[DOMAIN] for the time until which E-Control asked the
+# install to stay away (Retry-After on a 429 or 503). One wait for every
+# entry, like the maintenance window: the limit is on the client, not on a
+# location or a fuel type.
+DOMAIN_RETRY_AFTER_KEY = "retry_after_until"
