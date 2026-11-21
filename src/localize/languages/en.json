@@ -30,6 +30,7 @@
     "min_label": "Min",
     "max_label": "Max",
     "refresh": "Refresh",
+    "tabs_label": "Fuel types",
     "last_updated": "Updated:",
     "no_new_data": "No new data",
     "version_update": "Tankstellen Austria updated to v{v} — please reload",

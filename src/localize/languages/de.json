@@ -30,6 +30,7 @@
     "min_label": "Min",
     "max_label": "Max",
     "refresh": "Aktualisieren",
+    "tabs_label": "Kraftstoffe",
     "last_updated": "Aktualisiert:",
     "no_new_data": "Keine neuen Daten",
     "version_update": "Tankstellen Austria wurde auf v{v} aktualisiert — bitte neu laden",

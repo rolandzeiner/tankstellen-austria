@@ -72,8 +72,8 @@ import {
   safeNavUri,
 } from "./utils";
 
-// Eager-register the editor element. With `inlineDynamicImports: true` the
-// editor code is already in this bundle — importing it at the top guarantees
+// Eager-register the editor element. The bundle is one file (`codeSplitting:
+// false`), so the editor code is in it anyway — importing it at the top guarantees
 // `customElements.define(…)` has run before `getConfigElement()` creates the
 // element, avoiding a race where HA creates an unregistered element.
 import "./editor";
@@ -508,7 +508,12 @@ export class TankstellenAustriaCard extends LitElement {
     return html`
       <ha-card>
         ${this._renderTabs(entities, activeTab)}
-        <div class="body">
+        <div
+          class="body"
+          id="tsa-panel"
+          role=${entities.length > 1 ? "tabpanel" : nothing}
+          aria-labelledby=${entities.length > 1 ? `tsa-tab-${activeTab}` : nothing}
+        >
           ${this._renderVersionBanner()}
           ${
             this._apiMaintenance && active.state === "unavailable"
@@ -599,7 +604,7 @@ export class TankstellenAustriaCard extends LitElement {
     if (entities.length <= 1) return nothing;
     const customLabels: Record<string, string> = this._config.tab_labels ?? {};
     return html`
-      <div class="tabs" role="tablist">
+      <div class="tabs" role="tablist" aria-label=${this._t("tabs_label")}>
         ${entities.map((e, i) => {
           const custom = customLabels[e.entity_id];
           let label: string;
@@ -618,6 +623,8 @@ export class TankstellenAustriaCard extends LitElement {
             <button
               type="button"
               role="tab"
+              id="tsa-tab-${i}"
+              aria-controls="tsa-panel"
               class=${classMap({ tab: true, active: selected })}
               aria-selected=${selected ? "true" : "false"}
               tabindex=${selected ? "0" : "-1"}

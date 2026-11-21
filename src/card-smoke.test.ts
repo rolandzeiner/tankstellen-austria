@@ -707,8 +707,15 @@ describe("fuel tabs", () => {
     });
     expect(tabs(el)).toHaveLength(2);
     expect(selected(el)).toBe(0);
+    // The tab pattern whole: a named list, and one panel named by its tab.
+    const root = el.shadowRoot!;
+    const panel = root.querySelector('[role="tabpanel"]')!;
+    expect(root.querySelector('[role="tablist"]')!.getAttribute("aria-label")).toBe("Fuel types");
+    expect(tabs(el).map((t) => t.getAttribute("aria-controls"))).toEqual([panel.id, panel.id]);
+    expect(panel.getAttribute("aria-labelledby")).toBe(tabs(el)[0]!.id);
     await press(el, 0, "ArrowRight");
     expect(selected(el)).toBe(1);
+    expect(panel.getAttribute("aria-labelledby")).toBe(tabs(el)[1]!.id);
     await press(el, 1, "ArrowRight");
     expect(selected(el)).toBe(0);
     await press(el, 0, "ArrowLeft");
