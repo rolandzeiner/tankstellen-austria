@@ -795,6 +795,28 @@ export const cardStyles = css`
       grid-column: 2;
     }
   }
+  /* Under 300 px (half a section) the price column leaves the name about
+     40 px, and a word or a flag wider than that ran under the price. The
+     name and the address take the whole text width, the price moves to a
+     line of its own at the rail with the distance at its end. Measured:
+     the two-line row holds from 300 px up. */
+  @container tscard (inline-size < 300px) {
+    .st-row {
+      grid-template-areas:
+        "tile name  name chev"
+        "tile addr  addr chev"
+        "tile price dist chev";
+    }
+    .st-row.no-tile {
+      grid-template-areas:
+        "name  name chev"
+        "addr  addr chev"
+        "price dist chev";
+    }
+    .st-price {
+      text-align: start;
+    }
+  }
   @container tscard (inline-size > 480px) {
     .price-big {
       font-size: 36px;
