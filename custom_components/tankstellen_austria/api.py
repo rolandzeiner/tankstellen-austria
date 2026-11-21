@@ -1,8 +1,8 @@
 """Client for E-Control's Spritpreisrechner API (``sprit/1.0``).
 
 Owns everything about talking to E-Control: the endpoint, the request
-parameters and headers, spotting the maintenance page, and turning every
-failure into one of the exceptions below. Callers pass in the
+parameters and headers, spotting the maintenance page, reading Retry-After,
+and turning every failure into one of the exceptions below. Callers pass in the
 ``aiohttp.ClientSession`` and the User-Agent, so this module never needs
 Home Assistant.
 
@@ -14,6 +14,9 @@ package (``const.py`` pulls in HA for its User-Agent), and
 
 from __future__ import annotations
 
+import email.utils
+from collections.abc import Mapping
+from datetime import UTC, datetime
 from typing import Any, Final
 
 import aiohttp
@@ -24,6 +27,10 @@ SEARCH_URL: Final = f"{API_BASE_URL}{API_ENDPOINT}"
 
 FETCH_TIMEOUT_SECONDS: Final = 30
 PROBE_TIMEOUT_SECONDS: Final = 10
+
+# Longest Retry-After taken at face value. A day covers any real maintenance
+# window; past that, a bogus header would freeze polling indefinitely.
+RETRY_AFTER_MAX_SECONDS: Final = 86400.0
 
 # The API answers with a list of stations in which only the first five carry
 # prices; the rest are bare locations.
@@ -69,10 +76,14 @@ class EControlConnectionError(EControlError):
 class EControlHttpError(EControlError):
     """E-Control answered with a non-2xx status."""
 
-    def __init__(self, status: int, reason: str) -> None:
+    def __init__(
+        self, status: int, reason: str, retry_after: float | None = None
+    ) -> None:
         super().__init__(f"HTTP {status}: {reason}")
         self.status = status
         self.reason = reason
+        # Seconds the server asked us to stay away (Retry-After on 429/503).
+        self.retry_after = retry_after
 
 
 class EControlMaintenanceError(EControlError):
@@ -127,6 +138,24 @@ def request_headers(user_agent: str) -> dict[str, str]:
     compressing, the default offer picks that up with no code change.
     """
     return {"User-Agent": user_agent}
+
+
+def retry_after_seconds(headers: Mapping[str, str] | None) -> float | None:
+    """Read a Retry-After header: delay-seconds or an HTTP-date (RFC 9110)."""
+    value = (headers or {}).get("Retry-After", "").strip()
+    if not value:
+        return None
+    if value.isdigit():
+        seconds = float(value)
+    else:
+        try:
+            when = email.utils.parsedate_to_datetime(value)
+        except TypeError, ValueError:
+            return None
+        if when.tzinfo is None:
+            when = when.replace(tzinfo=UTC)
+        seconds = (when - datetime.now(UTC)).total_seconds()
+    return min(max(seconds, 0.0), RETRY_AFTER_MAX_SECONDS)
 
 
 def _search_params(
@@ -205,7 +234,14 @@ async def fetch_stations(
     except TimeoutError as err:
         raise EControlTimeoutError("request timed out") from err
     except aiohttp.ClientResponseError as err:
-        raise EControlHttpError(err.status, err.message) from err
+        # 429 (RFC 6585) and 503 (RFC 9110) may carry Retry-After. E-Control
+        # has sent neither status so far. Read anyway, so a rate limit
+        # introduced later is kept. The maintenance page raises above and
+        # never gets here.
+        retry_after = (
+            retry_after_seconds(err.headers) if err.status in (429, 503) else None
+        )
+        raise EControlHttpError(err.status, err.message, retry_after) from err
     except aiohttp.ClientError as err:
         raise EControlConnectionError(err) from err
     return priced_stations(data)

@@ -72,8 +72,8 @@ import {
   safeNavUri,
 } from "./utils";
 
-// Eager-register the editor element. With `inlineDynamicImports: true` the
-// editor code is already in this bundle — importing it at the top guarantees
+// Eager-register the editor element. The bundle is one file (`codeSplitting:
+// false`), so the editor code is in it anyway — importing it at the top guarantees
 // `customElements.define(…)` has run before `getConfigElement()` creates the
 // element, avoiding a race where HA creates an unregistered element.
 import "./editor";
@@ -262,8 +262,8 @@ export class TankstellenAustriaCard extends LitElement {
   // new `hass` for every state change anywhere in the install. Re-render
   // only on: config change, UI state change, history arrival, a history or
   // maintenance notice changing, version-mismatch discovery, cooldown tick,
-  // a layout or preview change from HA, or a new state object for an entity
-  // this card tracks.
+  // a layout or preview change from HA, a profile switch (language, theme,
+  // locale), or a new state object for an entity this card tracks.
   protected override shouldUpdate(changed: PropertyValues): boolean {
     if (!this._config) return false;
     if (
@@ -287,9 +287,12 @@ export class TankstellenAustriaCard extends LitElement {
     if (changed.has("layout") || changed.has("preview")) return true;
     const prev = changed.get("hass") as HomeAssistant | undefined;
     if (!prev) return true;
-    // A language switch changes no entity state; without this the card keeps
-    // the old language until its sensor next updates.
+    // A profile switch changes no entity state; without these the card
+    // keeps the old language, the adaptive logo its old theme's colour
+    // (black on a dark card) and the chart its old time format until the
+    // sensor next updates. HA replaces these objects only when they change.
     if (prev.language !== this.hass.language) return true;
+    if (prev.themes !== this.hass.themes || prev.locale !== this.hass.locale) return true;
     const eids = this._trackedEntityIds();
     return eids.some((eid) => prev.states[eid] !== this.hass.states[eid]);
   }
@@ -505,7 +508,12 @@ export class TankstellenAustriaCard extends LitElement {
     return html`
       <ha-card>
         ${this._renderTabs(entities, activeTab)}
-        <div class="body">
+        <div
+          class="body"
+          id="tsa-panel"
+          role=${entities.length > 1 ? "tabpanel" : nothing}
+          aria-labelledby=${entities.length > 1 ? `tsa-tab-${activeTab}` : nothing}
+        >
           ${this._renderVersionBanner()}
           ${
             this._apiMaintenance && active.state === "unavailable"
@@ -538,7 +546,7 @@ export class TankstellenAustriaCard extends LitElement {
   private _renderFooter(attribution: string | undefined): TemplateResult | typeof nothing {
     if (this._config?.hide_attribution === true) return nothing;
     const adaptive = this._config?.logo_adapt_to_theme === true;
-    const darkMode = Boolean((this.hass?.themes as { darkMode?: boolean } | undefined)?.darkMode);
+    const darkMode = this.hass?.themes?.darkMode === true;
     const logoClasses = adaptive
       ? `brand-logo adaptive ${darkMode ? "adaptive-dark" : "adaptive-light"}`
       : "brand-logo";
@@ -596,7 +604,7 @@ export class TankstellenAustriaCard extends LitElement {
     if (entities.length <= 1) return nothing;
     const customLabels: Record<string, string> = this._config.tab_labels ?? {};
     return html`
-      <div class="tabs" role="tablist">
+      <div class="tabs" role="tablist" aria-label=${this._t("tabs_label")}>
         ${entities.map((e, i) => {
           const custom = customLabels[e.entity_id];
           let label: string;
@@ -615,6 +623,8 @@ export class TankstellenAustriaCard extends LitElement {
             <button
               type="button"
               role="tab"
+              id="tsa-tab-${i}"
+              aria-controls="tsa-panel"
               class=${classMap({ tab: true, active: selected })}
               aria-selected=${selected ? "true" : "false"}
               tabindex=${selected ? "0" : "-1"}
@@ -1073,7 +1083,7 @@ export class TankstellenAustriaCard extends LitElement {
 
     const display = ordered.slice(0, maxStations);
     return html`
-      <ol class="stations">
+      <ol class=${classMap({ stations: true, plates: this._rowStyle() !== "plain" })}>
         ${display.map((s, idx) =>
           this._renderStation(s, idx, activeTab, paymentFilter, highlightMode),
         )}
@@ -1101,6 +1111,12 @@ export class TankstellenAustriaCard extends LitElement {
     >
       ${tile.initials}
     </span>`;
+  }
+
+  // stations.row_style; anything unknown draws the plain list.
+  private _rowStyle(): "plain" | "brand" | "gradient" {
+    const style = this._config.row_style;
+    return style === "brand" || style === "gradient" ? style : "plain";
   }
 
   // One <li> per station: the row is a real <button> (so Enter and Space
@@ -1141,6 +1157,15 @@ export class TankstellenAustriaCard extends LitElement {
         })
       : [];
 
+    // The row on its brand's colour, as a plate. A station without a known
+    // brand gets a plain outlined plate, so it never passes for one.
+    const rowStyle = this._rowStyle();
+    const rowBrand = rowStyle === "plain" ? undefined : brandTile(s.name);
+    const plateColours =
+      rowBrand?.bg && rowBrand.fg
+        ? { "--tankst-row-bg": rowBrand.bg, "--tankst-row-fg": rowBrand.fg }
+        : {};
+
     const hasHoursBlock = showHours && !!s.opening_hours?.length;
     const hasPaymentBlock = showPayment && hasPaymentMethods(s.payment_methods);
     const hasDetail = hasHoursBlock || hasPaymentBlock;
@@ -1170,7 +1195,15 @@ export class TankstellenAustriaCard extends LitElement {
     }
 
     return html`
-      <li class=${classMap({ st: true, "pm-highlight": highlighted })}>
+      <li
+        class=${classMap({
+          st: true,
+          "pm-highlight": highlighted,
+          "plate-brand": rowStyle === "brand" && !!rowBrand?.bg,
+          "plate-fade": rowStyle === "gradient" && !!rowBrand?.bg,
+        })}
+        style=${styleMap(plateColours)}
+      >
         <button
           class=${classMap({ "st-row": true, "no-map": !mapUrl, "no-tile": !showIndex })}
           type="button"

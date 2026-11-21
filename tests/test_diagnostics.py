@@ -85,6 +85,7 @@ async def test_diagnostics_includes_envelope_keys(hass: HomeAssistant) -> None:
     assert coord["station_counts"]["DIE"] == 1
     # No maintenance window open → explicit None, not a missing key.
     assert coord["maintenance"] is None
+    assert coord["retry_after_until"] is None
 
 
 async def test_diagnostics_redacts_dynamic_entity(hass: HomeAssistant) -> None:
@@ -189,3 +190,32 @@ async def test_diagnostics_reports_open_maintenance_window(
         "since": since.isoformat(),
         "next_probe": next_probe.isoformat(),
     }
+
+
+async def test_diagnostics_reports_a_retry_after_wait(hass: HomeAssistant) -> None:
+    """A Retry-After wait in force shows up with its end."""
+    from datetime import timedelta
+
+    from homeassistant.util import dt as dt_util
+
+    from custom_components.tankstellen_austria.const import (
+        DOMAIN,
+        DOMAIN_RETRY_AFTER_KEY,
+    )
+
+    entry = make_entry(title="Home")
+    entry.add_to_hass(hass)
+    with patch(
+        "custom_components.tankstellen_austria.coordinator.TankstellenCoordinator._fetch",
+        new_callable=AsyncMock,
+        return_value=[MOCK_STATION],
+    ):
+        await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    until = dt_util.utcnow() + timedelta(hours=1)
+    hass.data[DOMAIN][DOMAIN_RETRY_AFTER_KEY] = until
+
+    diag = await async_get_config_entry_diagnostics(hass, entry)
+
+    assert diag["coordinator"]["retry_after_until"] == until.isoformat()

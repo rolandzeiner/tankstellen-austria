@@ -27,7 +27,7 @@ Austrian fuel prices in Home Assistant, from E-Control's [Spritpreisrechner](htt
 ## Features
 
 - One price sensor per fuel type, carrying the five cheapest nearby stations with opening hours, payment methods and distance.
-- A card with a tab per fuel type, brand-coloured station details, navigation links, a seven-day chart and a visual editor, in German and English.
+- A card with a tab per fuel type, brand-coloured stations, navigation links, a seven-day chart and a visual editor, in German and English.
 - A best-time-to-refuel tip worked out from up to four weeks of your price history, marked on the chart and available as sensors for automations.
 - Prices that follow your phone or car as you drive, with fixed and moving locations side by side.
 - Show only the stations that take your card, or highlight them, and see which stations are closed or closing soon.
@@ -196,6 +196,7 @@ cars:
 | `index` | `true` | Rank number per station. In the editor, switching it on turns `brand` off |
 | `brand` | `false` | The station's brand initials and colour in the tile, in place of the rank; works with `index` off, and the editor turns `index` off when you switch it on for the seventeen largest networks, about 83 % of Austria's stations: Enilive, Turmöl, BP, Lagerhaus/Genol, OMV, Shell, JET, Avanti, AVIA, SOCAR, Diskont at Hofer, DISK, Rumpold, F. Leitner, IQ and LM Energy; other stations get their initials on a grey tile. Colours only, no logos. |
 | `tile_shape` | `square` | The rank tile's shape: `square` (rounded corners) or `circle`; applies to the rank and the brand alike |
+| `row_style` | `plain` | Each station's background: `plain` (none), `brand` (filled in the brand's colour) or `gradient` (a stripe in the brand's colour that fades out across the row). Brand colours exist for the networks listed under `brand`; other stations get an outlined row. |
 | `map_links` | `true` | Navigation link per station |
 | `map_provider` | `auto` | `auto` (Apple Maps on iOS, the app chooser on Android, Google Maps elsewhere), `google` or `apple` |
 | `distance` | `false` | Distance under each station's price |
@@ -270,8 +271,9 @@ A fixed entry polls E-Control at its **Update interval (minutes)**, every 30 min
 
 - **Around noon** (about 12:05 to 12:07 Vienna time) E-Control sometimes answers with no stations while it refreshes. The sensors keep their values and the integration tries once more after 10 minutes.
 - **When one fuel type fails**, the others update and the failed one keeps its last value. The entry goes unavailable only when every fuel type fails.
-- **When updates keep failing**, the interval doubles from the second failure in a row, up to 12 hours, and returns to normal after the next success. After at least two failures over 10 minutes or more, a Repairs issue says E-Control isn't sending prices, and it clears itself once prices return.
+- **When updates keep failing**, the interval doubles from the second failure in a row, up to an hour, and returns to normal after the next success. An interval you set longer than an hour stays as it is. After at least two failures over 10 minutes or more, a Repairs issue says E-Control isn't sending prices, and it clears itself once prices return.
 - **During E-Control maintenance** the entries go unavailable and the card says why. One check every 10 minutes serves all entries, and prices return with the next update once the service is back.
+- **When E-Control asks for a pause**, with a `Retry-After` on a rate-limit or overload answer, no entry sends a request before the time it names. Prices return with the first update after that.
 
 ### Dynamic mode
 

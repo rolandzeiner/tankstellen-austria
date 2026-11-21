@@ -238,6 +238,7 @@ describe("editor output", () => {
       count: 5,
       sort: "price",
       tile_shape: "square",
+      row_style: "plain",
       map_provider: "auto",
       payment_mode: "filter",
     });

@@ -17,17 +17,6 @@ export interface HassEntity {
   entity_id?: string;
 }
 
-/** Minimal HA shape — only the fields this card touches. `language` is
- *  the user-profile locale; `localize` is HA's own UI translation
- *  lookup (the editor reuses it for built-in field names so we don't
- *  carry duplicates); `callWS` powers both the card-version probe and
- *  the history fetch; `callService` powers the manual-refresh button;
- *  `themes.darkMode` is reserved for future adaptive logo work.
- *  `callWS` and `callService` are non-optional — the card requires
- *  both at runtime (history view + manual refresh would silently fail
- *  otherwise) and HA core has shipped both since well before our
- *  `requirements.txt` floor. Anything beyond these lives untyped and
- *  is read with a cast at the call site. */
 /** Minimal entity-registry shape. Both fields survive a sensor going
  *  unavailable, which its state attributes don't. `platform` gates the card
  *  picker's `getEntitySuggestion` and entity auto-discovery to this
@@ -38,6 +27,17 @@ export interface RegistryEntity {
   translation_key?: string;
 }
 
+/** Minimal HA shape — only the fields this card touches. `language` is
+ *  the profile's language code, `locale` its time and number formats;
+ *  `localize` is HA's own UI translation
+ *  lookup (the editor reuses it for built-in field names so we don't
+ *  carry duplicates); `callWS` powers both the card-version probe and
+ *  the history fetch; `callService` powers the manual-refresh button;
+ *  `themes.darkMode` picks the adaptive footer logo's colour.
+ *  `callWS` and `callService` are non-optional — the card requires
+ *  both at runtime (history view + manual refresh would silently fail
+ *  otherwise) and HA core has shipped both since well before the
+ *  integration's HA floor. */
 export interface HomeAssistant {
   states: Record<string, HassEntity>;
   entities?: Record<string, RegistryEntity>;
@@ -114,6 +114,9 @@ export interface TankstellenAustriaCardConfig extends LovelaceCardConfig {
   show_brand?: boolean;
   // The rank tile's shape: HA's small-radius square (default) or a circle.
   tile_shape?: "square" | "circle";
+  // Each station's row on its brand's colour: "brand" fills it, "gradient"
+  // fades it out across the row. Unset or "plain": no background.
+  row_style?: "plain" | "brand" | "gradient";
   show_map_links?: boolean;
   // Where the navigation link opens. "auto" (also the absent-key default)
   // routes per device: Apple Maps on iOS, geo: chooser on Android, Google
@@ -183,6 +186,8 @@ export interface StationsOptions {
   brand?: boolean;
   // Rank tile shape, for the rank and the brand alike.
   tile_shape?: "square" | "circle";
+  // Each station's row on its brand's colour, filled or fading out.
+  row_style?: "plain" | "brand" | "gradient";
   distance?: boolean;
   opening_hours?: boolean;
   payment_methods?: boolean;

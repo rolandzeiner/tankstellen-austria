@@ -163,9 +163,13 @@ def _build_schema(
         )
     ] = BooleanSelector()
     if include_dynamic:
+        # The current tracker is a suggestion, never a `default`: a cleared
+        # field arrives as a missing key, the flow validates the input
+        # against this schema, and a default would put the tracker straight
+        # back, so the entry could never return to a fixed location.
         existing = defaults.get(CONF_DYNAMIC_ENTITY) or None
         key = (
-            vol.Optional(CONF_DYNAMIC_ENTITY, default=existing)
+            vol.Optional(CONF_DYNAMIC_ENTITY, description={"suggested_value": existing})
             if existing
             else vol.Optional(CONF_DYNAMIC_ENTITY)
         )
@@ -291,8 +295,8 @@ class TankstellenConfigFlow(ConfigFlow, domain=DOMAIN):
         """Handle reconfiguration of an existing entry.
 
         Lets the user change location/fuel types/dynamic tracker without
-        deleting the entry. Entity unique_ids stay the same; only the entry's
-        data and unique_id are rewritten.
+        deleting the entry. Entity unique_ids stay the same; the entry's data
+        and unique_id are rewritten and its options cleared.
         """
         entry = self._get_reconfigure_entry()
         errors: dict[str, str] = {}
@@ -305,11 +309,19 @@ class TankstellenConfigFlow(ConfigFlow, domain=DOMAIN):
                     errors["base"] = "cannot_connect"
                 else:
                     dynamic_entity = user_input.get(CONF_DYNAMIC_ENTITY) or None
+                    # A moved location or another tracker changes the
+                    # unique_id, and the entry takes the new one with it, as
+                    # in the options flow. Only a unique_id that belongs to a
+                    # *different* entry aborts. (`_abort_if_unique_id_mismatch`
+                    # is for integrations whose unique_id names an account:
+                    # here it refused every move of more than about 100 m.)
                     new_unique_id = _compute_unique_id(dynamic_entity, lat, lng)
-                    # Allow no-op reconfigure (same unique_id). Abort only if
-                    # the new unique_id matches a *different* existing entry.
-                    await self.async_set_unique_id(new_unique_id)
-                    self._abort_if_unique_id_mismatch()
+                    for other in self._async_current_entries(include_ignore=False):
+                        if (
+                            other.entry_id != entry.entry_id
+                            and other.unique_id == new_unique_id
+                        ):
+                            return self.async_abort(reason="already_configured")
                     # options={}: the form showed every setting merged, so
                     # what was submitted is the whole truth. The options
                     # flow writes the same record to entry.options, and
@@ -317,6 +329,7 @@ class TankstellenConfigFlow(ConfigFlow, domain=DOMAIN):
                     # there would outrank this write.
                     return self.async_update_and_abort(
                         entry,
+                        unique_id=new_unique_id,
                         data=_build_entry_data(user_input, lat, lng, fuel_types),
                         options={},
                     )
@@ -346,13 +359,13 @@ class TankstellenOptionsFlow(OptionsFlow):
                 if not await _test_api_connection(self.hass, lat, lng, fuel_types[0]):
                     errors["base"] = "cannot_connect"
                 else:
-                    # Options-flow form lets the user change location and
-                    # dynamic_entity — both feed into `unique_id`. Reconfigure
-                    # already keeps unique_id in sync; mirror that here so the
-                    # two paths can't drift, otherwise a later "Add Entry" at
-                    # the new coordinates would not be recognised as duplicate.
+                    # Location and tracker both feed into `unique_id`, so it
+                    # is rewritten here as in reconfigure; otherwise a later
+                    # "Add Entry" at the new coordinates would not be
+                    # recognised as a duplicate.
                     dynamic_entity = user_input.get(CONF_DYNAMIC_ENTITY) or None
                     new_unique_id = _compute_unique_id(dynamic_entity, lat, lng)
+                    options = _build_entry_data(user_input, lat, lng, fuel_types)
                     if new_unique_id != self.config_entry.unique_id:
                         for other in self.hass.config_entries.async_entries(DOMAIN):
                             if (
@@ -362,13 +375,21 @@ class TankstellenOptionsFlow(OptionsFlow):
                                 errors["base"] = "already_configured"
                                 break
                         else:
+                            # The options go in with the unique_id, in one
+                            # write. Any write runs the update listener, and
+                            # its reload starts at once: after a write of the
+                            # unique_id alone it built the coordinator from
+                            # the old options, and the options saved a moment
+                            # later found no listener (the unload had removed
+                            # it), so the entry kept its old location or
+                            # tracker until the next restart.
                             self.hass.config_entries.async_update_entry(
-                                self.config_entry, unique_id=new_unique_id
+                                self.config_entry,
+                                unique_id=new_unique_id,
+                                options=options,
                             )
                     if not errors:
-                        return self.async_create_entry(
-                            data=_build_entry_data(user_input, lat, lng, fuel_types)
-                        )
+                        return self.async_create_entry(data=options)
 
         return self.async_show_form(
             step_id="init",

@@ -30,6 +30,7 @@
     "min_label": "Min",
     "max_label": "Max",
     "refresh": "Refresh",
+    "tabs_label": "Fuel types",
     "last_updated": "Updated:",
     "no_new_data": "No new data",
     "version_update": "Tankstellen Austria updated to v{v} — please reload",
@@ -86,6 +87,9 @@
     "map_provider_apple": "Always Apple Maps",
     "tile_shape_square": "Rounded square",
     "tile_shape_circle": "Circle",
+    "row_style_plain": "None",
+    "row_style_brand": "Brand colour",
+    "row_style_gradient": "Brand colour, fading out",
     "recorder_hint_intro": "Home Assistant keeps only 10 days of history by default. For better recommendations, add this block to configuration.yaml and restart:",
     "recorder_hint_docs": "Read the recorder docs",
     "copy": "Copy",
@@ -107,6 +111,7 @@
     "stations_index": "Show rank",
     "stations_brand": "Show brand",
     "stations_tile_shape": "Tile shape",
+    "stations_row_style": "Station background",
     "stations_map_links": "Show navigation links",
     "stations_map_provider": "Navigation app",
     "stations_distance": "Show distance",
@@ -159,6 +164,7 @@
     "car_unnamed": "Car {n}",
     "car_move_up": "Move up",
     "car_move_down": "Move down",
-    "stations_brand_helper": "Replaces the rank"
+    "stations_brand_helper": "Replaces the rank",
+    "stations_row_style_helper": "Only the largest networks have a brand colour"
   }
 }

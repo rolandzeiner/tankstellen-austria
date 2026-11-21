@@ -34,9 +34,8 @@ export default defineConfig(({ mode }) => {
       rolldownOptions: {
         output: {
           banner,
-          // HACS users get a single .js file, not a chunked dist/. The
-          // editor's dynamic import (getConfigElement) gets inlined into the
-          // main bundle.
+          // HACS users get a single .js file, not a chunked dist/; the editor
+          // is in it through the card's static import.
           codeSplitting: false,
           comments: { legal: true },
           // Set on the Rolldown output, not `build.minify`: Vite's library

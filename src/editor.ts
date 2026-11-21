@@ -79,7 +79,7 @@ const GROUP_ICONS = {
 // Fields that can't draw a default themselves: their defaults go into the
 // form data for display and come out again on save.
 const FILLED: Readonly<Partial<Record<Group, readonly string[]>>> = {
-  stations: ["count", "sort", "tile_shape", "map_provider", "payment_mode"],
+  stations: ["count", "sort", "tile_shape", "row_style", "map_provider", "payment_mode"],
 };
 
 const FUEL_TYPES: readonly FuelType[] = ["DIE", "SUP", "GAS"];
@@ -257,6 +257,7 @@ export class TankstellenAustriaCardEditor extends LitElement implements Lovelace
           toggle("stations", "index"),
           toggle("stations", "brand"),
           ...(on("index") || on("brand") ? [this._select("tile_shape", ["square", "circle"])] : []),
+          this._select("row_style", ["plain", "brand", "gradient"]),
           toggle("stations", "map_links"),
           this._select("map_provider", ["auto", "google", "apple"]),
           toggle("stations", "distance"),
@@ -548,7 +549,7 @@ export class TankstellenAustriaCardEditor extends LitElement implements Lovelace
         <div class="recorder-hint-actions">
           <ha-button
             appearance="plain"
-            size="small"
+            size="s"
             aria-label=${this._et("copy_recorder_snippet")}
             @click=${() => this._onCopyRecorderSnippet(snippet)}
           >

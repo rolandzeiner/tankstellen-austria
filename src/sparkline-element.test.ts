@@ -18,8 +18,11 @@ type Sparkline = LitElement & {
   hour12: boolean;
 };
 
-// Hourly points over the last week, so the chart has geometry to hover.
-const NOW = Date.UTC(2026, 10, 2, 12, 0, 0);
+// Hourly points over the last week, so the chart has geometry to hover. The
+// chart keeps only the last seven days by the real clock, so the points are
+// placed relative to the current hour: a fixed date drew an empty chart, and
+// failed every test here, from a week after it was written.
+const NOW = Math.floor(Date.now() / 3_600_000) * 3_600_000;
 const POINTS: HistoryPoint[] = Array.from({ length: 24 * 7 }, (_, i) => ({
   time: NOW - (24 * 7 - i) * 3_600_000,
   value: 1.5 + 0.05 * Math.sin(i / 4),

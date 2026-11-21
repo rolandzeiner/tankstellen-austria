@@ -342,6 +342,55 @@ describe("tankstellen-austria-card", () => {
     expect(await tiles({ stations: { index: false } })).toEqual([]);
   });
 
+  it("puts each station on its brand's plate with stations.row_style", async () => {
+    const plates = async (row_style?: string) => {
+      const h = hass();
+      h.states["sensor.tankstellen_diesel"]!.attributes.stations = [
+        { name: "JET TANKSTELLE", price: 1.5, open: true },
+        { name: "Landforst Obdach", price: 1.6, open: true },
+      ];
+      const el = await mount<Card>("tankstellen-austria-card", (e) => {
+        e.setConfig({ type: "x", stations: row_style ? { row_style } : {} });
+        e.hass = h;
+      });
+      const list = el.shadowRoot!.querySelector(".stations")!;
+      const found = {
+        plates: list.classList.contains("plates"),
+        rows: [...list.querySelectorAll<HTMLElement>(".st")].map((li) => [
+          [...li.classList].filter((c) => c.startsWith("plate-")).join(" "),
+          li.style.getPropertyValue("--tankst-row-bg"),
+        ]),
+      };
+      el.remove();
+      return found;
+    };
+    const plain = {
+      plates: false,
+      rows: [
+        ["", ""],
+        ["", ""],
+      ],
+    };
+    expect(await plates()).toEqual(plain);
+    expect(await plates("plain")).toEqual(plain);
+    expect(await plates("sparkly")).toEqual(plain);
+    // An unknown brand gets a plate, but never a brand's colour.
+    expect(await plates("brand")).toEqual({
+      plates: true,
+      rows: [
+        ["plate-brand", "#ffb700"],
+        ["", ""],
+      ],
+    });
+    expect(await plates("gradient")).toEqual({
+      plates: true,
+      rows: [
+        ["plate-fade", "#ffb700"],
+        ["", ""],
+      ],
+    });
+  });
+
   it("draws round rank tiles with stations.tile_shape: circle", async () => {
     const circles = async (stations: Record<string, unknown>) => {
       const el = await mount<Card>("tankstellen-austria-card", (e) => {
@@ -572,6 +621,51 @@ describe("unreachable notice", () => {
   });
 });
 
+describe("profile switches that touch no sensor", () => {
+  // The history fetch started at mount updates _history, which would carry
+  // the switch through the re-render gate on its own; let it land first.
+  async function settled(h: HomeAssistant, config: Record<string, unknown> = {}): Promise<Card> {
+    const el = await mount<Card>("tankstellen-austria-card", (e) => {
+      e.setConfig({ type: "x", entities: ["sensor.tankstellen_diesel"], ...config });
+      e.hass = h;
+    });
+    await new Promise((r) => setTimeout(r, 0));
+    await el.updateComplete;
+    return el;
+  }
+
+  it("turns the adaptive logo with the theme", async () => {
+    // The silhouette is black on a light theme and white on a dark one. The
+    // gate used to skip a theme switch, which left it black on a dark card
+    // until the next price update.
+    const h = hass({ themes: { darkMode: false } });
+    const el = await settled(h, { footer: { adaptive_logo: true } });
+    const logo = (): string => el.shadowRoot!.querySelector(".brand-logo")!.className;
+    expect(logo()).toContain("adaptive-light");
+    el.hass = { ...h, themes: { darkMode: true } };
+    await el.updateComplete;
+    expect(logo()).toContain("adaptive-dark");
+  });
+
+  it("re-renders when the profile's time format changes", async () => {
+    const h = hass({ locale: { language: "en", time_format: "24" } });
+    const el = await settled(h);
+    const render = vi.spyOn(el as unknown as { render: () => unknown }, "render");
+    el.hass = { ...h, locale: { language: "en", time_format: "12" } };
+    await el.updateComplete;
+    expect(render).toHaveBeenCalledTimes(1);
+  });
+
+  it("still ignores a hass that changed nothing the card shows", async () => {
+    const h = hass({ themes: { darkMode: false }, locale: { language: "en" } });
+    const el = await settled(h);
+    const render = vi.spyOn(el as unknown as { render: () => unknown }, "render");
+    el.hass = { ...h, states: { ...h.states, "light.kitchen": { ...h.states["light.kitchen"]! } } };
+    await el.updateComplete;
+    expect(render).not.toHaveBeenCalled();
+  });
+});
+
 describe("tankstellen-austria-card-editor", () => {
   it("renders with a config and hass", async () => {
     const el = await mount<Editor>("tankstellen-austria-card-editor", (e) => {
@@ -613,8 +707,15 @@ describe("fuel tabs", () => {
     });
     expect(tabs(el)).toHaveLength(2);
     expect(selected(el)).toBe(0);
+    // The tab pattern whole: a named list, and one panel named by its tab.
+    const root = el.shadowRoot!;
+    const panel = root.querySelector('[role="tabpanel"]')!;
+    expect(root.querySelector('[role="tablist"]')!.getAttribute("aria-label")).toBe("Fuel types");
+    expect(tabs(el).map((t) => t.getAttribute("aria-controls"))).toEqual([panel.id, panel.id]);
+    expect(panel.getAttribute("aria-labelledby")).toBe(tabs(el)[0]!.id);
     await press(el, 0, "ArrowRight");
     expect(selected(el)).toBe(1);
+    expect(panel.getAttribute("aria-labelledby")).toBe(tabs(el)[1]!.id);
     await press(el, 1, "ArrowRight");
     expect(selected(el)).toBe(0);
     await press(el, 0, "ArrowLeft");
