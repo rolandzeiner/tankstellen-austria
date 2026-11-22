@@ -85,32 +85,6 @@ export const cardStyles = css`
     font-size: 0.875em;
   }
 
-  /* ── Version-mismatch banner ────────────────────────────────────── */
-  .version-notice {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    background: var(--tankst-warning);
-    color: #fff;
-    padding: 10px 14px;
-    font-size: var(--ha-font-size-s, 0.857rem);
-    font-weight: var(--ha-font-weight-medium, 500);
-  }
-  .version-reload-btn {
-    flex-shrink: 0;
-    background: #fff;
-    color: var(--tankst-warning);
-    border: none;
-    border-radius: var(--ha-border-radius-pill, 999px);
-    padding: 6px 14px;
-    font-weight: 600;
-    font-size: var(--ha-font-size-s, 0.857rem);
-    cursor: pointer;
-    min-height: 32px;
-    font-family: inherit;
-  }
-
   /* ── Tabs ───────────────────────────────────────────────────────── */
   .tabs {
     display: flex;

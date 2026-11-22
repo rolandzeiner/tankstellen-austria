@@ -30,6 +30,7 @@ import type {
 } from "./types";
 import {
   CARD_VERSION,
+  DOMAIN,
   DYNAMIC_MANUAL_COOLDOWN_MS,
   POST_REFRESH_CHECK_MS,
   HISTORY_REFRESH_MS,
@@ -62,7 +63,7 @@ import {
   type HourlyEnvelope,
 } from "./analytics/best-refuel";
 import { cardStyles } from "./styles";
-import { checkCardVersionWS, renderVersionBanner, reloadAfterCacheWipe } from "./shared-render";
+import { versionBanner } from "./version-banner";
 import {
   detectNavPlatform,
   E_CONTROL_HOMEPAGE,
@@ -146,15 +147,14 @@ export class TankstellenAustriaCard extends LitElement {
   @property({ reflect: true }) public layout?: string;
 
   // Set by HA to true while the card is the live preview in the edit-card
-  // dialog. The version banner stays out of it: its Reload button would
-  // reload the page and throw away the edit in progress.
+  // dialog. The version banner reads it and stays out: its Reload button
+  // would reload the page and throw away the edit in progress.
   @property({ type: Boolean }) public preview = false;
 
   @state() private _config!: TankstellenAustriaCardConfig;
   @state() private _activeTab = 0;
   @state() private _expandedStations: Set<string> = new Set();
   @state() private _history: Record<string, HistoryPoint[]> = {};
-  @state() private _versionMismatch: string | null = null;
   @state() private _lastManualRefresh = 0;
   @state() private _noNewData = false;
   @state() private _historyError = false;
@@ -261,7 +261,7 @@ export class TankstellenAustriaCard extends LitElement {
   // Render gate. Lit re-renders on every `hass` assignment, and HA assigns a
   // new `hass` for every state change anywhere in the install. Re-render
   // only on: config change, UI state change, history arrival, a history or
-  // maintenance notice changing, version-mismatch discovery, cooldown tick,
+  // maintenance notice changing, cooldown tick,
   // a layout or preview change from HA, a profile switch (language, theme,
   // locale), or a new state object for an entity this card tracks.
   protected override shouldUpdate(changed: PropertyValues): boolean {
@@ -273,7 +273,6 @@ export class TankstellenAustriaCard extends LitElement {
       changed.has("_history") ||
       changed.has("_historyError") ||
       changed.has("_apiMaintenance") ||
-      changed.has("_versionMismatch") ||
       changed.has("_lastManualRefresh") ||
       changed.has("_noNewData") ||
       changed.has("_cooldownTick")
@@ -283,7 +282,7 @@ export class TankstellenAustriaCard extends LitElement {
     // Lit writes reflected attributes in update(), so returning false in the
     // cycle that changes layout leaves the attribute stale until some later
     // change gets through, and the grid-cell rules in styles.ts don't match
-    // until then. preview hides the version banner.
+    // until then. preview reaches the version banner.
     if (changed.has("layout") || changed.has("preview")) return true;
     const prev = changed.get("hass") as HomeAssistant | undefined;
     if (!prev) return true;
@@ -436,7 +435,7 @@ export class TankstellenAustriaCard extends LitElement {
 
   protected override updated(_changed: PropertyValues): void {
     // One-shot bootstrap on first hass arrival. Only while connected: a
-    // history or version answer that lands after removal still updates the
+    // history answer that lands after removal still updates the
     // detached card, and without the check that update would start an
     // interval nothing ever clears.
     if (!this._initDone && this.isConnected && this.hass && this._config) {
@@ -445,7 +444,6 @@ export class TankstellenAustriaCard extends LitElement {
       this._historyInterval = window.setInterval(() => {
         void this._fetchAllHistory();
       }, HISTORY_REFRESH_MS);
-      void this._checkCardVersion();
     }
   }
 
@@ -463,15 +461,6 @@ export class TankstellenAustriaCard extends LitElement {
       console.warn("[Tankstellen Austria] history refresh failed", err);
       this._historyError = true;
     }
-  }
-
-  private async _checkCardVersion(): Promise<void> {
-    const mismatch = await checkCardVersionWS(
-      this.hass,
-      "tankstellen_austria/card_version",
-      CARD_VERSION,
-    );
-    if (mismatch) this._versionMismatch = mismatch;
   }
 
   // --- Render ---
@@ -494,7 +483,7 @@ export class TankstellenAustriaCard extends LitElement {
     if (!entities.length) {
       return html`
         <ha-card>
-          ${this._renderVersionBanner()}
+          ${this._versionBanner()}
           <div class="empty">${this._t("no_data")}</div>
           ${this._renderFooter(undefined)}
         </ha-card>
@@ -507,6 +496,7 @@ export class TankstellenAustriaCard extends LitElement {
 
     return html`
       <ha-card>
+        ${this._versionBanner()}
         ${this._renderTabs(entities, activeTab)}
         <div
           class="body"
@@ -514,7 +504,6 @@ export class TankstellenAustriaCard extends LitElement {
           role=${entities.length > 1 ? "tabpanel" : nothing}
           aria-labelledby=${entities.length > 1 ? `tsa-tab-${activeTab}` : nothing}
         >
-          ${this._renderVersionBanner()}
           ${
             this._apiMaintenance && active.state === "unavailable"
               ? html`<ha-alert alert-type="info" role="status">
@@ -573,29 +562,16 @@ export class TankstellenAustriaCard extends LitElement {
     `;
   }
 
-  private _renderVersionBanner(): TemplateResult | typeof nothing {
-    if (this.preview) return nothing;
-    // If the user already clicked reload in this session and the version
-    // we just saw from the backend is still ahead of CARD_VERSION, the
-    // reload didn't pick up the new bundle (likely a stuck SW/CDN cache).
-    // Switch the banner to a stuck-state message so the user isn't
-    // trapped in a reload → banner → reload loop.
-    const stuck =
-      this._versionMismatch !== null &&
-      typeof sessionStorage !== "undefined" &&
-      sessionStorage.getItem(`tsa-reload-attempted-${this._versionMismatch}`) === "1";
-    return renderVersionBanner({
-      mismatchVersion: this._versionMismatch,
-      stuck,
-      t: (key, repl) => this._t(key, repl),
-      onReload: this._onVersionReload,
-      onDismiss: this._onDismissVersionBanner,
+  // The portfolio's version banner (src/version-banner.ts), first in every
+  // ha-card but the loading state.
+  private _versionBanner(): TemplateResult | typeof nothing {
+    return versionBanner(this.hass, {
+      domain: DOMAIN,
+      version: CARD_VERSION,
+      name: "Tankstellen Austria",
+      preview: this.preview,
     });
   }
-
-  private _onDismissVersionBanner = (): void => {
-    this._versionMismatch = null;
-  };
 
   private _renderTabs(
     entities: TankstellenEntity[],
@@ -1428,20 +1404,6 @@ export class TankstellenAustriaCard extends LitElement {
         this._cooldownTick = (this._cooldownTick + 1) % 1_000_000;
       }, 1000);
     }
-  };
-
-  private _onVersionReload = async (): Promise<void> => {
-    // Flag this target version as "user tried reload" before the page
-    // unloads, so on re-render the banner flips to the stuck-state
-    // variant instead of a second reload button.
-    if (this._versionMismatch) {
-      try {
-        sessionStorage.setItem(`tsa-reload-attempted-${this._versionMismatch}`, "1");
-      } catch {
-        // sessionStorage can be disabled in private browsing — fall through.
-      }
-    }
-    await reloadAfterCacheWipe();
   };
 
   static override styles: CSSResultGroup = cardStyles;

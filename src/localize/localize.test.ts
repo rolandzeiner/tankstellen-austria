@@ -27,8 +27,8 @@ describe("resolveLang", () => {
 describe("translate and getFuelName", () => {
   it("fills placeholders and falls back to the key", () => {
     expect(translate("card.cash", { hassLanguage: "en" })).toBe("Cash");
-    expect(translate("card.version_update", { hassLanguage: "en" }, { v: "1.2" })).toContain(
-      "v1.2",
+    expect(translate("card.best_refuel_hour", { hassLanguage: "en" }, { h1: "7", h2: "9" })).toBe(
+      "Cheapest 7:00–9:00",
     );
     expect(translate("no.such.key", { hassLanguage: "en" })).toBe("no.such.key");
     expect(getFuelName("DIE", { hassLanguage: "en" })).toBe("Diesel");

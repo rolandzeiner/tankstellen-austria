@@ -180,18 +180,16 @@ describe("tankstellen-austria-card", () => {
     expect(ctor.getPropertyOptions("layout").reflect).toBe(true);
   });
 
-  it("shows the version banner on the dashboard but not in the edit-dialog preview", async () => {
+  it("puts the version banner first in the card, and leaves it out of the edit-dialog preview", async () => {
     const el = await mount<Card>("tankstellen-austria-card", (e) => {
       e.setConfig({ type: "x" });
       e.hass = hass();
     });
-    const banner = () => el.shadowRoot?.querySelector(".version-notice");
-    (el as unknown as { _versionMismatch: string | null })._versionMismatch = "9.9.9";
-    await el.updateComplete;
-    expect(banner()).not.toBeNull();
+    const card = () => el.shadowRoot?.querySelector("ha-card");
+    expect(card()?.firstElementChild?.localName).toBe("rz-version-banner-r1");
     (el as unknown as { preview: boolean }).preview = true;
     await el.updateComplete;
-    expect(banner()).toBeNull();
+    expect(card()?.querySelector("rz-version-banner-r1")).toBeNull();
   });
 
   it("shows the loading state before hass arrives", async () => {
